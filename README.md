@@ -1,7 +1,7 @@
 arroba [![Circle CI](https://circleci.com/gh/snarfed/arroba.svg?style=svg)](https://circleci.com/gh/snarfed/arroba) [![Coverage Status](https://coveralls.io/repos/github/snarfed/arroba/badge.svg?branch=main)](https://coveralls.io/github/snarfed/arroba?branch=master)
 ===
 
-Python implementation of [Bluesky](https://blueskyweb.xyz/)'s low level [AT Protocol](https://atproto.com/), including [data repository](https://atproto.com/guides/data-repos), [Merkle search tree](https://atproto.com/guides/data-repos), and [com.atproto.sync XRPC methods](https://atproto.com/lexicons/com-atproto-sync).
+Python implementation of [Bluesky](https://blueskyweb.xyz/) [PDS](https://atproto.com/guides/data-repos) and [AT Protocol](https://atproto.com/specs/atp), including data repository, Merkle search tree, and [com.atproto.sync XRPC methods](https://atproto.com/lexicons/com-atproto-sync).
 
 _Arroba_ is the Spanish word for the [@ character](https://en.wikipedia.org/wiki/At_sign) ("at sign").
 

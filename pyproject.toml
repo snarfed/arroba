@@ -13,7 +13,7 @@ version = '0.1'
 authors = [
     { name='Ryan Barrett', email='arroba@ryanb.org' },
 ]
-description = "Python implementation of Bluesky's low level AT Protocol, including repo, MST, and sync methods"
+description = "Python implementation of Bluesky PDS and AT Protocol, including repo, MST, and sync methods"
 readme = 'README.md'
 requires-python = '>=3.9'
 keywords = ['arroba', 'AT Protocol', 'ATP', 'Bluesky']
