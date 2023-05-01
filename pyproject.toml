@@ -35,3 +35,4 @@ classifiers = [
 
 [project.urls]
 'Homepage' = 'https://github.com/snarfed/arroba'
+'Documentation' = 'https://arroba.readthedocs.io/'
