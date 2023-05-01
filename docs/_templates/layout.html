@@ -1,0 +1,24 @@
+{% extends "!layout.html" %}
+
+{%- block navigation %}
+
+
+<div style="width: 300px; text-align: center; font-size: larger">
+
+<a href="https://atproto.com/specs/atp">AT Protocol</a> in Python</p>
+
+</div>
+
+<div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="{{ _('Navigation menu') }}">
+<div class="local-toc">
+  <ul>
+    <li><a href="{{ pathto('index') }}">Getting started</a></li>
+    <li><a href="{{ pathto('source/arroba') }}">Reference documentation</a></li>
+  </ul>
+  <hr style="margin: 1em">
+  {{ toc }}
+</div>
+</div>
+
+
+{%- endblock %}
