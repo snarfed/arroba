@@ -1,0 +1,37 @@
+# https://packaging.python.org/en/latest/tutorials/packaging-projects/
+
+[build-system]
+requires = ['setuptools>=61.0']
+build-backend = 'setuptools.build_meta'
+
+[tool.setuptools]
+packages = ['arroba']
+
+[project]
+name = 'arroba'
+version = '0.1'
+authors = [
+    { name='Ryan Barrett', email='arroba@ryanb.org' },
+]
+description = "Python implementation of Bluesky's low level AT Protocol, including repo, MST, and sync methods"
+readme = 'README.md'
+requires-python = '>=3.9'
+keywords = ['arroba', 'AT Protocol', 'ATP', 'Bluesky']
+dependencies = [
+    'dag-cbor',
+    'dag-json',
+    'multiformats>=0.2.0',
+    'pycryptodome>=3.0',
+]
+classifiers = [
+    'Programming Language :: Python :: 3',
+    'Programming Language :: Python :: 3.9',
+    'License :: Public Domain',
+    'Operating System :: OS Independent',
+    'Intended Audience :: Developers',
+    'Development Status :: 3 - Alpha',
+    'Topic :: Software Development :: Libraries :: Python Modules',
+]
+
+[project.urls]
+'Homepage' = 'https://github.com/snarfed/arroba'
