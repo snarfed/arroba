@@ -1,9 +1,8 @@
 """Unit tests for util.py."""
 from Crypto.PublicKey import ECC
-from datetime import datetime, timezone
 from multiformats import CID
 
-from arroba.util import (
+from ..util import (
     dag_cbor_cid,
     datetime_to_tid,
     new_p256_key,
@@ -11,12 +10,10 @@ from arroba.util import (
     tid_to_datetime,
     verify_commit_sig,
 )
-from . import testutil
+from .testutil import NOW, TestCase
 
 
-NOW = datetime(2022, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
-
-class UtilTest(testutil.TestCase):
+class UtilTest(TestCase):
 
     def test_dag_cbor_cid(self):
         self.assertEqual(

@@ -9,7 +9,7 @@ Daniel Holmgren and Devin Ivy for this code specifically!
 from collections import namedtuple
 import logging
 
-from arroba.mst import Leaf, MST, Walker
+from .mst import Leaf, MST, Walker
 
 logger = logging.getLogger(__name__)
 

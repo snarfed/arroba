@@ -1,7 +1,7 @@
 """Unit tests for mst.py.
 
 Heavily based on:
-https://github.com/bluesky/atproto/blob/main/packages/repo/tests/mst.test.ts
+https://github.com/bluesky-social/atproto/blob/main/packages/repo/tests/mst.test.ts
 
 Huge thanks to the Bluesky team for working in the public, in open source, and to
 Daniel Holmgren and Devin Ivy for this code specifically!
@@ -11,7 +11,8 @@ import random
 import dag_cbor.random
 from multiformats import CID
 
-from arroba.mst import common_prefix_len, ensure_valid_key, MST
+from ..mst import common_prefix_len, ensure_valid_key, MST
+from .. import util
 from . import testutil
 
 CID1 = CID.decode('bafyreie5cvv4h45feadgeuwhbcutmh6t2ceseocckahdoe6uat64zmz454')
@@ -278,3 +279,10 @@ class MstTest(testutil.TestCase):
         self.assertEqual(3, mst.leaf_count())
         self.assertEqual(2, mst.layer)
         self.assertEqual(l2root, mst.get_pointer().encode('base32'))
+
+    # def test_saves_and_loads_from_blockstore(self):
+    #     root = util.save_mst(blockstore, mst)
+    #     loaded = MST.load(blockstore, root)
+    #     orig_nodes = mst.all_nodes()
+    #     loaded_nodes = loaded.all_nodes()
+    #     self.assertEqual(orig_nodes, loaded_nodes)

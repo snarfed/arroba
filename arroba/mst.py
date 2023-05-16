@@ -5,13 +5,10 @@
 * https://hal.inria.fr/hal-02303490/document
 
 Heavily based on:
-https://github.com/bluesky/atproto/blob/main/packages/repo/src/mst/mst.ts
+https://github.com/bluesky-social/atproto/blob/main/packages/repo/src/mst/mst.ts
 
 Huge thanks to the Bluesky team for working in the public, in open source, and to
 Daniel Holmgren and Devin Ivy for this code specifically!
-
-Notable differences:
-* All in memory, no block storage (yet)
 
 From that file:
 
@@ -50,12 +47,16 @@ If the first leaf in a tree is `bsky/posts/abcdefg` and the second is
 from collections import namedtuple
 import copy
 from hashlib import sha256
+import logging
 from os.path import commonprefix
 import re
 
 from multiformats import CID
 
-from arroba.util import dag_cbor_cid
+from .storage import BlockMap, Storage
+from .util import dag_cbor_cid
+
+logger = logging.getLogger(__name__)
 
 # this is treeEntry in mst.ts
 Entry = namedtuple('Entry', [
@@ -80,29 +81,51 @@ class MST:
     """Merkle search tree class.
 
     Attributes:
+      storage: :class:`Storage`
       entries: sequence of :class:`MST` and :class:`Leaf`
       layer: int, this MST's layer in the root MST
       pointer: :class:`CID`
       outdated_pointer: boolean, whether pointer needs to be recalculated
     """
+    storage = None
     entries = None
     layer = None
     pointer = None
     outdated_pointer = False
 
-    def __init__(self, entries=None, pointer=None, layer=None):
+    def __init__(self, *, storage=None, entries=None, pointer=None, layer=None):
         """Constructor.
+
         Args:
-            entries: sequence of :class:`MST` and :class:`Leaf`
-            pointer: :class:`CID`
-            layer: int
+          storage: :class:`Storage`
+          entries: sequence of :class:`MST` and :class:`Leaf`
+          pointer: :class:`CID`
+          layer: int
 
         Returns:
-            :class:`MST`
+          :class:`MST`
         """
-        self.entries = entries or []
-        self.pointer = pointer or cid_for_entries(self.entries)
+        self.storage = storage
+        self.entries = entries
+        self.pointer = pointer
         self.layer = layer
+
+    @classmethod
+    def create(cls, *, storage=None, entries=None, layer=None):
+        """
+
+        Args:
+          storage: :class:`Storage`
+          entries: sequence of :class:`MST` and :class:`Leaf`
+          layer: int
+
+        Returns:
+          :class:`MST`
+        """
+        if not entries:
+            entries = []
+        pointer = cid_for_entries(entries)
+        return MST(storage=storage, entries=entries, pointer=pointer, layer=layer)
 
 #     def from_data(data: NodeData, opts?: Partial<MstOpts>):
 #         """
@@ -122,7 +145,7 @@ class MST:
         return f'MST with pointer {self.get_pointer()}'
 
     def __repr__(self):
-        return f'MST(entries=..., pointer={self.get_pointer()}, layer={self.get_layer()})'
+        return f'MST(storage={self.storage}, entries=..., pointer={self.get_pointer()}, layer={self.get_layer()})'
 
     # Immutability
     # -------------------
@@ -135,7 +158,8 @@ class MST:
         Returns:
             :class:`MST`
         """
-        mst = MST(entries=entries, pointer=self.pointer, layer=self.layer)
+        mst = MST(storage=self.storage, entries=entries, pointer=self.pointer,
+                  layer=self.layer)
         mst.outdated_pointer = True
         return mst
 
@@ -151,11 +175,11 @@ class MST:
         Returns:
           sequence of :class:`MST` and :class:`Leaf`
         """
-        if self.entries:
+        if self.entries is not None:
             return copy.copy(self.entries)
 
         if self.pointer:
-            data = self.storage.read_obj(self.pointer, node_data_def)
+            data = self.storage.read(self.pointer)
             first_leaf = data.e[0]
             layer = leading_zeros_on_hash(first_leaf.k) if first_leaf else None
             self.entries = deserialize_node_data(self.storage, data, {layer})
@@ -229,6 +253,29 @@ class MST:
     # Core functionality
     # -------------------
 
+    def get_unstored_blocks(self):
+        """Return the necessary blocks to persist the MST to repo storage.
+
+        Returns:
+          (:class:`CID` root, :class:`BlockMap`) tuple
+        """
+        blocks = BlockMap()
+        pointer = self.get_pointer()
+
+        if self.storage.has(pointer):
+            return pointer, blocks
+
+        entries = self.get_entries()
+        data = serialize_node_data(entries)
+        blocks.add(data._asdict())
+
+        for entry in entries:
+            if isinstance(entry, MST):
+                subtree = entry.get_unstored_blocks()
+                blocks.update(subtree.blocks)
+
+        return pointer, blocks
+
     def add(self, key, value=None, known_zeros=None):
         """Adds a new leaf for the given key/value pair.
 
@@ -297,7 +344,7 @@ class MST:
             if right:
                 updated.append(right)
 
-            new_root = MST(entries=updated, layer=key_zeros)
+            new_root = MST.create(storage=self.storage, entries=updated, layer=key_zeros)
             new_root.outdated_pointer = True
             return new_root
 
@@ -320,7 +367,7 @@ class MST:
             return prev.get(key)
 
     def update(self, key, value):
-        """Edits the value at the given key
+        """Edits the value at the given key.
 
         Args:
           key: str
@@ -388,10 +435,10 @@ class MST:
         prev = self.at_index(index - 1)
         if isinstance(prev, MST):
             subtree = prev.delete_recurse(key)
-            if subtree.entries == 0:
-                return self.remove_entry(index - 1)
-            else:
+            if subtree.entries:
                 return self.update_entry(index - 1, subtree)
+            else:
+                return self.remove_entry(index - 1)
 
         raise KeyError(f'Could not find a record with key: {key}')
 
@@ -586,14 +633,16 @@ class MST:
         Returns:
           :class:`MST`
         """
-        return MST(entries=[], layer=self.get_layer() - 1)
+        return MST.create(storage=self.storage, entries=[],
+                          layer=self.get_layer() - 1)
 
     def create_parent(self):
         """
         Returns:
           :class:`MST`
         """
-        parent = MST(entries=[self], layer=self.get_layer() + 1)
+        parent = MST.create(storage=self.storage, entries=[self],
+                            layer=self.get_layer() + 1)
         parent.outdated_pointer = True
         return parent
 

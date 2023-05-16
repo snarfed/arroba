@@ -1,13 +1,15 @@
 """Common test utility code."""
-from datetime import datetime
+from datetime import datetime, timezone
 import random
 import unittest
 from unittest.mock import ANY, call
 
 import dag_cbor.random
 
-from arroba import util
-from arroba.util import datetime_to_tid
+from .. import util
+from ..util import datetime_to_tid
+
+NOW = datetime(2022, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
 
 
 class TestCase(unittest.TestCase):

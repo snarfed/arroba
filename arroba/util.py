@@ -118,7 +118,8 @@ def tid_to_datetime(tid):
     return datetime.fromtimestamp(s32decode(encoded) / 1000 / 1000, timezone.utc)
 
 
-# TODO
+# TODO: bring this back and use it to ensure that Object.created timestamps'
+# TIDs don't collide
 # def next_tid():
 #     global _tid_last
 
