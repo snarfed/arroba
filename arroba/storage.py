@@ -3,16 +3,31 @@
 Lightly based on:
 https://github.com/bluesky-social/atproto/blob/main/packages/repo/src/storage/repo-storage.ts
 """
-import dag_cbor.encoding
+from collections import namedtuple
+
+import dag_cbor.decoding, dag_cbor.encoding
 from multiformats import CID, multicodec, multihash
 
 from .util import dag_cbor_cid
 
 
+CommitData = namedtuple('CommitData', [
+  'commit',  # CID
+  'blocks',  # BlockMap
+  'prev',    # CID or None
+])
+
+
 class BlockMap(dict):
-    """dict subclass that stores blocks as CID => bytes mappings."""
+    """dict subclass that stores blocks as CID => blocks (bytes) mappings.
+
+    A block is a DAG-CBOR encoded node, ie a record, MST entry, or commit.
+    """
     def add(self, val):
-        """Encodes a value as a block and stores it.
+        """Encodes a value as a block and adds it.
+
+        TODO: remove or refactor? keep the invariant that BlockMap stores
+        blocks, Storage stores records?
 
         Args:
           val: dict, record
@@ -36,13 +51,17 @@ class BlockMap(dict):
 
 
 class Storage:
-    """Abstract base class for storing all nodes: records, MST, commit chain.
+    """Abstract base class for storing nodes: records, MST entries, and commits.
 
     Concrete subclasses should implement this on top of physical storage,
     eg database, filesystem, in memory.
 
     # TODO: batch operations?
+
+    Attributes:
+      head: :class:`CID`
     """
+    head = None
 
     def read(self, cid):
         """Reads a node from storage.
@@ -52,6 +71,18 @@ class Storage:
 
         Returns:
           dict, a record, commit, or serialized MST node
+        """
+        raise NotImplementedError()
+
+    def read_many(self, cids):
+        """Batch lookup.
+
+        Args:
+          sequence of :class:`CID`
+
+        Returns:
+          tuple: (:class:`BlockMap` with found blocks,
+                  sequence of :class:`CID` that weren't found)
         """
         raise NotImplementedError()
 
@@ -77,18 +108,48 @@ class Storage:
         """
         raise NotImplementedError()
 
+    def apply_commit(self, commit_data):
+        """Writes a commit to storage.
+
+        Args:
+          commit: :class:`CommitData`
+        """
+        raise NotImplementedError()
+
 
 class MemoryStorage(Storage):
-    """In memory storage implementation."""
+    """In memory storage implementation.
+
+    Attributes:
+      blocks: :class:`BlockMap`
+    """
+    blocks = None
 
     def __init__(self):
-        self.store = {}
+        self.blocks = BlockMap()
 
     def read(self, cid):
-        return self.store[cid]
+        return dag_cbor.decoding.decode(self.blocks[cid])
+
+    def read_many(self, cids):
+        found = {}
+        missing = []
+
+        for cid in cids:
+            block = self.blocks.get(cid)
+            if block:
+                found[cid] = block
+            else:
+                missing.append(cid)
+
+        return found, missing
 
     def has(self, cid):
-        return cid in self.store
+        return cid in self.blocks
 
     def write(self, node):
-        self.store[dag_cbor_cid(node)] = node
+        self.blocks.add(node)
+
+    def apply_commit(self, commit_data):
+        self.blocks.update(commit_data.blocks)
+        self.head = commit_data.commit

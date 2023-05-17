@@ -164,12 +164,15 @@ def sign_commit(commit, key):
       https://soatok.blog/2022/05/19/guidance-for-choosing-an-elliptic-curve-signature-algorithm-in-2022/
 
     Args:
-      commit: dict repo commit
+      commit: dict, repo commit
       key: :class:`Crypto.PublicKey.ECC.EccKey`
+
+    Returns: 
+      dict, repo commit
     """
     signer = DSS.new(key, 'fips-186-3', randfunc=_randfunc)
     commit['sig'] = signer.sign(SHA256.new(dag_cbor.encoding.encode(commit)))
-
+    return commit
 
 def verify_commit_sig(commit, key):
     """Returns true if the commit's signature is valid, False otherwise.

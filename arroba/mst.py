@@ -106,7 +106,7 @@ class MST:
           :class:`MST`
         """
         self.storage = storage
-        self.entries = entries
+        self.entries = entries or []
         self.pointer = pointer
         self.layer = layer
 
@@ -942,9 +942,8 @@ def layer_for_entries(entries):
 #     entries = []
 #     if (data.l is not None):
 #         entries.append(
-#             MST.load(storage, data.l,:
-#                 layer: layer ? layer - 1 : undefined,
-#             )
+#             MST(storage=storage, pointer=data.l,
+#                 layer=layer - 1 if layer else None)
 
 #     last_key = ''
 #     for entry in data.e:
@@ -955,9 +954,8 @@ def layer_for_entries(entries):
 #         last_key = key
 #         if entry.t is not None:
 #             entries.append(
-#                 MST.load(storage, entry.t,:
-#                     layer: layer ? layer - 1 : undefined,
-#                 )
+#                 MST(storage=storage, pointer=entry.t,
+#                     layer=layer - 1 if layer else undefined)
 
 #     return entries
 

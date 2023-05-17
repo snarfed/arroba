@@ -15,8 +15,9 @@ import logging
 from multiformats import CID
 
 from . import util
+from .diff import Diff
 from .mst import MST
-from .storage import BlockMap, Storage
+from .storage import BlockMap, CommitData, Storage
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ Write = namedtuple('Write', [
     'collection',  # str
     'rkey',        # str
     'record',      # dict
-])
+], defaults=[None] * 4)
 
 
 class Repo:
@@ -76,56 +77,40 @@ class Repo:
     #     """TODO"""
     #     raise NotImplementedError()
 
-    # @classmethod
-    # def load(cls, storage, commit_cid):
-    #     """Returns a Repo ...
-    #
-    #     Args:
-    #       storage: :class:`Storage`
-    #       commit_cid: :class:`CID`
-    #
-    #     Returns:
-    #       dict node, record or commit or serialized MST
-    #     """
-    #     commit = storage.read(commit_cid)
-    #     mst = MST.load(storage, commit.mst)
-    #     logger.info(f'loaded repo for {commit.did}')
-        # return Repo(storage=storage, mst=mst, commit=commit, cid=commit_cid)
-
     # TODO: are these two unused? delete them?
-    # @property
-    # def did(self):
-    #     """
+    @property
+    def did(self):
+        """
 
-    #     Returns:
-    #       str, DID
-    #     """
-    #     return self.commit.did
+        Returns:
+          str, DID
+        """
+        if self.commit:
+            return self.commit['did']
 
-    # @property
-    # def version(self):
-    #     """
+    @property
+    def version(self):
+        """
 
-    #     Returns:
-    #       int, AT Protocol version
-    #     """
-    #     return self.commit.version
+        Returns:
+          int, AT Protocol version
+        """
+        if self.commit:
+            return self.commit['version']
 
-    # def get_record(self, collection, rkey):
-    #     """
+    def get_record(self, collection, rkey):
+        """
 
-    #     Args:
-    #       collection: str
-    #       rkey: str
+        Args:
+          collection: str
+          rkey: str
 
-    #     Returns:
-    #       dict node, record or commit or serialized MST
-    #     """
-    #     data_key = f'{collection}/{rkey}'
-    #     cid = self.mst.get(data_key)
-    #     if not cid:
-    #         return None
-    #     return self.storage.read(cid)
+        Returns:
+          dict node, record or commit or serialized MST
+        """
+        cid = self.mst.get(f'{collection}/{rkey}')
+        if cid:
+            return self.storage.read(cid)
 
     # def get_contents(self):
     #     """
@@ -135,7 +120,7 @@ class Repo:
     #     """
     #     entries = self.mst.list()
     #     cids = entries.values()
-    #     blocks, missing = self.storage.get_blocks(cids)
+    #     blocks, missing = self.storage.read_many(cids)
     #     if missing:
     #         raise MissingBlocksError('get_contents record', missing)
 
@@ -157,7 +142,7 @@ class Repo:
           initial_writes: sequence of :class:`Write`
 
         Returns:
-          dict, commit data
+          :class:`CommitData`
         """
         new_blocks = BlockMap()
 
@@ -168,7 +153,6 @@ class Repo:
                 data_key = util.format_data_key(record.collection, record.rkey)
                 mst = mst.add(data_key, cid)
 
-        print(mst.pointer)
         root, blocks = mst.get_unstored_blocks()
         new_blocks.update(blocks)
 
@@ -176,15 +160,10 @@ class Repo:
             'did': did,
             'version': 2,
             'prev': None,
-            'mst': root,
+            'data': root,
         }, key)
         commit_cid = new_blocks.add(commit)
-
-        return {
-            'commit': commit_cid,
-            'prev': None,
-            'blocks': new_blocks,
-        }
+        return CommitData(commit=commit_cid, prev=None, blocks=new_blocks)
 
     @classmethod
     def create_from_commit(cls, storage, commit):
@@ -192,7 +171,7 @@ class Repo:
 
         Args:
           storage: :class:`Storage`
-          commit: dict, commit data
+          commit: :class:`CommitData`
 
         Returns:
           :class:`Repo`
@@ -221,85 +200,83 @@ class Repo:
         )
         return Repo.create_from_commit(storage, commit)
 
-    # def load(self, storage, cid=None):
-        # """
-        # Args:
-        #   storage: :class:`Storage`
-        #   cid: :class:`CID`, optional
+    @classmethod
+    def load(cls, storage, cid=None):
+        """
+        Args:
+          storage: :class:`Storage`
+          cid: :class:`CID`, optional
 
-        # Returns:
-        #   :class:`Repo`
-        # """
-    #     commit_cid = cid or storage.get_head()
-    #     if not commit_cid:
-    #         raise Error('No cid provided and none in storage')
-    #     commit = storage.read(commit_cid, def.commit)
-    #     mst = MST.load(storage, commit.data)
-    #     logger.info('loaded repo for f{commit.did}')
-        # return Repo(storage=storage, mst=mst, commit=commit, cid=commit_cid)
+        Returns:
+          :class:`Repo`
+        """
+        commit_cid = cid or storage.head
+        assert commit_cid, 'No cid provided and none in storage'
+
+        commit = storage.read(commit_cid)
+        mst = MST(storage=storage, pointer=commit['data'])
+        logger.info('loaded repo for f{commit.did}')
+        return Repo(storage=storage, mst=mst, commit=commit, cid=commit_cid)
 
     def format_commit(self, writes, key):
         """
 
         Args:
           writes: :class:`Write` or sequence of :class:`Write`
-          key: :class:`Crypto.PublicKey.ECC.EccKey` ???
+          key: :class:`Crypto.PublicKey.ECC.EccKey`
 
         Returns:
-          dict, commit data
+          :class:`CommitData`
         """
-        commit_blocks = {}
+        commit_blocks = BlockMap()
         if isinstance(writes, Write):
             writes = [writes]
 
         mst = self.mst
         for write in writes:
             assert isinstance(write, Write)
-            if write.op == WriteOp.CREATE:
+            if write.action == Action.CREATE:
                 cid = commit_blocks.add(write.record)
                 data_key = f'{write.collection}/{write.rkey}'
                 mst = mst.add(data_key, cid)
-            elif write.op == WriteOp.UPDATE:
+            elif write.action == Action.UPDATE:
                 cid = commit_blocks.add(write.record)
                 data_key = f'{write.collection}/{write.rkey}'
                 mst = mst.update(data_key, cid)
-            elif write.op == WriteOp.DELETE:
+            elif write.action == Action.DELETE:
                 data_key = f'{write.collection}/{write.rkey}'
                 mst = mst.delete(data_key)
 
-        unstored_data = mst.get_unstored_blocks()
-        commit_blocks.update(unstored_data.blocks)
+        root, unstored_blocks = mst.get_unstored_blocks()
+        commit_blocks.update(unstored_blocks)
 
         # ensure we're not missing any blocks that were removed and then
         # re-added in this commit
-        diff = DataDiff.of(mst, self.mst)
-        missing = [cid for cid in diff.new_cid_list() if cid not in commit_blocks]
+        diff = Diff.of(mst, self.mst)
+        missing = diff.new_cids - commit_blocks.keys()
         if missing:
-            from_storage = self.storage.get_blocks(missing)
+            storage_blocks, not_found = self.storage.read_many(missing)
             # this shouldn't ever happen
-            assert not from_storage.missing, \
+            assert not not_found, \
                 'Could not find block for commit in Datastore or storage'
-            commit_blocks.update(from_storage.blocks)
+            commit_blocks.update(storage_blocks)
 
         commit = util.sign_commit({
             'did': self.did,
             'version': 2,
             'prev': self.cid,
-            'mst': unstored_data.root,
+            'data': root,
         }, key)
         commit_cid = commit_blocks.add(commit)
 
-        return {
-            'commit': commit_cid,
-            'prev': self.cid,
-            'blocks': commit_blocks,
-        }
+        self.mst = mst  # ??? this isn't in repo.ts
+        return CommitData(commit=commit_cid, prev=self.cid, blocks=commit_blocks)
 
     def apply_commit(self, commit_data):
         """
 
         Args:
-          commit_data: CommitData?
+          commit_data: :class:`CommitData`
 
         Returns:
           :class:`Repo`
@@ -335,7 +312,7 @@ class Repo:
     #         'did': self.did,
     #         'version': 2,
     #         'prev': None,
-    #         'mst': self.commit.mst,
+    #         'data': self.commit.mst,
     #     }, key)
 
     #     commit_cid = blocks.add(commit)

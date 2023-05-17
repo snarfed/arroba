@@ -12,22 +12,23 @@ import random
 from Crypto.PublicKey import ECC
 from multiformats import CID
 
-from ..repo import Action, Repo
+from ..repo import Action, Repo, Write
 from ..storage import MemoryStorage
 from ..util import datetime_to_tid
 from .testutil import NOW, TestCase
 
 P256_KEY = ECC.generate(curve='P-256', randfunc=random.randbytes)
 
+CID.__str__ = CID.__repr__ = lambda cid: cid.encode('base64')
 
 class RepoTest(TestCase):
 
     def setUp(self):
         self.repo = Repo.create(MemoryStorage(), 'did:web:user.com', P256_KEY)
 
-    # def test_metadata(self):
-    #     self.assertEqual(2, self.repo.version)
-    #     self.assertEqual('did:web:user.com', self.repo.did)
+    def test_metadata(self):
+        self.assertEqual(2, self.repo.version)
+        self.assertEqual('did:web:user.com', self.repo.did)
 
     def test_does_basic_operations(self):
         profile = {
@@ -37,29 +38,28 @@ class RepoTest(TestCase):
             'description': None,
         }
         tid = datetime_to_tid(NOW)
-        self.repo = repo.apply_writes(
-            op=Action.CREATE,
+        repo = self.repo.apply_writes(Write(
+            action=Action.CREATE,
             collection='my.stuff',
             rkey=tid,
             record=profile,
-        )
-
+        ), P256_KEY)
         self.assertEqual(profile, self.repo.get_record('my.stuff', tid))
 
         profile['description'] = "I'm the best"
-        repo = self.repo.apply_writes(
-            op=Action.UPDATE,
+        repo = self.repo.apply_writes(Write(
+            action=Action.UPDATE,
             collection='my.stuff',
             rkey=tid,
             record=profile,
-        )
+        ), P256_KEY)
         self.assertEqual(profile, self.repo.get_record('my.stuff', tid))
 
-        repo = self.repo.apply_writes(
-            op=Action.DELETE,
+        repo = self.repo.apply_writes(Write(
+            action=Action.DELETE,
             collection='my.stuff',
             rkey=tid,
-        )
+        ), P256_KEY)
         self.assertIsNone(self.repo.get_record('my.stuff', tid))
 
     # def test_adds_content_collections(self):
