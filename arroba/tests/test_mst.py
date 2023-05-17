@@ -20,8 +20,11 @@ CID1 = CID.decode('bafyreie5cvv4h45feadgeuwhbcutmh6t2ceseocckahdoe6uat64zmz454')
 
 class MstTest(testutil.TestCase):
 
+    def setUp(self):
+        self.mst = MST.create()
+
     def test_add(self):
-        mst = MST()
+        mst = self.mst
         data = self.random_keys_and_cids(1000)
         for key, cid in data:
             mst = mst.add(key, cid)
@@ -33,7 +36,7 @@ class MstTest(testutil.TestCase):
         self.assertEqual(1000, mst.leaf_count())
 
     def test_edits_records(self):
-        mst = MST()
+        mst = self.mst
         data = self.random_keys_and_cids(100)
 
         for key, cid in data:
@@ -50,7 +53,7 @@ class MstTest(testutil.TestCase):
         self.assertEqual(100, mst.leaf_count())
 
     def test_deletes_records(self):
-        mst = MST()
+        mst = self.mst
         data = self.random_keys_and_cids(1000)
         for key, cid in data:
             mst = mst.add(key, cid)
@@ -69,14 +72,14 @@ class MstTest(testutil.TestCase):
             self.assertEqual(cid, mst.get(key))
 
     def test_is_order_independent(self):
-        mst = MST()
+        mst = self.mst
         data = self.random_keys_and_cids(1000)
         for key, cid in data:
             mst = mst.add(key, cid)
 
         all_nodes = mst.all_nodes()
 
-        recreated = MST()
+        recreated = self.mst
         random.shuffle(data)
         for key, cid in data:
             recreated = recreated.add(key, cid)
@@ -100,53 +103,53 @@ class MstTest(testutil.TestCase):
 
     def test_rejects_the_empty_key(self):
         with self.assertRaises(ValueError):
-            MST().add('')
+            self.mst.add('')
 
     def test_rejects_a_key_with_no_collection(self):
         with self.assertRaises(ValueError):
-            MST().add('asdf')
+            self.mst.add('asdf')
 
     def test_rejects_a_key_with_a_nested_collection(self):
         with self.assertRaises(ValueError):
-            MST().add('nested/collection/asdf')
+            self.mst.add('nested/collection/asdf')
 
     def test_rejects_on_empty_coll_or_rkey(self):
         for key in 'coll/', '/rkey':
             with self.assertRaises(ValueError):
-                MST().add(key)
+                self.mst.add(key)
 
     def test_rejects_non_ascii_chars(self):
         for key in 'coll/jalapeñoA', 'coll/coöperative', 'coll/abc💩':
             with self.assertRaises(ValueError):
-                MST().add(key)
+                self.mst.add(key)
 
     def test_rejects_ascii_that_we_dont_support(self):
         for key in ('coll/key$', 'coll/key%', 'coll/key(', 'coll/key)',
                     'coll/key+', 'coll/key='):
             with self.assertRaises(ValueError):
-                MST().add(key)
+                self.mst.add(key)
 
     def test_rejects_keys_over_256_chars(self):
         with self.assertRaises(ValueError):
-            MST().add(
+            self.mst.add(
             'coll/asdofiupoiwqeurfpaosidfuapsodirupasoirupasoeiruaspeoriuaspeoriu2p3o4iu1pqw3oiuaspdfoiuaspdfoiuasdfpoiasdufpwoieruapsdofiuaspdfoiuasdpfoiausdfpoasidfupasodifuaspdofiuasdpfoiasudfpoasidfuapsodfiuasdpfoiausdfpoasidufpasodifuapsdofiuasdpofiuasdfpoaisdufpao',
         )
 
     def test_computes_empty_tree_root_CID(self):
-        self.assertEqual(0, MST().leaf_count())
+        self.assertEqual(0, self.mst.leaf_count())
         self.assertEqual(
             'bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm',
-            MST().get_pointer().encode('base32'))
+            self.mst.get_pointer().encode('base32'))
 
     def test_computes_trivial_tree_root_CID(self):
-        mst = MST().add('com.example.record/3jqfcqzm3fo2j', CID1)
+        mst = self.mst.add('com.example.record/3jqfcqzm3fo2j', CID1)
         self.assertEqual(1, mst.leaf_count())
         self.assertEqual(
             'bafyreibj4lsc3aqnrvphp5xmrnfoorvru4wynt6lwidqbm2623a6tatzdu',
             mst.get_pointer().encode('base32'))
 
     def test_computes_single_layer_2_tree_root_CID(self):
-        mst = MST().add('com.example.record/3jqfcqzm3fx2j', CID1)
+        mst = self.mst.add('com.example.record/3jqfcqzm3fx2j', CID1)
         self.assertEqual(1, mst.leaf_count())
         self.assertEqual(2, mst.layer)
         self.assertEqual(
@@ -154,7 +157,7 @@ class MstTest(testutil.TestCase):
             mst.get_pointer().encode('base32'))
 
     def test_computes_simple_tree_root_CID(self):
-        mst = MST()
+        mst = self.mst
         mst = mst.add('com.example.record/3jqfcqzm3fp2j', CID1) # level 0
         mst = mst.add('com.example.record/3jqfcqzm3fr2j', CID1) # level 0
         mst = mst.add('com.example.record/3jqfcqzm3fs2j', CID1) # level 1
@@ -169,7 +172,7 @@ class MstTest(testutil.TestCase):
         l1root = 'bafyreifnqrwbk6ffmyaz5qtujqrzf5qmxf7cbxvgzktl4e3gabuxbtatv4'
         l0root = 'bafyreie4kjuxbwkhzg2i5dljaswcroeih4dgiqq6pazcmunwt2byd725vi'
 
-        mst = MST()
+        mst = self.mst
         mst = mst.add('com.example.record/3jqfcqzm3fn2j', CID1) # level 0
         mst = mst.add('com.example.record/3jqfcqzm3fo2j', CID1) # level 0
         mst = mst.add('com.example.record/3jqfcqzm3fp2j', CID1) # level 0
@@ -202,7 +205,7 @@ class MstTest(testutil.TestCase):
         l1root = 'bafyreiettyludka6fpgp33stwxfuwhkzlur6chs4d2v4nkmq2j3ogpdjem'
         l2root = 'bafyreid2x5eqs4w4qxvc5jiwda4cien3gw2q6cshofxwnvv7iucrmfohpm'
 
-        mst = MST()
+        mst = self.mst
         mst = mst.add('com.example.record/3jqfcqzm3fo2j', CID1) # A; level 0
         mst = mst.add('com.example.record/3jqfcqzm3fp2j', CID1) # B; level 0
         mst = mst.add('com.example.record/3jqfcqzm3fr2j', CID1) # C; level 0
@@ -248,7 +251,7 @@ class MstTest(testutil.TestCase):
         l2root = 'bafyreiavxaxdz7o7rbvr3zg2liox2yww46t7g6hkehx4i4h3lwudly7dhy'
         l2root2 = 'bafyreig4jv3vuajbsybhyvb7gggvpwh2zszwfyttjrj6qwvcsp24h6popu'
 
-        mst = MST()
+        mst = self.mst
         mst = mst.add('com.example.record/3jqfcqzm3ft2j', CID1) # A; level 0
         mst = mst.add('com.example.record/3jqfcqzm3fz2j', CID1) # C; level 0
         self.assertEqual(2, mst.leaf_count())
