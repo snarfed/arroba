@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import logging
 from numbers import Integral
 import random
+import time
 
 from Crypto.Hash import SHA256
 from Crypto.PublicKey import ECC
@@ -21,7 +22,7 @@ _randfunc = None
 # the bottom 32 clock ids can be randomized & are not guaranteed to be collision
 # resistant. we use the same clockid for all TIDs coming from this runtime.
 _clockid = random.randint(0, 31)
-# _tid_last = time.time_ns() // 1000  # microseconds
+_tid_last = 0  # microseconds
 
 S32_CHARS = '234567abcdefghijklmnopqrstuvwxyz'
 
@@ -118,19 +119,24 @@ def tid_to_datetime(tid):
     return datetime.fromtimestamp(s32decode(encoded) / 1000 / 1000, timezone.utc)
 
 
-# TODO: bring this back and use it to ensure that Object.created timestamps'
-# TIDs don't collide
-# def next_tid():
-#     global _tid_last
+def next_tid():
+    """Returns the TID corresponding to the current time.
 
-#     # enforce that we're at least 1us after the last TID to prevent TIDs moving
-#     # backwards if system clock drifts backwards
-#     now = time.time_ns() // 1000
-#     if now > _tid_last:
-#         _tid_last = now
-#     else:
-#         _tid_last += 1
-#         now = _tid_last
+    A TID is UNIX timestamp (ie time since the epoch) in microseconds.
+    Returned tids are guaranteed to monotonically increase across calls.
+
+    https://atproto.com/specs/atp#timestamp-ids-tid
+    https://github.com/bluesky-social/atproto/blob/main/packages/common-web/src/tid.ts
+
+    Returns:
+      int
+    """
+    global _tid_last
+
+    # enforce that we're at least 1us after the last TID to prevent TIDs moving
+    # backwards if system clock drifts backwards
+    _tid_last = max(time.time_ns() // 1000, _tid_last + 1)
+    return _tid_last
 
 
 def new_p256_key():

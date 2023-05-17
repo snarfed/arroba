@@ -6,6 +6,7 @@ from ..util import (
     dag_cbor_cid,
     datetime_to_tid,
     new_p256_key,
+    next_tid,
     sign_commit,
     tid_to_datetime,
     verify_commit_sig,
@@ -40,3 +41,8 @@ class UtilTest(TestCase):
     def test_verify_commit_fail(self):
         key = new_p256_key()
         self.assertFalse(verify_commit_sig({'foo': 'bar', 'sig': 'nope'}, key))
+
+    def test_next_tid(self):
+        first = next_tid()
+        second = next_tid()
+        self.assertGreater(second, first)
