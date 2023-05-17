@@ -77,7 +77,6 @@ class Repo:
     #     """TODO"""
     #     raise NotImplementedError()
 
-    # TODO: are these two unused? delete them?
     @property
     def did(self):
         """
@@ -234,17 +233,15 @@ class Repo:
 
         mst = self.mst
         for write in writes:
-            assert isinstance(write, Write)
+            assert isinstance(write, Write), type(write)
+            data_key = f'{write.collection}/{write.rkey}'
             if write.action == Action.CREATE:
                 cid = commit_blocks.add(write.record)
-                data_key = f'{write.collection}/{write.rkey}'
                 mst = mst.add(data_key, cid)
             elif write.action == Action.UPDATE:
                 cid = commit_blocks.add(write.record)
-                data_key = f'{write.collection}/{write.rkey}'
                 mst = mst.update(data_key, cid)
             elif write.action == Action.DELETE:
-                data_key = f'{write.collection}/{write.rkey}'
                 mst = mst.delete(data_key)
 
         root, unstored_blocks = mst.get_unstored_blocks()
@@ -254,6 +251,7 @@ class Repo:
         # re-added in this commit
         diff = Diff.of(mst, self.mst)
         missing = diff.new_cids - commit_blocks.keys()
+        # print(diff.new_cids, commit_blocks.keys(), missing)
         if missing:
             storage_blocks, not_found = self.storage.read_many(missing)
             # this shouldn't ever happen

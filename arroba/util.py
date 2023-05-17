@@ -27,6 +27,16 @@ _tid_last = 0  # microseconds
 S32_CHARS = '234567abcdefghijklmnopqrstuvwxyz'
 
 
+def now(tz=timezone.utc, **kwargs):
+    """Wrapper for datetime.now that allows us to mock it out in tests."""
+    return datetime.now(tz=tz, **kwargs)
+
+
+def time_ns():
+    """Wrapper for time.time_ns that allows us to mock it out in tests."""
+    return time.time_ns()
+
+
 def dag_cbor_cid(obj):
     """Returns the DAG-CBOR CID for a given object.
 
@@ -135,7 +145,7 @@ def next_tid():
 
     # enforce that we're at least 1us after the last TID to prevent TIDs moving
     # backwards if system clock drifts backwards
-    _tid_last = max(time.time_ns() // 1000, _tid_last + 1)
+    _tid_last = max(time_ns() // 1000, _tid_last + 1)
     return _tid_last
 
 
