@@ -1,5 +1,6 @@
 """Common test utility code."""
 from datetime import datetime, timezone
+from multiformats import CID
 import random
 import unittest
 from unittest.mock import ANY, call
@@ -10,6 +11,9 @@ from .. import util
 from ..util import datetime_to_tid
 
 NOW = datetime(2022, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+
+# always show base32 CIDs in test output
+CID.__str__ = CID.__repr__ = lambda cid: cid.encode('base32')
 
 
 class TestCase(unittest.TestCase):
