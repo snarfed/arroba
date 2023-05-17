@@ -75,7 +75,19 @@ class Storage:
         raise NotImplementedError()
 
     def read_many(self, cids):
-        """Batch lookup.
+        """Batch read multiple nodes from storage.
+
+        Args:
+          sequence of :class:`CID`
+
+        Returns:
+          tuple: (dict {:class:`CID`: dict node},
+                  sequence of :class:`CID` that weren't found)
+        """
+        raise NotImplementedError()
+
+    def read_blocks(self, cids):
+        """Batch read multiple blocks from storage.
 
         Args:
           sequence of :class:`CID`
@@ -132,6 +144,12 @@ class MemoryStorage(Storage):
         return dag_cbor.decoding.decode(self.blocks[cid])
 
     def read_many(self, cids):
+        blocks, missing = self.read_blocks(cids)
+        nodes = {cid: dag_cbor.decoding.decode(block)
+                 for cid, block in blocks.items()}
+        return nodes, missing
+
+    def read_blocks(self, cids):
         found = {}
         missing = []
 

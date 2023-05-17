@@ -13,8 +13,12 @@ from ..util import datetime_to_tid
 
 NOW = datetime(2022, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
 
-# always show base32 CIDs in test output
-CID.__str__ = CID.__repr__ = lambda cid: cid.encode('base32')
+# render just base32 suffix of CIDs for readability in test output
+CID.__str__ = CID.__repr__ = lambda cid: '…' + cid.encode('base32')[-7:]
+
+# don't truncate assertion error diffs
+import unittest.util
+unittest.util._MAX_LENGTH = 999999
 
 
 class TestCase(unittest.TestCase):

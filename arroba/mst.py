@@ -259,22 +259,22 @@ class MST:
         Returns:
           (:class:`CID` root, :class:`BlockMap`) tuple
         """
-        blocks = BlockMap()
+        unstored = BlockMap()
         pointer = self.get_pointer()
 
         if self.storage.has(pointer):
-            return pointer, blocks
+            return pointer, unstored
 
         entries = self.get_entries()
         data = serialize_node_data(entries)
-        blocks.add(data._asdict())
+        unstored.add(data._asdict())
 
         for entry in entries:
             if isinstance(entry, MST):
                 _, blocks = entry.get_unstored_blocks()
-                blocks.update(blocks)
+                unstored.update(blocks)
 
-        return pointer, blocks
+        return pointer, unstored
 
     def add(self, key, value=None, known_zeros=None):
         """Adds a new leaf for the given key/value pair.
@@ -670,57 +670,70 @@ class MST:
 #     List operations (partial tree traversal)
 #     -------------------
 
-#     @TODO write tests for these
+    def walk_leaves_from(self, key):
+        """Walk tree starting at key.
 
-#     Walk tree starting at key
-#     def walk_leaves_from(key: string): AsyncIterable<Leaf>:
-#         index = self.find_gt_or_equal_leaf_index(key)
-#         prev = self.entries[index - 1]
-#         if prev and isinstance(prev, MST):
-#             for e in prev.walk_leaves_from(key):
-#                 yield e
-#         for entry in self.entries[index:]:
-#             if isinstance(entry, Leaf):
-#                 yield entry
-#             else:
-#                 for e in entry.walk_leaves_from(key):
-#                     yield e
+        Generator for leaves in the tree, starting at a given rkey.
 
-#     def list(
-#         count = Number.MAX_SAFE_INTEGER,
-#         after?: string,
-#         before?: string,
-#     ):
-#     """
-#     Returns:
-#       Leaf[]
-#     """
-#         vals: Leaf[] = []
-#         for leaf in self.walk_leaves_from(after or ''):
-#             if leaf.key == after:
-#                 continue
-#             if len(vals) >= count:
-#                 break
-#             if before and leaf.key >= before:
-#                 break
-#             vals.append(leaf)
-#         return vals
+        Args:
+          key: str
 
-#     def list_with_prefix(
-#         prefix: string,
-#         count = Number.MAX_SAFE_INTEGER,
-#     ):
-#     """
-#     Returns:
-#       Leaf[]
-#     """
-#         vals: Leaf[] = []
-#         for leaf in self.walk_leaves_from(prefix):
-#             if len(vals) >= count or not leaf.key.startswith(prefix):
-#                 break
-#             vals.append(leaf)
-#         return vals
+        Generates:
+          :class:`Leaf`
+        """
+        index = self.find_gt_or_equal_leaf_index(key)
 
+        if index > 0:
+            prev = self.entries[index - 1]
+            if prev and isinstance(prev, MST):
+                for e in prev.walk_leaves_from(key):
+                    yield e
+
+        for entry in self.entries[index:]:
+            if isinstance(entry, Leaf):
+                yield entry
+            else:
+                for e in entry.walk_leaves_from(key):
+                    yield e
+
+    def list(self, after=None, before=None):
+        """Returns entries, optionally bounded within an rkey range.
+
+        Args:
+          after: str rkey, optional
+          before: str rkey, optional
+
+        Returns:
+          sequence of :class:`Leaf`
+        """
+        vals = []
+
+        for leaf in self.walk_leaves_from(after or ''):
+            if leaf.key == after:
+                continue
+            if before and leaf.key >= before:
+                break
+            vals.append(leaf)
+
+        return vals
+
+    def list_with_prefix(self, prefix):
+        """Returns entries with a given rkey prefix.
+
+        Args:
+          prefix: str, rkey prefix
+
+        Returns:
+          sequence of :class:`Leaf`
+        """
+        vals = []
+
+        for leaf in self.walk_leaves_from(prefix):
+            if not leaf.key.startswith(prefix):
+                break
+            vals.append(leaf)
+
+        return vals
 
 #     Full tree traversal
 #     -------------------

@@ -139,14 +139,14 @@ def next_tid():
     https://github.com/bluesky-social/atproto/blob/main/packages/common-web/src/tid.ts
 
     Returns:
-      int
+      str, TID
     """
     global _tid_last
 
     # enforce that we're at least 1us after the last TID to prevent TIDs moving
     # backwards if system clock drifts backwards
     _tid_last = max(time_ns() // 1000, _tid_last + 1)
-    return _tid_last
+    return str(_tid_last)
 
 
 def new_p256_key():
@@ -183,12 +183,13 @@ def sign_commit(commit, key):
       commit: dict, repo commit
       key: :class:`Crypto.PublicKey.ECC.EccKey`
 
-    Returns: 
+    Returns:
       dict, repo commit
     """
     signer = DSS.new(key, 'fips-186-3', randfunc=_randfunc)
     commit['sig'] = signer.sign(SHA256.new(dag_cbor.encoding.encode(commit)))
     return commit
+
 
 def verify_commit_sig(commit, key):
     """Returns true if the commit's signature is valid, False otherwise.

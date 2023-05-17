@@ -111,25 +111,23 @@ class Repo:
         if cid:
             return self.storage.read(cid)
 
-    # def get_contents(self):
-    #     """
-    #
-    #     Returns:
-    #       :class:`RepoContents` ?
-    #     """
-    #     entries = self.mst.list()
-    #     cids = entries.values()
-    #     blocks, missing = self.storage.read_many(cids)
-    #     if missing:
-    #         raise MissingBlocksError('get_contents record', missing)
+    def get_contents(self):
+        """
 
-    #     contents = defaultdict(dict)
-    #     for entry in entries:
-    #         collection, rkey = util.parse_data_key(entry.key)
-    #         parsed = parse.get_and_parse_record(blocks, entry.value)
-    #         contents[collection][rkey] = parsed.record
-    #
-    #     return contents
+        Returns:
+          dict, {str collection: {str rkey: dict record}}
+        """
+        entries = self.mst.list()
+        print(entries)
+        nodes, missing = self.storage.read_many(e.value for e in entries)
+        assert not missing, f'get_contents missing: {missing}'
+
+        contents = defaultdict(dict)
+        for entry in entries:
+            collection, rkey = entry.key.split('/', 2)
+            contents[collection][rkey] = nodes[entry.value]
+
+        return contents
 
     @classmethod
     def format_init_commit(cls, storage, did, key, initial_writes=None):
@@ -251,9 +249,8 @@ class Repo:
         # re-added in this commit
         diff = Diff.of(mst, self.mst)
         missing = diff.new_cids - commit_blocks.keys()
-        # print(diff.new_cids, commit_blocks.keys(), missing)
         if missing:
-            storage_blocks, not_found = self.storage.read_many(missing)
+            storage_blocks, not_found = self.storage.read_blocks(missing)
             # this shouldn't ever happen
             assert not not_found, \
                 'Could not find block for commit in Datastore or storage'
@@ -282,6 +279,7 @@ class Repo:
         self.storage.apply_commit(commit_data)
         return Repo.load(self.storage, commit_data.commit)
 
+    # TODO: the returned Repo here doesn't work? its MST isn't updated?
     def apply_writes(self, writes, key):
         """
 

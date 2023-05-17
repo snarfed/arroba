@@ -12,7 +12,7 @@ import random
 
 from ..repo import Action, Repo, Write
 from ..storage import MemoryStorage
-from ..util import next_tid
+from ..util import next_tid, verify_commit_sig
 from .testutil import NOW, TestCase
 
 
@@ -20,7 +20,8 @@ class RepoTest(TestCase):
 
     def setUp(self):
         super().setUp()
-        self.repo = Repo.create(MemoryStorage(), 'did:web:user.com', self.key)
+        self.storage = MemoryStorage()
+        self.repo = Repo.create(self.storage, 'did:web:user.com', self.key)
 
     def test_metadata(self):
         self.assertEqual(2, self.repo.version)
@@ -33,6 +34,7 @@ class RepoTest(TestCase):
             'avatar': 'https://alice.com/alice.jpg',
             'description': None,
         }
+
         tid = next_tid()
         repo = self.repo.apply_writes(Write(
             action=Action.CREATE,
@@ -63,14 +65,14 @@ class RepoTest(TestCase):
             return {'foo': random.randint(0, 1000)}
 
         data = {
-            'example.foo': [random_obj() for i in range(3)],
+            'example.foo': {next_tid(): random_obj() for i in range(3)},
             # 'example.bar': [random_obj() for i in range(20)],
             # 'example.baz': [random_obj() for i in range(30)],
         }
-        print(data)
 
-        writes = chain(*([Write(Action.CREATE, coll, next_tid(), obj) for obj in objs]
-                         for coll, objs in data.items()))
+        writes = list(chain(*(
+            [Write(Action.CREATE, coll, tid, obj) for tid, obj in objs.items()]
+            for coll, objs in data.items())))
         self.repo.apply_writes(writes, self.key)
         self.assertEqual(data, self.repo.get_contents())
 
@@ -85,12 +87,12 @@ class RepoTest(TestCase):
         self.assertEqual(contents, repo_data)
 
     def test_has_a_valid_signature_to_commit(self):
-        assert verify_commit_sig(self.repo.commit, keypair.did())
+        assert verify_commit_sig(self.repo.commit, self.key)
 
     def test_loads_from_blockstore(self):
-        reloaded_repo = self.repo.load(MemoryStorage(), self.repo.cid)
+        reloaded_repo = self.repo.load(self.storage, self.repo.cid)
 
-        contents = reloaded_self.Repo.get_contents()
+        contents = reloaded_repo.get_contents()
         self.assertEqual(contents, repo_data)
         self.assertEqual(self.repo.did, keypair.did())
         self.assertEqual(2, self.repo.version)
