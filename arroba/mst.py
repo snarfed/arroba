@@ -271,8 +271,8 @@ class MST:
 
         for entry in entries:
             if isinstance(entry, MST):
-                subtree = entry.get_unstored_blocks()
-                blocks.update(subtree.blocks)
+                _, blocks = entry.get_unstored_blocks()
+                blocks.update(blocks)
 
         return pointer, blocks
 
