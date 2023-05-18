@@ -127,13 +127,12 @@ class MST:
         pointer = cid_for_entries(entries)
         return MST(storage=storage, entries=entries, pointer=pointer, layer=layer)
 
-#     def from_data(data: NodeData, opts?: Partial<MstOpts>):
+#     def from_data(storage, data, opts):
 #         """
 #         Returns:
 #           :class:`MST`
 #         """
-#         { layer = None } = opts or {}
-#         entries = deserialize_node_data(data, opts)
+#         entries = deserialize_node_data(data)
 #         pointer = cid_for_cbor(data)
 #         return MST(entries=entries, pointer=pointer)
 

@@ -34,7 +34,6 @@ def mst_diff(cur, prev=None):
     left_walker = Walker(prev)
     right_walker = Walker(cur)
     while not left_walker.status.done or not right_walker.status.done:
-        # print(left_walker.status, right_walker.status)
         # if one walker is finished, continue walking the other & logging all nodes
         if left_walker.status.done and not right_walker.status.done:
             node = right_walker.status.cur

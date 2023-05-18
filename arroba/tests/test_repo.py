@@ -23,6 +23,10 @@ class RepoTest(TestCase):
         self.storage = MemoryStorage()
         self.repo = Repo.create(self.storage, 'did:web:user.com', self.key)
 
+    @staticmethod
+    def random_objects(num):
+        return {next_tid(): {'foo': random.randint(0, 1000)} for i in range(num)}
+
     def test_metadata(self):
         self.assertEqual(2, self.repo.version)
         self.assertEqual('did:web:user.com', self.repo.did)
@@ -36,7 +40,7 @@ class RepoTest(TestCase):
         }
 
         tid = next_tid()
-        repo = self.repo.apply_writes(Write(
+        self.repo.apply_writes(Write(
             action=Action.CREATE,
             collection='my.stuff',
             rkey=tid,
@@ -45,7 +49,7 @@ class RepoTest(TestCase):
         self.assertEqual(profile, self.repo.get_record('my.stuff', tid))
 
         profile['description'] = "I'm the best"
-        repo = self.repo.apply_writes(Write(
+        self.repo.apply_writes(Write(
             action=Action.UPDATE,
             collection='my.stuff',
             rkey=tid,
@@ -53,7 +57,7 @@ class RepoTest(TestCase):
         ), self.key)
         self.assertEqual(profile, self.repo.get_record('my.stuff', tid))
 
-        repo = self.repo.apply_writes(Write(
+        self.repo.apply_writes(Write(
             action=Action.DELETE,
             collection='my.stuff',
             rkey=tid,
@@ -61,38 +65,53 @@ class RepoTest(TestCase):
         self.assertIsNone(self.repo.get_record('my.stuff', tid))
 
     def test_adds_content_collections(self):
-        def random_obj():
-            return {'foo': random.randint(0, 1000)}
-
         data = {
-            'example.foo': {next_tid(): random_obj() for i in range(3)},
-            # 'example.bar': [random_obj() for i in range(20)],
-            # 'example.baz': [random_obj() for i in range(30)],
+            'example.foo': self.random_objects(10),
+            'example.bar': self.random_objects(20),
+            'example.baz': self.random_objects(30),
         }
 
         writes = list(chain(*(
             [Write(Action.CREATE, coll, tid, obj) for tid, obj in objs.items()]
             for coll, objs in data.items())))
+
         self.repo.apply_writes(writes, self.key)
         self.assertEqual(data, self.repo.get_contents())
 
     def test_edits_and_deletes_content(self):
-        edited = util.edit_repo(repo, repo_data, keypair, {
-            adds: 20,
-            updates: 20,
-            deletes: 20,
-            repo: edited.repo
-        })
-        contents = self.repo.get_contents()
-        self.assertEqual(contents, repo_data)
+        objs = list(self.random_objects(20).items())
+
+        self.repo.apply_writes(
+            [Write(Action.CREATE, 'co.ll', tid, obj) for tid, obj in objs],
+            self.key)
+
+        random.shuffle(objs)
+        self.repo.apply_writes(
+            [Write(Action.UPDATE, 'co.ll', tid, {'bar': 'baz'}) for tid, _ in objs],
+            self.key)
+
+        random.shuffle(objs)
+        self.repo.apply_writes(
+            [Write(Action.DELETE, 'co.ll', tid) for tid, _ in objs],
+            self.key)
+
+        self.assertEqual({}, self.repo.get_contents())
 
     def test_has_a_valid_signature_to_commit(self):
         assert verify_commit_sig(self.repo.commit, self.key)
 
     def test_loads_from_blockstore(self):
-        reloaded_repo = self.repo.load(self.storage, self.repo.cid)
+        print(self.repo.cid, self.storage.blocks)
 
-        contents = reloaded_repo.get_contents()
-        self.assertEqual(contents, repo_data)
-        self.assertEqual(self.repo.did, keypair.did())
-        self.assertEqual(2, self.repo.version)
+        objs = self.random_objects(5)
+        self.repo.apply_writes(
+            [Write(Action.CREATE, 'co.ll', tid, obj)
+             for tid, obj in objs.items()],
+            self.key)
+
+        print(self.repo.cid, self.storage.blocks)
+        reloaded = Repo.load(self.storage, self.repo.cid)
+
+        self.assertEqual(2, reloaded.version)
+        self.assertEqual('did:web:user.com', reloaded.did)
+        self.assertEqual({'co.ll': objs}, reloaded.get_contents())

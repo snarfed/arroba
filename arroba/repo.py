@@ -118,7 +118,6 @@ class Repo:
           dict, {str collection: {str rkey: dict record}}
         """
         entries = self.mst.list()
-        print(entries)
         nodes, missing = self.storage.read_many(e.value for e in entries)
         assert not missing, f'get_contents missing: {missing}'
 
@@ -174,7 +173,7 @@ class Repo:
           :class:`Repo`
         """
         storage.apply_commit(commit)
-        return Repo.load(storage, commit.commit)
+        return cls.load(storage, commit.commit)
 
     @classmethod
     def create(cls, storage, did, key, initial_writes=None):
@@ -189,13 +188,13 @@ class Repo:
         Returns:
           :class:`Repo`
         """
-        commit = Repo.format_init_commit(
+        commit = cls.format_init_commit(
             storage,
             did,
             key,
             initial_writes,
         )
-        return Repo.create_from_commit(storage, commit)
+        return cls.create_from_commit(storage, commit)
 
     @classmethod
     def load(cls, storage, cid=None):
@@ -212,7 +211,7 @@ class Repo:
 
         commit = storage.read(commit_cid)
         mst = MST(storage=storage, pointer=commit['data'])
-        logger.info('loaded repo for f{commit.did}')
+        logger.info(f'loaded repo for {commit["did"]} at commit {commit_cid}')
         return Repo(storage=storage, mst=mst, commit=commit, cid=commit_cid)
 
     def format_commit(self, writes, key):
@@ -277,7 +276,7 @@ class Repo:
           :class:`Repo`
         """
         self.storage.apply_commit(commit_data)
-        return Repo.load(self.storage, commit_data.commit)
+        return self.load(self.storage, commit_data.commit)
 
     # TODO: the returned Repo here doesn't work? its MST isn't updated?
     def apply_writes(self, writes, key):
