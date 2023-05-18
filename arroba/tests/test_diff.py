@@ -1,6 +1,7 @@
 """Unit tests for diff.py.
 
 Heavily based on:
+https://github.com/bluesky/atproto/blob/main/packages/repo/tests/mst.test.ts
 https://github.com/bluesky/atproto/blob/main/packages/repo/tests/sync/diff.test.ts
 
 Huge thanks to the Bluesky team for working in the public, in open source, and to
@@ -8,24 +9,30 @@ Daniel Holmgren and Devin Ivy for this code specifically!
 """
 import dag_cbor.random
 
-from arroba.diff import Change, Diff
-from arroba.mst import MST
+from ..diff import Change, Diff
+from ..mst import MST
+from ..storage import MemoryStorage
 from . import testutil
 
 
 class DiffTest(testutil.TestCase):
 
+    def setUp(self):
+        self.storage = MemoryStorage()
+        self.mst = MST.create(storage=self.storage)
+
     def test_diffs(self):
-        mst = MST()
-        data = self.random_keys_and_cids(3)#1000)
+        mst = self.mst
+
+        data = self.random_keys_and_cids(1000)
         for key, cid in data:
             mst = mst.add(key, cid)
 
         before = after = mst
 
-        to_add = self.random_keys_and_cids(1)#100)
-        to_edit = data[1:2]
-        to_del = data[0:1]
+        to_add = self.random_keys_and_cids(100)
+        to_edit = data[500:600]
+        to_del = data[400:500]
 
         # these are all {str key: Change}
         expected_adds = {}
@@ -46,9 +53,9 @@ class DiffTest(testutil.TestCase):
 
         diff = Diff.of(after, before)
 
-        self.assertEqual(1, len(diff.adds))
-        self.assertEqual(1, len(diff.updates))
-        self.assertEqual(1, len(diff.deletes))
+        self.assertEqual(100, len(diff.adds))
+        self.assertEqual(100, len(diff.updates))
+        self.assertEqual(100, len(diff.deletes))
 
         self.assertEqual(expected_adds, diff.adds)
         self.assertEqual(expected_updates, diff.updates)
