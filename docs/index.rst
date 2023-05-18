@@ -1,14 +1,14 @@
 arroba
 ------
 
-Python implementation of `Bluesky <https://blueskyweb.xyz/>`__\ ’s low
-level `AT Protocol <https://atproto.com/>`__, including `data
-repository <https://atproto.com/guides/data-repos>`__, `Merkle search
-tree <https://atproto.com/guides/data-repos>`__, and `com.atproto.sync
-XRPC methods <https://atproto.com/lexicons/com-atproto-sync>`__.
+Python implementation of `Bluesky <https://blueskyweb.xyz/>`__
+`PDS <https://atproto.com/guides/data-repos>`__ and `AT
+Protocol <https://atproto.com/specs/atp>`__, including data repository,
+Merkle search tree, and `com.atproto.sync XRPC
+methods <https://atproto.com/lexicons/com-atproto-sync>`__.
 
-*Arroba* is the Spanish word for the `@ character (“at
-sign”). <https://en.wikipedia.org/wiki/At_sign>`__
+*Arroba* is the Spanish word for the `@
+character <https://en.wikipedia.org/wiki/At_sign>`__ (“at sign”).
 
 Install from `PyPI <https://pypi.org/project/arroba/>`__ with
 ``pip install arroba``.
@@ -26,6 +26,16 @@ TODO
 
 Changelog
 ---------
+
+0.2 - 2023-05-18
+~~~~~~~~~~~~~~~~
+
+Implement repo and commit chain in new Repo class, including pluggable
+storage. This completes the first pass at all PDS data structures. Next
+release will include initial implementations of the
+``com.atproto.sync.*`` XRPC methods.
+
+.. _section-1:
 
 0.1 - 2023-04-30
 ~~~~~~~~~~~~~~~~

@@ -21,6 +21,10 @@ TODO
 
 ## Changelog
 
+### 0.2 - 2023-05-18
+
+Implement repo and commit chain in new Repo class, including pluggable storage. This completes the first pass at all PDS data structures. Next release will include initial implementations of the `com.atproto.sync.*` XRPC methods.
+
 ### 0.1 - 2023-04-30
 
 Initial release! Still very in progress. MST, Walker, and Diff classes are mostly complete and working. Repo, commits, and sync XRPC methods are still in progress.

@@ -13,6 +13,14 @@ mst
 ---
 .. automodule:: arroba.mst
 
+repo
+----
+.. automodule:: arroba.repo
+
+storage
+-------
+.. automodule:: arroba.storage
+
 util
 ----
 .. automodule:: arroba.util
