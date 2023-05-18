@@ -210,7 +210,7 @@ class Repo:
         assert commit_cid, 'No cid provided and none in storage'
 
         commit = storage.read(commit_cid)
-        mst = MST(storage=storage, pointer=commit['data'])
+        mst = MST.load(storage=storage, cid=commit['data'])
         logger.info(f'loaded repo for {commit["did"]} at commit {commit_cid}')
         return Repo(storage=storage, mst=mst, commit=commit, cid=commit_cid)
 
@@ -263,7 +263,7 @@ class Repo:
         }, key)
         commit_cid = commit_blocks.add(commit)
 
-        self.mst = mst  # ??? this isn't in repo.ts
+        # self.mst = mst  # ??? this isn't in repo.ts
         return CommitData(commit=commit_cid, prev=self.cid, blocks=commit_blocks)
 
     def apply_commit(self, commit_data):
