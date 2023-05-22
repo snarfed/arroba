@@ -104,7 +104,7 @@ def datetime_to_tid(dt):
     """
     tid = (s32encode(int(dt.timestamp() * 1000 * 1000)) +
            s32encode(_clockid).ljust(2, '2'))
-    assert len(tid) == 13
+    assert len(tid) == 13, tid
     return tid
 
 

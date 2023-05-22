@@ -186,6 +186,7 @@ class MST:
             first_leaf = layer = None
             if data.e:
                 layer = leading_zeros_on_hash(data.e[0]['k'])
+
             self.entries = deserialize_node_data(storage=self.storage, data=data,
                                                  layer=layer)
             return self.entries

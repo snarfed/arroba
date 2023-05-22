@@ -2,7 +2,6 @@
 
 Heavily based on:
 https://github.com/bluesky/atproto/blob/main/packages/repo/tests/mst.test.ts
-https://github.com/bluesky/atproto/blob/main/packages/repo/tests/sync/diff.test.ts
 
 Huge thanks to the Bluesky team for working in the public, in open source, and to
 Daniel Holmgren and Devin Ivy for this code specifically!
@@ -18,6 +17,7 @@ from . import testutil
 class DiffTest(testutil.TestCase):
 
     def setUp(self):
+        super().setUp()
         self.storage = MemoryStorage()
         self.mst = MST.create(storage=self.storage)
 
@@ -62,8 +62,9 @@ class DiffTest(testutil.TestCase):
         self.assertEqual(expected_deletes, diff.deletes)
 
         # ensure we correctly report all added CIDs
+        existing = [cid for _, cid in data]
         for entry in after.walk():
             cid = entry.get_pointer() if isinstance(entry, MST) else entry.value
-            # TODO
-            # assert cid in blockstore or cid in diff.new_cids
-
+            # from mst.test.ts, doesn't pass here because we generate test data
+            # differently
+            # assert cid in existing or cid in diff.new_cids, cid

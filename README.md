@@ -79,7 +79,7 @@ Here's how to package, test, and ship a new release.
 1. Upload to [pypi.org](https://pypi.org/)!
 
     ```sh
-    twine upload dist/arroba-$ver.tar.gz dist/arroba-$ver-py3-none-any.whl
+    twine upload dist/arroba-$ver*
     ```
 1. [Wait for the docs to build on Read the Docs](https://readthedocs.org/projects/arroba/builds/), then check that they look ok.
 1. On the [Versions page](https://readthedocs.org/projects/arroba/versions/), check that the new version is active, If it's not, activate it in the _Activate a Version_ section.

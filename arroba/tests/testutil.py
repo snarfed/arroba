@@ -44,11 +44,14 @@ class TestCase(unittest.TestCase):
 
     @staticmethod
     def random_keys_and_cids(num):
-        return [(f'com.example.record/{TestCase.random_tid()}', cid)
-                for cid in dag_cbor.random.rand_cid(num)]
+        timestamps = random.choices(range(int(datetime(2020, 1, 1).timestamp()) * 1000,
+                                          int(datetime(2100, 1, 1).timestamp()) * 1000),
+                                    k=num)
+        cids = set()
+        for cid in dag_cbor.random.rand_cid():
+            cids.add(cid)
+            if len(cids) == num:
+                break
 
-    @staticmethod
-    def random_tid():
-        ms = random.randint(datetime(2020, 1, 1).timestamp() * 1000,
-                            datetime(2024, 1, 1).timestamp() * 1000)
-        return datetime_to_tid(datetime.fromtimestamp(float(ms) / 1000))
+        return [(f'com.example.record/{datetime_to_tid(datetime.fromtimestamp(float(ts) / 1000))}', cid)
+                for ts, cid in zip(timestamps, cids)]
