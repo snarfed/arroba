@@ -21,6 +21,10 @@ TODO
 
 ## Changelog
 
+### 0.3 - unreleased
+
+Add Google Cloud Datastore implementation of repo storage.
+
 ### 0.2 - 2023-05-18
 
 Implement repo and commit chain in new Repo class, including pluggable storage. This completes the first pass at all PDS data structures. Next release will include initial implementations of the `com.atproto.sync.*` XRPC methods.

@@ -41,7 +41,6 @@ class TestCase(unittest.TestCase):
         if not TestCase.key:
             TestCase.key = ECC.generate(curve='P-256', randfunc=random.randbytes)
 
-
     @staticmethod
     def random_keys_and_cids(num):
         timestamps = random.choices(range(int(datetime(2020, 1, 1).timestamp()) * 1000,

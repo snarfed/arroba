@@ -21,7 +21,7 @@ jobs:
           command: |
             pip install -U pip
             pip -V
-            pip install -U .[tests]
+            pip install -U .[datastore,tests]
             pip install coverage coveralls
 
       - run:

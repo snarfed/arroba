@@ -70,7 +70,8 @@ class Storage:
           cid: :class:`CID`
 
         Returns:
-          dict, a record, commit, or serialized MST node
+          dict, a record, commit, or serialized MST node, or None if the given
+          CID is not stored
         """
         raise NotImplementedError()
 

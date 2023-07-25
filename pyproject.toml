@@ -19,7 +19,6 @@ requires-python = '>=3.9'
 keywords = ['arroba', 'AT Protocol', 'ATP', 'Bluesky']
 dependencies = [
     'dag-cbor',
-    'dag-json',
     'multiformats>=0.2.0',
     'pycryptodome>=3.0',
 ]
@@ -33,6 +32,14 @@ classifiers = [
     'Topic :: Software Development :: Libraries :: Python Modules',
 ]
 
+[project.optional-dependencies]
+datastore = [
+    'google-cloud-ndb>=2.0',
+]
+
 [project.urls]
 'Homepage' = 'https://github.com/snarfed/arroba'
 'Documentation' = 'https://arroba.readthedocs.io/'
+
+# TODO:
+# extras deps: google-cloud-ndb~=2.0
