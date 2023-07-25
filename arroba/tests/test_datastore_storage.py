@@ -6,6 +6,7 @@ import requests
 
 from arroba.datastore_storage import AtpNode, DatastoreStorage, WriteOnceBlobProperty
 from arroba.storage import BlockMap
+from google.auth.credentials import AnonymousCredentials
 
 from .testutil import TestCase
 
@@ -13,7 +14,7 @@ os.environ.setdefault('DATASTORE_EMULATOR_HOST', 'localhost:8089')
 
 
 class DatastoreStorageTest(TestCase):
-    ndb_client = ndb.Client()
+    ndb_client = ndb.Client(project='app', credentials=AnonymousCredentials())
 
     def setUp(self):
         super().setUp()

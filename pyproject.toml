@@ -40,6 +40,3 @@ datastore = [
 [project.urls]
 'Homepage' = 'https://github.com/snarfed/arroba'
 'Documentation' = 'https://arroba.readthedocs.io/'
-
-# TODO:
-# extras deps: google-cloud-ndb~=2.0
