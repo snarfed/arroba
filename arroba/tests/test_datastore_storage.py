@@ -4,10 +4,11 @@ import os
 from google.cloud import ndb
 import requests
 
-from arroba.datastore_storage import AtpNode, DatastoreStorage, WriteOnceBlobProperty
-from arroba.storage import BlockMap
 from google.auth.credentials import AnonymousCredentials
 
+from arroba.datastore_storage import AtpNode, DatastoreStorage, WriteOnceBlobProperty
+from arroba.storage import BlockMap
+from arroba.util import dag_cbor_cid
 from .testutil import TestCase
 
 os.environ.setdefault('DATASTORE_EMULATOR_HOST', 'localhost:8089')
@@ -31,6 +32,12 @@ class DatastoreStorageTest(TestCase):
     def tearDown(self):
         self.ndb_context.__exit__(None, None, None)
         super().tearDown()
+
+    def test_atp_node_create(self):
+        data = {'foo': 'bar'}
+        AtpNode.create(data)
+        stored = AtpNode.get_by_id(dag_cbor_cid(data).encode('base32'))
+        self.assertEqual(data, stored.data)
 
     def test_write_once(self):
         class Foo(ndb.Model):
