@@ -18,9 +18,9 @@ readme = 'README.md'
 requires-python = '>=3.9'
 keywords = ['arroba', 'AT Protocol', 'ATP', 'Bluesky']
 dependencies = [
-    'carbox>=0.1',
+    'carbox',
     'dag-cbor',
-    'lexrpc>=0.3',
+    'lexrpc',
     'multiformats>=0.2.0',
     'pycryptodome>=3.0',
 ]

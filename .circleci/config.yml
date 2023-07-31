@@ -31,7 +31,7 @@ jobs:
           command: |
             pip install -U pip
             pip -V
-            pip install -U .[datastore,tests] 'typing-extensions<4.6.0'
+            pip install -U .[datastore,tests] 'typing-extensions<4.6.0' 'git+https://github.com/snarfed/carbox.git#egg=carbox' 'git+https://github.com/snarfed/lexrpc.git#egg=lexrpc'
             pip install coverage coveralls flake8
 
       - run:
