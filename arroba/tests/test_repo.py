@@ -23,10 +23,6 @@ class RepoTest(TestCase):
         self.storage = MemoryStorage()
         self.repo = Repo.create(self.storage, 'did:web:user.com', self.key)
 
-    @staticmethod
-    def random_objects(num):
-        return {next_tid(): {'foo': random.randint(0, 1000)} for i in range(num)}
-
     def test_metadata(self):
         self.assertEqual(2, self.repo.version)
         self.assertEqual('did:web:user.com', self.repo.did)

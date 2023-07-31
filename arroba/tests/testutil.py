@@ -9,7 +9,7 @@ from Crypto.PublicKey import ECC
 import dag_cbor.random
 
 from .. import util
-from ..util import datetime_to_tid
+from ..util import datetime_to_tid, next_tid
 
 NOW = datetime(2022, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
 
@@ -54,3 +54,7 @@ class TestCase(unittest.TestCase):
 
         return [(f'com.example.record/{datetime_to_tid(datetime.fromtimestamp(float(ts) / 1000))}', cid)
                 for ts, cid in zip(timestamps, cids)]
+
+    @staticmethod
+    def random_objects(num):
+        return {next_tid(): {'foo': random.randint(0, 1000)} for i in range(num)}

@@ -51,6 +51,7 @@ import logging
 from os.path import commonprefix
 import re
 
+import dag_cbor
 from multiformats import CID
 
 from .storage import BlockMap, Storage
@@ -863,45 +864,44 @@ class MST:
 
 #     Sync Protocol
 
-#     def write_to_car_stream(car: BlockWriter):
-#     """
-#     Returns:
-#       void
-#     """
-#         leaves = CidSet()
-#         to_fetch = CidSet()
-#         to_fetch.add(self.get_pointer())
-#         for entry in self.get_entries():
-#             if isinstance(entry, Leaf):
-#                 leaves.add(entry.value)
-#             else:
-#                 to_fetch.add(entry.get_pointer())
-#         while (to_fetch.size() > 0):
-#             next_layer = CidSet()
-#             fetched = self.storage.get_blocks(to_fetch.to_list())
-#             if fetched.missing:
-#                 raise MissingBlocksError('mst node', fetched.missing)
-#             for cid in to_fetch.to_list():
-#                 found = parse.get_and_parse_by_def(
-#                     fetched.blocks,
-#                     cid,
-#                     node_data_def,
-#                 )
-#                 car.put({ cid, bytes: found.bytes })
-#                 entries = deserialize_node_data(self.storage, found.obj)
+    def load_all(self):
+        """Generator. Used in :func:`xrpc_sync.get_checkout`.
 
-#                 for entry in entries:
-#                     if isinstance(entry, Leaf):
-#                         leaves.add(entry.value)
-#                     else:
-#                         next_layer.add(entry.get_pointer())
-#             to_fetch = next_layer
-#         leaf_data = self.storage.get_blocks(leaves.to_list())
-#         if leaf_data.missing:
-#             raise MissingBlocksError('mst leaf', leaf_data.missing)
+        (The bluesky-social/atproto TS code calls this writeToCarStream.)
 
-#         for leaf in leaf_data.blocks.entries():
-#             car.put(leaf)
+        Returns:
+          generator of (:class:`CID`, bytes) tuples
+        """
+        leaves = set()   # CIDs
+        to_fetch = set() # CIDs
+
+        pointer = self.get_pointer()
+        assert pointer
+        to_fetch.add(pointer)
+
+        while to_fetch:
+            blocks, missing = self.storage.read_blocks(to_fetch)
+            to_fetch.clear()
+            assert not missing, f'Storage is missing node CIDs: {missing}'
+
+            for cid, encoded in blocks.items():
+                yield cid, encoded
+
+                decoded = dag_cbor.decode(encoded)
+                entries = deserialize_node_data(storage=self.storage,
+                                                data=Data(**decoded))
+
+                for entry in entries:
+                    if isinstance(entry, Leaf):
+                        leaves.add(entry.value)
+                    else:
+                        to_fetch.add(entry.get_pointer())
+
+        leaf_blocks, missing = self.storage.read_blocks(leaves)
+        assert not missing, f'Storage is missing leaf CIDs: {missing}'
+
+        for cid, encoded in leaf_blocks.items():
+            yield cid, encoded
 
 #     def cids_for_path(self, key):
 #         """Returns the CIDs in a given key path. ???

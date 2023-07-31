@@ -5,7 +5,7 @@ https://github.com/bluesky-social/atproto/blob/main/packages/repo/src/storage/re
 """
 from collections import namedtuple
 
-import dag_cbor.decoding, dag_cbor.encoding
+import dag_cbor
 from multiformats import CID, multicodec, multihash
 
 from .util import dag_cbor_cid
@@ -35,7 +35,7 @@ class BlockMap(dict):
         Returns:
           :class:`CID`
         """
-        block = dag_cbor.encoding.encode(val)
+        block = dag_cbor.encode(val)
         digest = multihash.digest(block, 'sha2-256')
         cid = CID('base58btc', 1, multicodec.get('dag-cbor'), digest)
         self[cid] = block
@@ -142,12 +142,11 @@ class MemoryStorage(Storage):
         self.blocks = BlockMap()
 
     def read(self, cid):
-        return dag_cbor.decoding.decode(self.blocks[cid])
+        return dag_cbor.decode(self.blocks[cid])
 
     def read_many(self, cids):
         blocks, missing = self.read_blocks(cids)
-        nodes = {cid: dag_cbor.decoding.decode(block)
-                 for cid, block in blocks.items()}
+        nodes = {cid: dag_cbor.decode(block) for cid, block in blocks.items()}
         return nodes, missing
 
     def read_blocks(self, cids):

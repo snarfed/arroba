@@ -1,7 +1,7 @@
 """Google Cloud Datastore implementation of repo storage."""
 import json
 
-import dag_cbor.decoding, dag_cbor.encoding
+import dag_cbor
 from google.cloud import ndb
 from multiformats import CID, multicodec, multihash
 
@@ -68,7 +68,7 @@ class AtpNode(ndb.Model):
         Returns:
           :class:`AtpNode`
         """
-        encoded = dag_cbor.encoding.encode(data)
+        encoded = dag_cbor.encode(data)
         digest = multihash.digest(encoded, 'sha2-256')
         cid = CID('base58btc', 1, multicodec.get('dag-cbor'), digest)
 
