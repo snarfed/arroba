@@ -1,11 +1,11 @@
 """Unit tests for xrpc_sync.py."""
-from carbox.car import Block, read_car
+from carbox.car import read_car
 
 from arroba.repo import Action, Repo, Write
-from arroba.storage import MemoryStorage
-from arroba.util import next_tid
 from arroba import xrpc_sync
 
+from .. import server
+from ..server import repo
 from . import testutil
 
 
@@ -35,8 +35,6 @@ class XrpcSyncTest(testutil.TestCase):
     def setUp(self):
         super().setUp()
 
-        xrpc_sync.init(self.key)
-
         self.data = {}  # maps path to obj
         writes = []
         for coll in 'com.example.posts', 'com.example.likes':
@@ -44,7 +42,7 @@ class XrpcSyncTest(testutil.TestCase):
                 writes.append(Write(Action.CREATE, coll, rkey, obj))
                 self.data[f'{coll}/{rkey}'] = obj
 
-        xrpc_sync.repo = xrpc_sync.repo.apply_writes(writes, self.key)
+        server.repo = server.repo.apply_writes(writes, server.key)
 
     def test_get_checkout(self):
         resp = xrpc_sync.get_checkout({}, did='did:web:user.com')

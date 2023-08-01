@@ -278,7 +278,6 @@ class Repo:
         self.storage.apply_commit(commit_data)
         return self.load(self.storage, commit_data.commit)
 
-    # TODO: the returned Repo here doesn't work? its MST isn't updated?
     def apply_writes(self, writes, key):
         """
 
