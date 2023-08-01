@@ -25,7 +25,12 @@ class XrpcRepoTest(testutil.TestCase):
         pass
 
     def test_describe_repo(self):
-        pass
+        with self.assertRaises(ValueError):
+            xrpc_repo.describe_repo({}, repo='unknown')
+
+        resp = xrpc_repo.describe_repo({}, repo='user.com')
+        self.assertEqual('did:web:user.com', resp['did'])
+        self.assertEqual('user.com', resp['handle'])
 
     def test_rebase_repo(self):
         pass
