@@ -149,7 +149,7 @@ def next_tid():
     return str(_tid_last)
 
 
-def at_uri(*, did=None, collection=None, rkey=None):
+def at_uri(did, collection, rkey):
     """Returns the at:// URI for a given DID, collection, and rkey.
 
     Args:

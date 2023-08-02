@@ -52,6 +52,5 @@ class UtilTest(TestCase):
         with self.assertRaises(AssertionError):
             at_uri()
 
-        uri = at_uri(did='did:web:user.com', collection='app.bsky.feed.post',
-                     rkey=123)
+        uri = at_uri('did:web:user.com', 'app.bsky.feed.post', 123)
         self.assertEqual('at://did:web:user.com/app.bsky.feed.post/123', uri)
