@@ -1,4 +1,8 @@
-"""com.atproto.repo.* XRPC methods."""
+"""com.atproto.repo.* XRPC methods.
+
+TODO:
+* cid in listRecords output
+"""
 import logging
 
 from .repo import Action, Repo, Write
@@ -38,7 +42,7 @@ def create_record(input):
     )], server.key)
 
     return {
-        'uri': at_uri(did=server.repo.did, collection=input['collection'], rkey=rkey),
+        'uri': at_uri(server.repo.did, input['collection'], rkey),
         'cid': repo.commit['data'],
     }
 
@@ -62,6 +66,19 @@ def list_records(input, repo=None, collection=None, limit=None, cursor=None,
                  rkeyStart=None, rkeyEnd=None):
     """
     """
+    validate(input, repo=repo, collection=collection, limit=limit, cursor=cursor)
+    if rkeyStart or rkeyEnd:
+        raise ValueError(f'rkeyStart/rkeyEnd not supported')
+
+    records = [{
+        'uri': at_uri(repo, collection, rkey),
+        'cid': 'TODO',
+        'value': record,
+    } for rkey, record in server.repo.get_contents()[collection].items()]
+    if reverse:
+        records.reverse()
+
+    return {'records': records}
 
 
 @server.server.method('com.atproto.repo.putRecord')
