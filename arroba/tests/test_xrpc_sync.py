@@ -76,7 +76,7 @@ class XrpcSyncTest(testutil.TestCase):
     #         uris.push(uri)
 
 
-    #     car = xrpc_sync.get_repo({ did })
+    #     car = xrpc_sync.get_repo({}, did='did:web:user.com')
     #     synced = repo.loadFullRepo(
     #         storage,
     #         Uint8Array(car),
@@ -112,10 +112,10 @@ class XrpcSyncTest(testutil.TestCase):
     #         })
     #         del repoData[uri.collection][uri.rkey]
 
-    #     car = xrpc_sync.get_repo({
-    #         did,
-    #         'earliest': currRoot,
-    #     })
+    #     car = xrpc_sync.get_repo({},
+    #         did='did:web:user.com',
+    #         earliest=currRoot,
+    #     )
 
     #     currRepo = repo.Repo.load(storage, currRoot)
     #     synced = repo.loadDiff(
@@ -135,7 +135,7 @@ class XrpcSyncTest(testutil.TestCase):
     #     currRoot = synced.root
 
     # def test_syncs_current_root(self):
-    #     root = xrpc_sync.get_head({ did })
+    #     root = xrpc_sync.get_head({}, did='did:web:user.com')
     #     self.assertEqual(currRoot, root.root)
 
     # def test_syncs_commit_path(self):
@@ -143,14 +143,14 @@ class XrpcSyncTest(testutil.TestCase):
     #     assert local, 'Could not get local commit path'
 
     #     localStr = local.map((c) => c)
-    #     commit_path = xrpc_sync.get_commit_path({ did })
-    #     self.assertEqual(localStr, commit_path.commits)
+    #     commit_path = xrpc_sync.get_commit_path({}, did='did:web:user.com')
+    #     self.assertEqual(localStr, commi{}, t_path.commits
 
-    #     partial_commit_path = xrpc_sync.get_commit_path({
-    #         did,
-    #         'earliest': localStr[2],
-    #         'latest': localStr[15],
-    #     })
+    #     partial_commit_path = xrpc_sync.get_commit_path({},
+    #         did='did:web:user.com',
+    #         earliest=localStr[2],
+    #         latest=localStr[15],
+    #     )
     #     self.assertEqual(localStr.slice(3, 16), partial_commit_path.commits)
 
     # def test_syncs_commit_range(self):
@@ -159,19 +159,19 @@ class XrpcSyncTest(testutil.TestCase):
 
     #     memoryStore = MemoryBlockstore()
     #     # first we load some baseline data (needed for parsing range)
-    #     first = xrpc_sync.get_repo({
-    #         did,
-    #         'latest': local[2].commit,
-    #     })
+    #     first = xrpc_sync.get_repo({},
+    #         did='did:web:user.com',
+    #         latest=local[2].commit,
+    #     )
     #     firstParsed = repo.readCar(Uint8Array(first))
     #     memoryStore.putMany(firstParsed.blocks)
 
     #     # then we load some commit range
-    #     second = xrpc_sync.get_repo({
-    #         did,
+    #     second = xrpc_sync.get_repo({},
+    #         did='did:web:user.com',
     #         'earliest': local[2].commit,
     #         'latest': local[15].commit,
-    #     })
+    #     )
     #     secondParsed = repo.readCar(Uint8Array(second))
     #     memoryStore.putMany(secondParsed.blocks)
 
@@ -181,7 +181,7 @@ class XrpcSyncTest(testutil.TestCase):
     #         local[2].commit,
     #     )
     #     assert commits, 'expected commits to be defined'
-
+{},
     #     localSlice = local.slice(2, 15)
     #     self.assertEqual(localSlice.length, commits.length)
     #     for fromRemote, fromLocal in zip(commits, localSlice):
@@ -189,12 +189,12 @@ class XrpcSyncTest(testutil.TestCase):
     #         self.assertEqual(fromLocal.blocks, fromRemote.blocks)
 
     # def test_sync_a_repo_checkout(self):
-    #     car = xrpc_sync.get_checkout({ did })
+    #     car = xrpc_sync.get_checkout({}, did=did)
     #     checkoutStorage = MemoryBlockstore()
     #     loaded = repo.loadCheckout(
     #         checkoutStorage,
     #         Uint8Array(car),
-    #         did,
+    #         did='did:web:user.com',
     #         ctx.repoSigningKey.did(),
     #     )
     #     self.assertEqual(repoData, loaded.contents)
@@ -204,14 +204,14 @@ class XrpcSyncTest(testutil.TestCase):
     # def test_sync_a_record_proof(self):
     #     collection = Object.keys(repoData)[0]
     #     rkey = Object.keys(repoData[collection])[0]
-    #     car = xrpc_sync.get_record({
-    #         did,
+    #     car = xrpc_sync.get_record({},
+    #         did={}, 'did:web:user.com',
     #         collection,
     #         rkey,
-    #     })
+    #     )
     #     records = repo.verifyRecords(
     #         Uint8Array(car),
-    #         did,
+    #         did='did:web:user.com',
     #         ctx.repoSigningKey.did(),
     #     )
     #     claim = {
@@ -225,7 +225,7 @@ class XrpcSyncTest(testutil.TestCase):
     #     result = repo.verifyProofs(
     #         Uint8Array(car),
     #         [claim],
-    #         did,
+    #         did='did:web:user.com',
     #         ctx.repoSigningKey.did(),
     #     )
     #     self.assertEqual(1, result.verified.length)
@@ -234,11 +234,11 @@ class XrpcSyncTest(testutil.TestCase):
     # def test_sync_a_proof_of_non(self):
     #     collection = Object.keys(repoData)[0]
     #     rkey = TID.nextStr() # rkey that doesn't exist
-    #     car = xrpc_sync.get_record({
-    #         did,
+    #     car = xrpc_sync.get_record({},
+    #         did='did:web:user.com',
     #         collection,
     #         rkey,
-    #     })
+    #     )
     #     claim = {
     #         collection,
     #         rkey,
@@ -248,7 +248,7 @@ class XrpcSyncTest(testutil.TestCase):
     #     result = repo.verifyProofs(
     #         Uint8Array(car),
     #         [claim],
-    #         did,
+    #         did='did:web:user.com',
     #         ctx.repoSigningKey.did(),
     #     )
     #     self.assertEqual(1, result.verified.length)
@@ -258,59 +258,59 @@ class XrpcSyncTest(testutil.TestCase):
     #     # let's just get some cids to reference
     #     collection = Object.keys(repoData)[0]
     #     rkey = Object.keys(repoData[collection])[0]
-    #     proof_car = xrpc_sync.get_record({
-    #         did,
-    #         collection,
-    #         rkey,
-    #     })
+    #     proof_car = xrpc_sync.get_record({},
+    #         did='did:web:user.com',
+    #         collection=collection,
+    #         rkey=rkey,
+    #     )
     #     proof_blocks = readCar(Uint8Array(proof_car))
     #     cids = proof_blocks.blocks.entries().map((e) => e.cid)
-    #     res = xrpc_sync.get_blocks({
-    #         did,
+    #     res = xrpc_sync.get_blocks({},
+    #         did='did:web:user.com',
     #         cids,
-    #     })
+    #     )
     #     car = readCar(Uint8Array(res))
     #     self.assertEqual(0, car.roots.length)
     #     expect(car.blocks.equals(proof_blocks.blocks))
 
     # def test_syncs_images(self):
     #     img1 = sc.uploadFile(
-    #         did,
+    #         did='did:web:user.com',
     #         'tests/image/fixtures/key-landscape-small.jpg',
     #         'image/jpeg',
     #     )
     #     img2 = sc.uploadFile(
-    #         did,
+    #         did='did:web:user.com',
     #         'tests/image/fixtures/key-portrait-small.jpg',
     #         'image/jpeg',
     #     )
-    #     sc.post(did, 'blah', undefined, [img1])
-    #     sc.post(did, 'blah', undefined, [img1, img2])
-    #     sc.post(did, 'blah', undefined, [img2])
-    #     res = xrpc_sync.get_commit_path({ did })
+    #     sc.post(did='did:web:user.com', 'blah', undefined, [img1])
+    #     sc.post(did='did:web:user.com', 'blah', undefined, [img1, img2])
+    #     sc.post(did='did:web:user.com', 'blah', undefined, [img2])
+    #     res = xrpc_sync.get_commit_path({}, did=did)
     #     commits = res.commits
-    #     blobs_for_first = xrpc_sync.list_blobs({
-    #         did,
-    #         'earliest': commits.at(-4),
-    #         'latest': commits.at(-3),
-    #     })
-    #     blobs_for_second = xrpc_sync.list_blobs({
-    #         did,
-    #         'earliest': commits.at(-3),
-    #         'latest': commits.at(-2),
-    #     })
-    #     blobs_for_third = xrpc_sync.list_blobs({
-    #         did,
-    #         'earliest': commits.at(-2),
-    #         'latest': commits.at(-1),
-    #     })
-    #     blobs_for_range = xrpc_sync.list_blobs({
-    #         did,
-    #         'earliest': commits.at(-4),
-    #     })
-    #     blobs_for_repo = xrpc_sync.list_blobs({
-    #         did,
-    #     })
+    #     blobs_for_first = xrpc_sync.list_blobs({},
+    #         did='did:web:user.com',
+    #         earliest=commits.at(-4),
+    #         latest=commits.at(-3),
+    #     )
+    #     blobs_for_second = xrpc_sync.list_blobs({},
+    #         did='did:web:user.com',
+    #         earliest=commits.at(-3),
+    #         latest=commits.at(-2),
+    #     )
+    #     blobs_for_third = xrpc_sync.list_blobs({},
+    #         did='did:web:user.com',
+    #         earliest=commits.at(-2),
+    #         latest=commits.at(-1),
+    #     )
+    #     blobs_for_range = xrpc_sync.list_blobs({},
+    #         did='did:web:user.com',
+    #         earliest=commits.at(-4),
+    #     )
+    #     blobs_for_repo = xrpc_sync.list_blobs({},
+    #         did='did:web:user.com',
+    #     )
     #     cid1 = img1.image.ref
     #     cid2 = img2.image.ref
 
@@ -323,43 +323,43 @@ class XrpcSyncTest(testutil.TestCase):
     # def test_does_not_sync_repo_unauthed(self):
     #     # Could not find repo for DID
     #     with self.assertRaises(ValueError):
-    #         xrpc_sync.get_repo({ did })
+    #         xrpc_sync.get_repo({}, did=did)
 
     # def test_syncs_repo_to_owner_or_admin(self):
     #         assert xrpc_sync.get_repo(
-    #             { did },
+    #             {}, did=did,
     #             { 'headers': { 'authorization': f'Bearer {sc.accounts[did].accessJwt}' } },
     #         )
     #
     #         assert xrpc_sync.get_repo(
-    #             { did },
+    #             {}, did=did,
     #             { 'headers': { 'authorization': adminAuth() } },
     #         )
 
     # def test_does_not_sync_current_root_unauthed(self):
     #     # Could not find root for DID
     #     with self.assertRaises(ValueError):
-    #         xrpc_sync.get_head({ did })
+    #         xrpc_sync.get_head({}, did=did)
 
     # def test_does_not_sync_commit_path_unauthed(self):
     #     # Could not find root for DID
     #     with self.assertRaises(ValueError):
-    #         xrpc_sync.get_commit_path({ did })
+    #         xrpc_sync.get_commit_path({}, did=did)
 
     # def test_does_not_sync_a_repo_checkout_unauthed(self):
     #     # Could not find root for DID
     #     with self.assertRaises(ValueError):
-    #         xrpc_sync.get_checkout({ did })
+    #         xrpc_sync.get_checkout({}, did=did)
 
     # def test_does_not_sync_a_record_proof_unauthed(self):
     #     collection = Object.keys(repoData)[0]
     #     rkey = Object.keys(repoData[collection])[0]
     #     # Could not find repo for DID
     #     with self.assertRaises(ValueError):
-    #         xrpc_sync.get_record({
-    #             did,
-    #             collection,
-    #             rkey,
+    #         xrpc_sync.get_record({},
+    #             did='did:web:user.com',
+    #             collection=collection,
+    #             rkey=rkey,
     #         })
 
     # def test_does_not_sync_blocks_unauthed(self):
@@ -367,15 +367,15 @@ class XrpcSyncTest(testutil.TestCase):
 
     #     # Could not find repo for DID
     #     with self.assertRaises(ValueError):
-    #         xrpc_sync.get_blocks({
-    #             did,
-    #             'cids': [cid],
-    #         })
+    #         xrpc_sync.get_blocks({},
+    #             did='did:web:user.com',
+    #             cids=[cid],
+    #         )
 
     # def test_does_not_sync_images_unauthed(self):
     #     # Could not find root for DID
     #     with self.assertRaises(ValueError):
-    #         xrpc_sync.list_blobs({ did })
+    #         xrpc_sync.list_blobs({}, did=did)
 
     #     # get blob
     #     image_cid = sc.posts[did].at(-1).images[0].image.ref
@@ -383,10 +383,10 @@ class XrpcSyncTest(testutil.TestCase):
 
     #     # blob not found
     #     with self.assertRaises(ValueError):
-    #         xrpc_sync.get_blob({
-    #             did,
-    #             'cid': image_cid,
-    #         })
+    #         xrpc_sync.get_blob({},
+    #             did='did:web:user.com',
+    #             cid=image_cid,
+    #         )
 
     # # atproto/packages/repo/tests/sync/checkout.test.ts
     # def test_sync_checkout_skips_existing_blocks(self):
@@ -411,7 +411,7 @@ class XrpcSyncTest(testutil.TestCase):
 
     # # atproto/packages/pds/tests/sync/list.test.ts
     # def test_lists_hosted_repos_in_order_of_creation(self):
-    #     resp = xrpc_sync.list_repos()
+    #     resp = xrpc_sync.list_repos({})
     #     self.assertEqual([
     #         sc.dids.alice,
     #         sc.dids.bob,
@@ -420,9 +420,9 @@ class XrpcSyncTest(testutil.TestCase):
     #     ], [r.did for r in resp.repos])
 
     # def test_paginates_listed_hosted_repos(self):
-    #     full = xrpc_sync.list_repos()
-    #     pt1 = xrpc_sync.list_repos(limit=2)
-    #     pt2 = xrpc_sync.list_repos(cursor=pt1.cursor)
+    #     full = xrpc_sync.list_repos({})
+    #     pt1 = xrpc_sync.list_repos({}, limit=2)
+    #     pt2 = xrpc_sync.list_repos({}, cursor=pt1.cursor)
     #     self.assertEqual(full.repos, pt1.repos + pt2.repos)
 
     # # atproto/packages/pds/tests/sync/subscribe-repos.test.ts
@@ -443,12 +443,12 @@ class XrpcSyncTest(testutil.TestCase):
     #     dan = sc.dids.dan
 
     # def getRepo(did):
-    #     car = xrpc_sync.get_repo({ did })
+    #     car = xrpc_sync.get_repo({}, did=did)
     #     storage = MemoryBlockstore()
     #     synced = repo.loadFullRepo(
     #         storage,
     #         Uint8Array(car),
-    #         did,
+    #         did='did:web:user.com',
     #         ctx.repoSigningKey.did(),
     #     )
     #     return repo.Repo.load(storage, synced.root)
@@ -695,14 +695,14 @@ class XrpcSyncTest(testutil.TestCase):
     #     verifyTombstoneEvent(tombstoneEvts[1], baddie2)
 
     # def test_sync_rebases(self):
-    #     prev_head = xrpc_sync.get_head({ 'did': alice })
+    #     prev_head = xrpc_sync.get_head({}, did=alice)
 
     #     xrpc_repo.rebaseRepo(
     #         { 'repo': alice },
     #         { 'encoding': 'application/json', 'headers': sc.getHeaders(alice) },
     #     )
 
-    #     curr_head = xrpc_sync.get_head({ 'did': alice })
+    #     curr_head = xrpc_sync.get_head({}, did=alice)
 
     #     ws = WebSocket(
     #         f'ws://{serverHost}/xrpc/com.atproto.sync.subscribeRepos?cursor={-1}',
