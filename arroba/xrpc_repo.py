@@ -70,6 +70,18 @@ def get_record(input, repo=None, collection=None, rkey=None, cid=None):
 def delete_record(input):
     """
     """
+    auth()
+    validate(input)
+
+    record = server.repo.get_record(input['collection'], input['rkey'])
+    if record is None:
+        return  # noop
+
+    repo = server.repo = server.repo.apply_writes([Write(
+        action=Action.DELETE,
+        collection=input['collection'],
+        rkey=input['rkey'],
+    )], server.key)
 
 
 @server.server.method('com.atproto.repo.listRecords')

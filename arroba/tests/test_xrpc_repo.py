@@ -73,17 +73,27 @@ class XrpcRepoTest(testutil.TestCase):
                 'rkey': '99999',
             })
 
-    # def test_delete_records(self):
-    #     xrpc_repo.delete_record({
-    #         'repo': 'did:web:user.com',
-    #         'collection': 'app.bsky.feed.post',
-    #         'rkey': uri.rkey,
-    #     })
-    #     res1 = xrpc_repo.list_records({
-    #         repo='did:web:user.com',
-    #         collection='app.bsky.feed.post',
-    #     })
-    #     self.assertEqual(0, res1.records.length)
+    def test_delete_record(self):
+        self.test_create_record()
+
+        xrpc_repo.delete_record({
+            'repo': 'did:web:user.com',
+            'collection': 'app.bsky.feed.post',
+            'rkey': util._tid_last,
+        })
+        resp = xrpc_repo.list_records({},
+            repo='did:web:user.com',
+            collection='app.bsky.feed.post',
+        )
+        self.assertEqual([], resp['records'])
+
+    def test_delete_nonexistent_record(self):
+        # noop
+        xrpc_repo.delete_record({
+            'repo': 'did:web:user.com',
+            'collection': 'app.bsky.feed.post',
+            'rkey': '9999',
+        })
 
     # def test_cruds_records_with_the_semantic_sugars(self):
     #     res1 = aliceAgent.api.app.bsky.feed.post.create(
