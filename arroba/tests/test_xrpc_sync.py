@@ -76,10 +76,10 @@ class XrpcSyncTest(testutil.TestCase):
     #         uris.push(uri)
 
 
-    #     car = xrpc_sync.getRepo({ did })
+    #     car = xrpc_sync.get_repo({ did })
     #     synced = repo.loadFullRepo(
     #         storage,
-    #         Uint8Array(car.data),
+    #         Uint8Array(car),
     #         did,
     #         ctx.repoSigningKey.did(),
     #     )
@@ -112,7 +112,7 @@ class XrpcSyncTest(testutil.TestCase):
     #         })
     #         del repoData[uri.collection][uri.rkey]
 
-    #     car = xrpc_sync.getRepo({
+    #     car = xrpc_sync.get_repo({
     #         did,
     #         'earliest': currRoot,
     #     })
@@ -120,7 +120,7 @@ class XrpcSyncTest(testutil.TestCase):
     #     currRepo = repo.Repo.load(storage, currRoot)
     #     synced = repo.loadDiff(
     #         currRepo,
-    #         Uint8Array(car.data),
+    #         Uint8Array(car),
     #         did,
     #         ctx.repoSigningKey.did(),
     #     )
@@ -135,23 +135,23 @@ class XrpcSyncTest(testutil.TestCase):
     #     currRoot = synced.root
 
     # def test_syncs_current_root(self):
-    #     root = xrpc_sync.getHead({ did })
-    #     self.assertEqual(currRoot, root.data.root)
+    #     root = xrpc_sync.get_head({ did })
+    #     self.assertEqual(currRoot, root.root)
 
     # def test_syncs_commit_path(self):
     #     local = storage.getCommitPath(currRoot as CID, null)
     #     assert local, 'Could not get local commit path'
 
     #     localStr = local.map((c) => c)
-    #     commitPath = xrpc_sync.getCommitPath({ did })
-    #     self.assertEqual(localStr, commitPath.data.commits)
+    #     commit_path = xrpc_sync.get_commit_path({ did })
+    #     self.assertEqual(localStr, commit_path.commits)
 
-    #     partialCommitPath = xrpc_sync.getCommitPath({
+    #     partial_commit_path = xrpc_sync.get_commit_path({
     #         did,
     #         'earliest': localStr[2],
     #         'latest': localStr[15],
     #     })
-    #     self.assertEqual(localStr.slice(3, 16), partialCommitPath.data.commits)
+    #     self.assertEqual(localStr.slice(3, 16), partial_commit_path.commits)
 
     # def test_syncs_commit_range(self):
     #     local = storage.getCommits(currRoot as CID, null)
@@ -159,20 +159,20 @@ class XrpcSyncTest(testutil.TestCase):
 
     #     memoryStore = MemoryBlockstore()
     #     # first we load some baseline data (needed for parsing range)
-    #     first = xrpc_sync.getRepo({
+    #     first = xrpc_sync.get_repo({
     #         did,
     #         'latest': local[2].commit,
     #     })
-    #     firstParsed = repo.readCar(Uint8Array(first.data))
+    #     firstParsed = repo.readCar(Uint8Array(first))
     #     memoryStore.putMany(firstParsed.blocks)
 
     #     # then we load some commit range
-    #     second = xrpc_sync.getRepo({
+    #     second = xrpc_sync.get_repo({
     #         did,
     #         'earliest': local[2].commit,
     #         'latest': local[15].commit,
     #     })
-    #     secondParsed = repo.readCar(Uint8Array(second.data))
+    #     secondParsed = repo.readCar(Uint8Array(second))
     #     memoryStore.putMany(secondParsed.blocks)
 
     #     # then we verify we have all the commits in the range
@@ -189,11 +189,11 @@ class XrpcSyncTest(testutil.TestCase):
     #         self.assertEqual(fromLocal.blocks, fromRemote.blocks)
 
     # def test_sync_a_repo_checkout(self):
-    #     car = xrpc_sync.getCheckout({ did })
+    #     car = xrpc_sync.get_checkout({ did })
     #     checkoutStorage = MemoryBlockstore()
     #     loaded = repo.loadCheckout(
     #         checkoutStorage,
-    #         Uint8Array(car.data),
+    #         Uint8Array(car),
     #         did,
     #         ctx.repoSigningKey.did(),
     #     )
@@ -204,13 +204,13 @@ class XrpcSyncTest(testutil.TestCase):
     # def test_sync_a_record_proof(self):
     #     collection = Object.keys(repoData)[0]
     #     rkey = Object.keys(repoData[collection])[0]
-    #     car = xrpc_sync.getRecord({
+    #     car = xrpc_sync.get_record({
     #         did,
     #         collection,
     #         rkey,
     #     })
     #     records = repo.verifyRecords(
-    #         Uint8Array(car.data),
+    #         Uint8Array(car),
     #         did,
     #         ctx.repoSigningKey.did(),
     #     )
@@ -223,7 +223,7 @@ class XrpcSyncTest(testutil.TestCase):
     #     self.assertEqual(1, records.length)
     #     self.assertEqual(claim.record, records[0].record)
     #     result = repo.verifyProofs(
-    #         Uint8Array(car.data),
+    #         Uint8Array(car),
     #         [claim],
     #         did,
     #         ctx.repoSigningKey.did(),
@@ -234,7 +234,7 @@ class XrpcSyncTest(testutil.TestCase):
     # def test_sync_a_proof_of_non(self):
     #     collection = Object.keys(repoData)[0]
     #     rkey = TID.nextStr() # rkey that doesn't exist
-    #     car = xrpc_sync.getRecord({
+    #     car = xrpc_sync.get_record({
     #         did,
     #         collection,
     #         rkey,
@@ -246,7 +246,7 @@ class XrpcSyncTest(testutil.TestCase):
     #     }
 
     #     result = repo.verifyProofs(
-    #         Uint8Array(car.data),
+    #         Uint8Array(car),
     #         [claim],
     #         did,
     #         ctx.repoSigningKey.did(),
@@ -258,20 +258,20 @@ class XrpcSyncTest(testutil.TestCase):
     #     # let's just get some cids to reference
     #     collection = Object.keys(repoData)[0]
     #     rkey = Object.keys(repoData[collection])[0]
-    #     proofCar = xrpc_sync.getRecord({
+    #     proof_car = xrpc_sync.get_record({
     #         did,
     #         collection,
     #         rkey,
     #     })
-    #     proofBlocks = readCar(Uint8Array(proofCar.data))
-    #     cids = proofBlocks.blocks.entries().map((e) => e.cid)
-    #     res = xrpc_sync.getBlocks({
+    #     proof_blocks = readCar(Uint8Array(proof_car))
+    #     cids = proof_blocks.blocks.entries().map((e) => e.cid)
+    #     res = xrpc_sync.get_blocks({
     #         did,
     #         cids,
     #     })
-    #     car = readCar(Uint8Array(res.data))
+    #     car = readCar(Uint8Array(res))
     #     self.assertEqual(0, car.roots.length)
-    #     expect(car.blocks.equals(proofBlocks.blocks))
+    #     expect(car.blocks.equals(proof_blocks.blocks))
 
     # def test_syncs_images(self):
     #     img1 = sc.uploadFile(
@@ -287,77 +287,76 @@ class XrpcSyncTest(testutil.TestCase):
     #     sc.post(did, 'blah', undefined, [img1])
     #     sc.post(did, 'blah', undefined, [img1, img2])
     #     sc.post(did, 'blah', undefined, [img2])
-    #     res = xrpc_sync.getCommitPath({ did })
-    #     commits = res.data.commits
-    #     blobsForFirst = xrpc_sync.listBlobs({
+    #     res = xrpc_sync.get_commit_path({ did })
+    #     commits = res.commits
+    #     blobs_for_first = xrpc_sync.list_blobs({
     #         did,
     #         'earliest': commits.at(-4),
     #         'latest': commits.at(-3),
     #     })
-    #     blobsForSecond = xrpc_sync.listBlobs({
+    #     blobs_for_second = xrpc_sync.list_blobs({
     #         did,
     #         'earliest': commits.at(-3),
     #         'latest': commits.at(-2),
     #     })
-    #     blobsForThird = xrpc_sync.listBlobs({
+    #     blobs_for_third = xrpc_sync.list_blobs({
     #         did,
     #         'earliest': commits.at(-2),
     #         'latest': commits.at(-1),
     #     })
-    #     blobsForRange = xrpc_sync.listBlobs({
+    #     blobs_for_range = xrpc_sync.list_blobs({
     #         did,
     #         'earliest': commits.at(-4),
     #     })
-    #     blobsForRepo = xrpc_sync.listBlobs({
+    #     blobs_for_repo = xrpc_sync.list_blobs({
     #         did,
     #     })
     #     cid1 = img1.image.ref
     #     cid2 = img2.image.ref
 
-    #     self.assertEqual([cid1], blobsForFirst.data.cids)
-    #     self.assertEqual([cid1, cid2].sort(), blobsForSecond.data.cids.sort())
-    #     self.assertEqual([cid2], blobsForThird.data.cids)
-    #     self.assertEqual([cid1, cid2].sort(), blobsForRange.data.cids.sort())
-    #     self.assertEqual([cid1, cid2].sort(), blobsForRepo.data.cids.sort())
+    #     self.assertEqual([cid1], blobs_for_first.cids)
+    #     self.assertEqual([cid1, cid2].sort(), blobs_for_second.cids.sort())
+    #     self.assertEqual([cid2], blobs_for_third.cids)
+    #     self.assertEqual([cid1, cid2].sort(), blobs_for_range.cids.sort())
+    #     self.assertEqual([cid1, cid2].sort(), blobs_for_repo.cids.sort())
 
     # def test_does_not_sync_repo_unauthed(self):
     #     # Could not find repo for DID
     #     with self.assertRaises(ValueError):
-    #         xrpc_sync.getRepo({ did })
+    #         xrpc_sync.get_repo({ did })
 
     # def test_syncs_repo_to_owner_or_admin(self):
-    #         tryGetRepoOwner = xrpc_sync.getRepo(
+    #         assert xrpc_sync.get_repo(
     #             { did },
     #             { 'headers': { 'authorization': f'Bearer {sc.accounts[did].accessJwt}' } },
     #         )
-    #         assert tryGetRepoOwner
-    #         tryGetRepoAdmin = xrpc_sync.getRepo(
+    #
+    #         assert xrpc_sync.get_repo(
     #             { did },
     #             { 'headers': { 'authorization': adminAuth() } },
     #         )
-    #         assert tryGetRepoAdmin
 
     # def test_does_not_sync_current_root_unauthed(self):
     #     # Could not find root for DID
     #     with self.assertRaises(ValueError):
-    #         xrpc_sync.getHead({ did })
+    #         xrpc_sync.get_head({ did })
 
     # def test_does_not_sync_commit_path_unauthed(self):
     #     # Could not find root for DID
     #     with self.assertRaises(ValueError):
-    #         xrpc_sync.getCommitPath({ did })
+    #         xrpc_sync.get_commit_path({ did })
 
     # def test_does_not_sync_a_repo_checkout_unauthed(self):
     #     # Could not find root for DID
     #     with self.assertRaises(ValueError):
-    #         xrpc_sync.getCheckout({ did })
+    #         xrpc_sync.get_checkout({ did })
 
     # def test_does_not_sync_a_record_proof_unauthed(self):
     #     collection = Object.keys(repoData)[0]
     #     rkey = Object.keys(repoData[collection])[0]
     #     # Could not find repo for DID
     #     with self.assertRaises(ValueError):
-    #         xrpc_sync.getRecord({
+    #         xrpc_sync.get_record({
     #             did,
     #             collection,
     #             rkey,
@@ -368,7 +367,7 @@ class XrpcSyncTest(testutil.TestCase):
 
     #     # Could not find repo for DID
     #     with self.assertRaises(ValueError):
-    #         xrpc_sync.getBlocks({
+    #         xrpc_sync.get_blocks({
     #             did,
     #             'cids': [cid],
     #         })
@@ -376,24 +375,24 @@ class XrpcSyncTest(testutil.TestCase):
     # def test_does_not_sync_images_unauthed(self):
     #     # Could not find root for DID
     #     with self.assertRaises(ValueError):
-    #         xrpc_sync.listBlobs({ did })
+    #         xrpc_sync.list_blobs({ did })
 
     #     # get blob
-    #     imageCid = sc.posts[did].at(-1).images[0].image.ref
-    #     assert imageCid
+    #     image_cid = sc.posts[did].at(-1).images[0].image.ref
+    #     assert image_cid
 
     #     # blob not found
     #     with self.assertRaises(ValueError):
-    #         xrpc_sync.getBlob({
+    #         xrpc_sync.get_blob({
     #             did,
-    #             'cid': imageCid,
+    #             'cid': image_cid,
     #         })
 
     # # atproto/packages/repo/tests/sync/checkout.test.ts
     # def test_sync_checkout_skips_existing_blocks(self):
-    #     commitPath = storage.getCommitPath(repo.cid, null)
-    #     assert commitPath, 'Could not get commitPath'
-    #     hasGenesisCommit = syncStorage.has(commitPath[0])
+    #     commit_path = storage.getCommitPath(repo.cid, null)
+    #     assert commit_path, 'Could not get commit_path'
+    #     hasGenesisCommit = syncStorage.has(commit_path[0])
     #     self.assertFalse(hasGenesisCommit)
 
     # def test_does_not_sync_duplicate_blocks(self):
@@ -412,19 +411,19 @@ class XrpcSyncTest(testutil.TestCase):
 
     # # atproto/packages/pds/tests/sync/list.test.ts
     # def test_lists_hosted_repos_in_order_of_creation(self):
-    #     resp = xrpc_sync.listRepos()
+    #     resp = xrpc_sync.list_repos()
     #     self.assertEqual([
     #         sc.dids.alice,
     #         sc.dids.bob,
     #         sc.dids.carol,
     #         sc.dids.dan,
-    #     ], [r.did for r in resp.data.repos])
+    #     ], [r.did for r in resp.repos])
 
     # def test_paginates_listed_hosted_repos(self):
-    #     full = xrpc_sync.listRepos()
-    #     pt1 = xrpc_sync.listRepos(limit=2)
-    #     pt2 = xrpc_sync.listRepos(cursor=pt1.data.cursor)
-    #     self.assertEqual(full.data.repos, pt1.data.repos + pt2.data.repos)
+    #     full = xrpc_sync.list_repos()
+    #     pt1 = xrpc_sync.list_repos(limit=2)
+    #     pt2 = xrpc_sync.list_repos(cursor=pt1.cursor)
+    #     self.assertEqual(full.repos, pt1.repos + pt2.repos)
 
     # # atproto/packages/pds/tests/sync/subscribe-repos.test.ts
     # def _setUp(self):
@@ -444,11 +443,11 @@ class XrpcSyncTest(testutil.TestCase):
     #     dan = sc.dids.dan
 
     # def getRepo(did):
-    #     car = xrpc_sync.getRepo({ did })
+    #     car = xrpc_sync.get_repo({ did })
     #     storage = MemoryBlockstore()
     #     synced = repo.loadFullRepo(
     #         storage,
-    #         Uint8Array(car.data),
+    #         Uint8Array(car),
     #         did,
     #         ctx.repoSigningKey.did(),
     #     )
@@ -696,14 +695,14 @@ class XrpcSyncTest(testutil.TestCase):
     #     verifyTombstoneEvent(tombstoneEvts[1], baddie2)
 
     # def test_sync_rebases(self):
-    #     prevHead = xrpc_sync.getHead({ 'did': alice })
+    #     prev_head = xrpc_sync.get_head({ 'did': alice })
 
     #     xrpc_repo.rebaseRepo(
     #         { 'repo': alice },
     #         { 'encoding': 'application/json', 'headers': sc.getHeaders(alice) },
     #     )
 
-    #     currHead = xrpc_sync.getHead({ 'did': alice })
+    #     curr_head = xrpc_sync.get_head({ 'did': alice })
 
     #     ws = WebSocket(
     #         f'ws://{serverHost}/xrpc/com.atproto.sync.subscribeRepos?cursor={-1}',
@@ -719,15 +718,15 @@ class XrpcSyncTest(testutil.TestCase):
     #     evt = aliceEvts[0]
     #     self.assertEqual(true, evt.rebase)
     #     self.assertEqual(false, evt.tooBig)
-    #     self.assertEqual(currHead.data.root, evt.commit)
-    #     self.assertEqual(prevHead.data.root, evt.prev)
+    #     self.assertEqual(curr_head.root, evt.commit)
+    #     self.assertEqual(prev_head.root, evt.prev)
     #     self.assertEqual([], evt.ops)
     #     self.assertEqual([], evt.blobs)
 
     #     car = readCar(evt.blocks)
     #     self.assertEqual(1, car.blocks.size)
     #     self.assertEqual(1, car.roots.length)
-    #     self.assertEqual(currHead.data.root, car.roots[0])
+    #     self.assertEqual(curr_head.root, car.roots[0])
 
     #     # did not affect other users
     #     bobEvts = getCommitEvents(bob, frames)
