@@ -1,11 +1,11 @@
 """Unit tests for xrpc_sync.py."""
 from carbox.car import read_car
 
-from arroba.repo import Action, Repo, Write
-from arroba import xrpc_sync
-
+from ..repo import Action, Repo, Write
 from .. import server
 from ..server import repo
+from .. import xrpc_sync
+
 from . import testutil
 
 

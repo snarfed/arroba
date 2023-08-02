@@ -21,6 +21,9 @@ from .storage import BlockMap, CommitData, Storage
 
 logger = logging.getLogger(__name__)
 
+COLLECTIONS = [
+    'app.bsky.feed.post',
+]
 
 class Action(Enum):
     """Used in :meth:`Repo.format_commit`."""

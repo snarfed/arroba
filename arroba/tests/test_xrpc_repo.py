@@ -3,6 +3,7 @@ import itertools
 
 from arroba import xrpc_repo
 
+from .. import util
 from . import testutil
 
 
@@ -10,21 +11,6 @@ class XrpcRepoTest(testutil.TestCase):
 
     def setUp(self):
         super().setUp()
-
-    def test_create_record(self):
-        pass
-
-    def test_get_record(self):
-        pass
-
-    def test_delete_record(self):
-        pass
-
-    def test_list_records(self):
-        pass
-
-    def test_put_record(self):
-        pass
 
     def test_describe_repo(self):
         with self.assertRaises(ValueError):
@@ -34,29 +20,20 @@ class XrpcRepoTest(testutil.TestCase):
         self.assertEqual('did:web:user.com', resp['did'])
         self.assertEqual('user.com', resp['handle'])
 
-    def test_rebase_repo(self):
-        pass
+    # atproto/packages/pds/tests/crud.test.ts
+    def test_create_record(self):
+        resp = xrpc_repo.create_record({
+            'repo': 'did:web:user.com',
+            'collection': 'app.bsky.feed.post',
+            'record': {
+                '$type': 'app.bsky.feed.post',
+                'text': 'Hello, world!',
+                'createdAt': testutil.NOW.isoformat(),
+            },
+        })
 
-    def test_apply_writes(self):
-        pass
-
-    def test_upload_blob(self):
-        pass
-
-    # # atproto/packages/pds/tests/crud.test.ts
-    # def test_creates_records(self):
-    #     res = xrpc_repo.createRecord({
-    #         'repo': alice.did,
-    #         'collection': 'app.bsky.feed.post',
-    #         'record': {
-    #             '$type': 'app.bsky.feed.post',
-    #             'text': 'Hello, world!',
-    #             'createdAt': testutil.NOW.isoformat(),
-    #         },
-    #     })
-    #     self.assertEqual(
-    #         f'at://{alice.did}/app.bsky.feed.post/{res.data.uri.rkey}',
-    #         res.data.uri)
+        self.assertEqual(f'at://did:web:user.com/app.bsky.feed.post/{util._tid_last}',
+                         resp['uri'])
 
     # def test_lists_records(self):
     #     res1 = xrpc_repo.listRecords({

@@ -1,15 +1,46 @@
 """com.atproto.repo.* XRPC methods."""
 import logging
 
+from .repo import Action, Repo, Write
 from . import server
+from .util import at_uri, next_tid
 
 logger = logging.getLogger(__name__)
+
+
+def auth():
+    pass
+
+
+def validate(input, **params):
+    input.update(params)
+
+    if input['repo'] != server.repo.did:
+        raise ValueError(f'Unknown repo: {input["repo"]}')
+
+    if input.get('swapCommit'):
+        raise ValueError('swapCommit not supported yet')
 
 
 @server.server.method('com.atproto.repo.createRecord')
 def create_record(input):
     """
     """
+    auth()
+    validate(input)
+
+    rkey = input.get('rkey') or next_tid()
+    repo = server.repo = server.repo.apply_writes([Write(
+        action=Action.CREATE,
+        collection=input['collection'],
+        rkey=rkey,
+        record=input['record'],
+    )], server.key)
+
+    return {
+        'uri': at_uri(did=server.repo.did, collection=input['collection'], rkey=rkey),
+        'cid': repo.commit['data'],
+    }
 
 
 @server.server.method('com.atproto.repo.getRecord')
