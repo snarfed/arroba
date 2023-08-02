@@ -3,6 +3,7 @@ from Crypto.PublicKey import ECC
 from multiformats import CID
 
 from ..util import (
+    at_uri,
     dag_cbor_cid,
     datetime_to_tid,
     new_p256_key,
@@ -46,3 +47,11 @@ class UtilTest(TestCase):
         first = next_tid()
         second = next_tid()
         self.assertGreater(second, first)
+
+    def test_at_uri(self):
+        with self.assertRaises(AssertionError):
+            at_uri()
+
+        uri = at_uri(did='did:web:user.com', collection='app.bsky.feed.post',
+                     rkey=123)
+        self.assertEqual('at://did:web:user.com/app.bsky.feed.post/123', uri)

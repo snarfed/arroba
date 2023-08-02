@@ -149,6 +149,23 @@ def next_tid():
     return str(_tid_last)
 
 
+def at_uri(*, did=None, collection=None, rkey=None):
+    """Returns the at:// URI for a given DID, collection, and rkey.
+
+    Args:
+      did: str
+      collection: str
+      rkey: str
+
+    Returns:
+      str, at:// URI
+    """
+    assert did
+    assert collection
+    assert rkey
+    return f'at://{did}/{collection}/{rkey}'
+
+
 def new_p256_key():
     """Generates a new ECC P-256 keypair.
 
