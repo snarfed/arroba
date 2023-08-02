@@ -1,6 +1,7 @@
 """Unit tests for xrpc_identity.py."""
 from arroba import xrpc_identity
 
+from .. import server
 from . import testutil
 
 
@@ -8,6 +9,7 @@ class XrpcIdentityTest(testutil.TestCase):
 
     def setUp(self):
         super().setUp()
+        server.init()
 
     def test_resolve_handle(self):
         pass

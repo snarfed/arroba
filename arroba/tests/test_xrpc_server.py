@@ -1,6 +1,7 @@
 """Unit tests for xrpc_server.py."""
 from arroba import xrpc_server
 
+from .. import server
 from . import testutil
 
 
@@ -8,6 +9,7 @@ class XrpcServerTest(testutil.TestCase):
 
     def setUp(self):
         super().setUp()
+        server.init()
 
     def test_create_account(self):
         pass

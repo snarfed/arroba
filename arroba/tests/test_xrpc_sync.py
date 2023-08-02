@@ -3,7 +3,6 @@ from carbox.car import read_car
 
 from ..repo import Action, Repo, Write
 from .. import server
-from ..server import repo
 from .. import xrpc_sync
 
 from . import testutil
@@ -34,6 +33,7 @@ class XrpcSyncTest(testutil.TestCase):
 
     def setUp(self):
         super().setUp()
+        server.init()
 
         self.data = {}  # maps path to obj
         writes = []
