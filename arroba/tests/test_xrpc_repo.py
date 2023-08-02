@@ -19,6 +19,9 @@ class XrpcRepoTest(testutil.TestCase):
         super().setUp()
         server.init()
 
+    def last_at_uri(self):
+        return f'at://did:web:user.com/app.bsky.feed.post/{util._tid_last}'
+
     def test_describe_repo(self):
         with self.assertRaises(ValueError):
             xrpc_repo.describe_repo({}, repo='unknown')
@@ -38,8 +41,7 @@ class XrpcRepoTest(testutil.TestCase):
                 'createdAt': testutil.NOW.isoformat(),
             },
         })
-        self.assertEqual(f'at://did:web:user.com/app.bsky.feed.post/{util._tid_last}',
-                         resp['uri'])
+        self.assertEqual(self.last_at_uri(), resp['uri'])
 
     def test_list_records(self):
         resp = xrpc_repo.list_records({}, repo='did:web:user.com',
@@ -52,37 +54,40 @@ class XrpcRepoTest(testutil.TestCase):
         self.assertEqual(1, len(resp['records']))
         self.assertEqual('Hello, world!', resp['records'][0]['value']['text'])
 
-    # def test_gets_records(self):
-    #     res1 = xrpc_repo.get_record({
-    #         'repo': alice.did,
-    #         'collection': 'app.bsky.feed.post',
-    #         'rkey': uri.rkey,
-    #     })
-    #     self.assertEqual(uri, res1.uri)
-    #     self.assertEqual('Hello, world!', res1.value.text)
+    def test_get_record(self):
+        self.test_create_record()
 
-    #     res2 = agent.api.app.bsky.feed.post.get({
-    #         'repo': alice.did,
-    #         'rkey': uri.rkey,
-    #     })
-    #     self.assertEqual(uri, res2.uri)
-    #     self.assertEqual('Hello, world!', res2.value.text)
+        resp = xrpc_repo.get_record({},
+            repo='did:web:user.com',
+            collection='app.bsky.feed.post',
+            rkey=str(util._tid_last),
+        )
+        self.assertEqual(self.last_at_uri(), resp['uri'])
+        self.assertEqual('Hello, world!', resp['value']['text'])
 
-    # def test_deletes_records(self):
+    def test_get_record_not_found(self):
+        with self.assertRaises(ValueError):
+            xrpc_repo.get_record({
+                'repo': 'did:web:user.com',
+                'collection': 'app.bsky.feed.post',
+                'rkey': '99999',
+            })
+
+    # def test_delete_records(self):
     #     xrpc_repo.delete_record({
-    #         'repo': alice.did,
+    #         'repo': 'did:web:user.com',
     #         'collection': 'app.bsky.feed.post',
     #         'rkey': uri.rkey,
     #     })
     #     res1 = xrpc_repo.list_records({
-    #         'repo': alice.did,
-    #         'collection': 'app.bsky.feed.post',
+    #         repo='did:web:user.com',
+    #         collection='app.bsky.feed.post',
     #     })
     #     self.assertEqual(0, res1.records.length)
 
     # def test_cruds_records_with_the_semantic_sugars(self):
     #     res1 = aliceAgent.api.app.bsky.feed.post.create(
-    #         { 'repo': alice.did },
+    #         { 'repo': 'did:web:user.com' },
     #         {
     #             '$type': 'app.bsky.feed.post',
     #             'text': 'Hello, world!',
@@ -91,17 +96,17 @@ class XrpcRepoTest(testutil.TestCase):
     #     )
 
     #     res2 = agent.api.app.bsky.feed.post.list({
-    #         'repo': alice.did,
+    #         'repo': 'did:web:user.com',
     #     })
     #     self.assertEqual(1, res2.records.length)
 
     #     aliceAgent.api.app.bsky.feed.post.delete({
-    #         'repo': alice.did,
+    #         'repo': 'did:web:user.com',
     #         'rkey': res1.uri.rkey,
     #     })
 
     #     res3 = agent.api.app.bsky.feed.post.list({
-    #         'repo': alice.did,
+    #         'repo': 'did:web:user.com',
     #     })
     #     self.assertEqual(0, res3.records.length)
 
@@ -120,7 +125,7 @@ class XrpcRepoTest(testutil.TestCase):
 
     #     # Associate image with post, image should be placed in blobstore
     #     res = aliceAgent.api.app.bsky.feed.post.create(
-    #         { 'repo': alice.did },
+    #         { 'repo': 'did:web:user.com' },
     #         {
     #             '$type': 'app.bsky.feed.post',
     #             'text': "Here's a key!",
@@ -135,7 +140,7 @@ class XrpcRepoTest(testutil.TestCase):
     #     # Ensure image is on post record
     #     post = aliceAgent.api.app.bsky.feed.post.get({
     #         'rkey': res.uri.rkey,
-    #         'repo': alice.did,
+    #         'repo': 'did:web:user.com',
     #     })
     #     images = post.value.embed.images
     #     self.assertEqual(1, images.length)
@@ -147,12 +152,12 @@ class XrpcRepoTest(testutil.TestCase):
     #     # Cleanup
     #     aliceAgent.api.app.bsky.feed.post.delete({
     #         'rkey': res.uri.rkey,
-    #         'repo': alice.did,
+    #         'repo': 'did:web:user.com',
     #     })
 
     # def test_creates_records_with_the_correct_key_described_by_the_schema(self):
     #     res = aliceAgent.api.app.bsky.actor.profile.create(
-    #         { 'repo': alice.did },
+    #         { 'repo': 'did:web:user.com' },
     #         {
     #             'displayName': 'alice',
     #             'createdAt': testutil.NOW.isoformat(),
@@ -163,7 +168,7 @@ class XrpcRepoTest(testutil.TestCase):
     # def _setUp(self):
     #     def createPost(text):
     #         res = aliceAgent.api.app.bsky.feed.post.create(
-    #             { 'repo': alice.did },
+    #             { 'repo': 'did:web:user.com' },
     #             {
     #                 '$type': 'app.bsky.feed.post',
     #                 text,
@@ -183,7 +188,7 @@ class XrpcRepoTest(testutil.TestCase):
     #     cursor = None
     #     while True:
     #         resps.append(agent.api.app.bsky.feed.post.list({
-    #             'repo': alice.did,
+    #             'repo': 'did:web:user.com',
     #             'cursor': cursor,
     #             'limit': 2,
     #         }))
@@ -195,7 +200,7 @@ class XrpcRepoTest(testutil.TestCase):
     #         self.assertLessEqual(2, resp.records.length)
 
     #     full = agent.api.app.bsky.feed.post.list({
-    #         'repo': alice.did,
+    #         'repo': 'did:web:user.com',
     #     })
 
     #     self.assertEqual(5, full.records.length)
@@ -207,7 +212,7 @@ class XrpcRepoTest(testutil.TestCase):
     #     cursor = None
     #     while True:
     #         resps.append(agent.api.app.bsky.feed.post.list({
-    #             'repo': alice.did,
+    #             'repo': 'did:web:user.com',
     #             'reverse': true,
     #             'cursor': cursor,
     #             'limit': 2,
@@ -220,7 +225,7 @@ class XrpcRepoTest(testutil.TestCase):
     #         self.assertLessEqual(2, resp.records.length)
 
     #     full = agent.api.app.bsky.feed.post.list({
-    #         'repo': alice.did,
+    #         'repo': 'did:web:user.com',
     #         'reverse': true,
     #     })
 
@@ -230,10 +235,10 @@ class XrpcRepoTest(testutil.TestCase):
 
     # def test_reverses(self):
     #     forwards = agent.api.app.bsky.feed.post.list({
-    #         'repo': alice.did,
+    #         'repo': 'did:web:user.com',
     #     })
     #     reverse = agent.api.app.bsky.feed.post.list({
-    #         'repo': alice.did,
+    #         'repo': 'did:web:user.com',
     #         'reverse': true,
     #     })
     #     self.assertEqual(uri1.rkey, forwards.cursor)
@@ -244,7 +249,7 @@ class XrpcRepoTest(testutil.TestCase):
 
     # def test_deletes_a_record_if_it_exists(self):
     #     data = xrpc_repo.create_record({
-    #         'repo': alice.did,
+    #         'repo': 'did:web:user.com',
     #         'collection': ids.AppBskyFeedPost,
     #         'record': { 'text': 'post', 'createdAt': testutil.NOW.isoformat() },
     #     })
@@ -257,14 +262,14 @@ class XrpcRepoTest(testutil.TestCase):
     #     # Could not locate record
     #     with self.assertRaises(ValueError):
     #         xrpc_repo.get_record({
-    #             'repo': post.uri.host,
-    #             'collection': uri.collection,
-    #             'rkey': post.uri.rkey,
+    #             repo=post.uri.host,
+    #             collection=uri.collection,
+    #             rkey=post.uri.rkey,
     #         })
 
     # def noop_if_record_doesnt_exist(self):
     #     data = xrpc_repo.create_record({
-    #         'repo': alice.did,
+    #         'repo': 'did:web:user.com',
     #         'collection': ids.AppBskyFeedPost,
     #         'record': { 'text': 'post', 'createdAt': testutil.NOW.isoformat() },
     #     })
@@ -277,9 +282,9 @@ class XrpcRepoTest(testutil.TestCase):
     #     # Could not locate record
     #     with self.assertRaises(ValueError):
     #         xrpc_repo.get_record({
-    #             'repo': post.uri.host,
-    #             'collection': uri.collection,
-    #             'rkey': post.uri.rkey,
+    #             repo=post.uri.host,
+    #             collection=uri.collection,
+    #             rkey=post.uri.rkey,
     #         })
 
     #     attemptDelete = xrpc_repo.delete_record({
@@ -298,7 +303,7 @@ class XrpcRepoTest(testutil.TestCase):
     # def test_create_new_record(self):
     #     # Could not locate record
     #     with self.assertRaises(ValueError):
-    #         xrpc_repo.get_record({ **profilePath, 'repo': bob.did })
+    #         xrpc_repo.get_record(**profilePath, repo=bob.did)
 
     #     data = xrpc_repo.put_record({
     #         **profilePath,
@@ -309,10 +314,10 @@ class XrpcRepoTest(testutil.TestCase):
     #     })
     #     self.assertEqual('at://{bob.did}/{ids.AppBskyActorProfile}/self', put.uri)
 
-    #     data = xrpc_repo.get_record({
+    #     data = xrpc_repo.get_record(
     #         **profilePath,
-    #         'repo': bob.did,
-    #     })
+    #         repo=bob.did,
+    #     )
     #     self.assertEqual({
     #         '$type': ids.AppBskyActorProfile,
     #         'displayName': 'Robert',
@@ -329,10 +334,10 @@ class XrpcRepoTest(testutil.TestCase):
     #     })
     #     self.assertEqual('at://{bob.did}/{ids.AppBskyActorProfile}/self', put.uri)
 
-    #     data = xrpc_repo.get_record({
+    #     data = xrpc_repo.get_record(
     #         **profilePath,
-    #         'repo': bob.did,
-    #     })
+    #         repo=bob.did,
+    #     )
     #     self.assertEqual({
     #         '$type': ids.AppBskyActorProfile,
     #         'displayName': 'Robert',
@@ -347,7 +352,7 @@ class XrpcRepoTest(testutil.TestCase):
     #             'collection': ids.AppBskyGraphFollow,
     #             'rkey': TID.nextStr(),
     #             'record': {
-    #                 'subject': alice.did,
+    #                 'subject': 'did:web:user.com',
     #                 'createdAt': testutil.NOW.isoformat(),
     #             },
     #         })
@@ -364,10 +369,10 @@ class XrpcRepoTest(testutil.TestCase):
     #             },
     #         })
 
-    #     data = xrpc_repo.get_record({
+    #     data = xrpc_repo.get_record(
     #         **profilePath,
-    #         'repo': bob.did,
-    #     })
+    #         repo=bob.did,
+    #     )
     #     self.assertEqual({
     #         '$type': ids.AppBskyActorProfile,
     #         'displayName': 'Robert',
@@ -376,25 +381,25 @@ class XrpcRepoTest(testutil.TestCase):
 
     # def test_defaults_an_undefined_$type_on_records(self):
     #     res = xrpc_repo.create_record({
-    #         'repo': alice.did,
+    #         'repo': 'did:web:user.com',
     #         'collection': 'app.bsky.feed.post',
     #         'record': {
     #             'text': 'blah',
     #             'createdAt': testutil.NOW.isoformat(),
     #         },
     #     })
-    #     got = xrpc_repo.get_record({
-    #         'repo': alice.did,
-    #         'collection': res.uri.collection,
-    #         'rkey': res.uri.rkey,
-    #     })
+    #     got = xrpc_repo.get_record(
+    #         repo='did:web:user.com',
+    #         collection=res.uri.collection,
+    #         rkey=res.uri.rkey,
+    #     )
     #     self.assertEqual(res.uri.collection, got.value['$type'])
 
     # def test_requires_the_schema_to_be_known_if_validating(self):
     #     # Lexicon not found: lex:com.example.foobar
     #     with self.assertRaises(ValueError):
     #         xrpc_repo.create_record({
-    #         'repo': alice.did,
+    #         'repo': 'did:web:user.com',
     #         'collection': 'com.example.foobar',
     #         'record': { '$type': 'com.example.foobar' },
     #     })
@@ -403,7 +408,7 @@ class XrpcRepoTest(testutil.TestCase):
     #     # Invalid $type: expected app.bsky.feed.post, got app.bsky.feed.like
     #     with self.assertRaises(ValueError):
     #         xrpc_repo.create_record({
-    #             'repo': alice.did,
+    #             'repo': 'did:web:user.com',
     #             'collection': 'app.bsky.feed.post',
     #             'record': { '$type': 'app.bsky.feed.like' },
     #         })
@@ -412,7 +417,7 @@ class XrpcRepoTest(testutil.TestCase):
     #     # Invalid app.bsky.feed.post record: Record must have the property "text"
     #     with self.assertRaises(ValueError):
     #         xrpc_repo.create_record({
-    #             'repo': alice.did,
+    #             'repo': 'did:web:user.com',
     #             'collection': 'app.bsky.feed.post',
     #             'record': { '$type': 'app.bsky.feed.post' },
     #         })
@@ -429,26 +434,26 @@ class XrpcRepoTest(testutil.TestCase):
     #     }
 
     # def test_createRecord_succeeds_on_proper_commit_cas(self):
-    #     data = xrpc_sync.getHead({ 'did': alice.did })
+    #     data = xrpc_sync.getHead({ 'did': 'did:web:user.com' })
     #     data = xrpc_repo.create_record({
-    #         'repo': alice.did,
+    #         'repo': 'did:web:user.com',
     #         'collection': ids.AppBskyFeedPost,
     #         'swapCommit': head.root,
     #         'record': postRecord(),
     #     })
-    #     checkPost = xrpc_repo.get_record({
-    #         'repo': post.uri.host,
-    #         'collection': post.uri.collection,
-    #         rkey: post.uri.rkey,
-    #     })
+    #     checkPost = xrpc_repo.get_record(
+    #         repo=post.uri.host,
+    #         collection=post.uri.collection,
+    #         rkey=post.uri.rkey,
+    #     )
     #     assert checkPost
 
     # def test_createRecord_fails_on_bad_commit_cas(self):
-    #     data = xrpc_sync.getHead({ 'did': alice.did })
+    #     data = xrpc_sync.getHead({ 'did': 'did:web:user.com' })
 
     #     # Update repo, change head
     #     xrpc_repo.create_record({
-    #         'repo': alice.did,
+    #         'repo': 'did:web:user.com',
     #         'collection': ids.AppBskyFeedPost,
     #         'record': postRecord(),
     #     })
@@ -456,7 +461,7 @@ class XrpcRepoTest(testutil.TestCase):
     #     # createRecord.InvalidSwapError
     #     with self.assertRaises(ValueError):
     #         xrpc_repo.create_record({
-    #             'repo': alice.did,
+    #             'repo': 'did:web:user.com',
     #             'collection': ids.AppBskyFeedPost,
     #             'swapCommit': staleHead.root,
     #             'record': postRecord(),
@@ -464,11 +469,11 @@ class XrpcRepoTest(testutil.TestCase):
 
     # def test_deleteRecord_succeeds_on_proper_commit_cas(self):
     #     data = xrpc_repo.create_record({
-    #         'repo': alice.did,
+    #         'repo': 'did:web:user.com',
     #         'collection': ids.AppBskyFeedPost,
     #         'record': postRecord(),
     #     })
-    #     data = xrpc_sync.getHead({ 'did': alice.did })
+    #     data = xrpc_sync.getHead({ 'did': 'did:web:user.com' })
     #     xrpc_repo.delete_record({
     #         'repo': post.uri.host,
     #         'collection': post.uri.collection,
@@ -478,16 +483,16 @@ class XrpcRepoTest(testutil.TestCase):
 
     #     # Could not locate record
     #     with self.assertRaises(ValueError):
-    #         xrpc_repo.get_record({
-    #             'repo': post.uri.host,
-    #             'collection': post.uri.collection,
-    #             'rkey': post.uri.rkey,
-    #         })
+    #         xrpc_repo.get_record(
+    #             repo=post.uri.host,
+    #             collection=post.uri.collection,
+    #             rkey=post.uri.rkey,
+    #         )
 
     # def test_deleteRecord_fails_on_bad_commit_cas(self):
-    #     data = xrpc_sync.getHead({ 'did': alice.did })
+    #     data = xrpc_sync.getHead({ 'did': 'did:web:user.com' })
     #     data = xrpc_repo.create_record({
-    #         'repo': alice.did,
+    #         'repo': 'did:web:user.com',
     #         'collection': ids.AppBskyFeedPost,
     #         'record': postRecord(),
     #     })
@@ -501,16 +506,16 @@ class XrpcRepoTest(testutil.TestCase):
     #             'swapCommit': staleHead.root,
     #         })
 
-    #     checkPost = xrpc_repo.get_record({
-    #         'repo': post.uri.host,
-    #         'collection': post.uri.collection,
-    #         'rkey': post.uri.rkey,
-    #     })
+    #     checkPost = xrpc_repo.get_record(
+    #         repo=post.uri.host,
+    #         collection=post.uri.collection,
+    #         rkey=post.uri.rkey,
+    #     )
     #     assert checkPost
 
     # def test_deleteRecord_succeeds_on_proper_record_cas(self):
     #     data = xrpc_repo.create_record({
-    #         'repo': alice.did,
+    #         'repo': 'did:web:user.com',
     #         'collection': ids.AppBskyFeedPost,
     #         'record': postRecord(),
     #     })
@@ -524,15 +529,15 @@ class XrpcRepoTest(testutil.TestCase):
 
     #     # Could not locate record
     #     with self.assertRaises(ValueError):
-    #         repo.getRecord({
-    #             'repo': post.uri.host,
-    #             'collection': post.uri.collection,
-    #             'rkey': post.uri.rkey,
-    #         })
+    #         repo.getRecord(
+    #             repo=post.uri.host,
+    #             collection=post.uri.collection,
+    #             rkey=post.uri.rkey,
+    #         )
 
     # def test_deleteRecord_fails_on_bad_record_cas(self):
     #     data = xrpc_repo.create_record({
-    #         'repo': alice.did,
+    #         'repo': 'did:web:user.com',
     #         'collection': ids.AppBskyFeedPost,
     #         'record': postRecord(),
     #     })
@@ -546,42 +551,42 @@ class XrpcRepoTest(testutil.TestCase):
     #             'swapRecord': (cidForCbor({})),
     #         })
 
-    #     assert xrpc_repo.get_record({
-    #         'repo': post.uri.host,
-    #         'collection': post.uri.collection,
-    #         'rkey': post.uri.rkey,
-    #     })
+    #     assert xrpc_repo.get_record(
+    #         repo=post.uri.host,
+    #         collection=post.uri.collection,
+    #         rkey=post.uri.rkey,
+    #     )
 
     # def test_putRecord_succeeds_on_proper_commit_cas(self):
-    #     data = xrpc_sync.getHead({ 'did': alice.did })
+    #     data = xrpc_sync.getHead({ 'did': 'did:web:user.com' })
     #     data = xrpc_repo.put_record({
-    #         'repo': alice.did,
+    #         'repo': 'did:web:user.com',
     #         'collection': ids.AppBskyActorProfile,
     #         'rkey': 'self',
     #         'swapCommit': head.root,
     #         'record': profileRecord(),
     #     })
-    #     data = xrpc_repo.get_record({
-    #         'repo': alice.did,
-    #         'collection': ids.AppBskyActorProfile,
-    #         'rkey': 'self',
-    #     })
+    #     data = xrpc_repo.get_record(
+    #         repo='did:web:user.com',
+    #         collection=ids.AppBskyActorProfile,
+    #         rkey='self',
+    #     )
     #     self.assertEqual(profile.cid, checkProfile.cid)
 
     # def test_putRecord_fails_on_bad_commit_cas(self):
-    #     data = xrpc_sync.getHead({ 'did': alice.did })
+    #     data = xrpc_sync.getHead({ 'did': 'did:web:user.com' })
 
     #     # Update repo, change head
-    #     xrpc_repo.create_record({
-    #         'repo': alice.did,
-    #         'collection': ids.AppBskyFeedPost,
-    #         'record': postRecord(),
-    #     })
+    #     xrpc_repo.create_record(
+    #         repo='did:web:user.com',
+    #         collection=ids.AppBskyFeedPost,
+    #         record=postRecord(),
+    #     )
 
     #     # putRecord.InvalidSwapError
     #     with self.assertRaises(ValueError):
     #         xrpc_repo.put_record({
-    #             'repo': alice.did,
+    #             'repo': 'did:web:user.com',
     #             'collection': ids.AppBskyActorProfile,
     #             'rkey': 'self',
     #             'swapCommit': staleHead.root,
@@ -591,41 +596,41 @@ class XrpcRepoTest(testutil.TestCase):
     # def test_putRecord_succeeds_on_proper_record_cas(self):
     #     # Start with missing profile record, to test swapRecord=null
     #     xrpc_repo.delete_record({
-    #         'repo': alice.did,
+    #         'repo': 'did:web:user.com',
     #         'collection': ids.AppBskyActorProfile,
     #         'rkey': 'self',
     #     })
 
     #     # Test swapRecord w/ null (ensures create)
     #     data = xrpc_repo.put_record({
-    #         'repo': alice.did,
+    #         'repo': 'did:web:user.com',
     #         'collection': ids.AppBskyActorProfile,
     #         'rkey': 'self',
     #         'swapRecord': null,
     #         'record': profileRecord(),
     #     })
 
-    #     data = xrpc_repo.get_record({
-    #         'repo': alice.did,
-    #         'collection': ids.AppBskyActorProfile,
-    #         'rkey': 'self',
-    #     })
+    #     data = xrpc_repo.get_record(
+    #         repo='did:web:user.com',
+    #         collection=ids.AppBskyActorProfile,
+    #         rkey='self',
+    #     )
     #     self.assertEqual(profile1.cid, checkProfile1.cid)
 
     #     # Test swapRecord w/ cid (ensures update)
     #     data = xrpc_repo.put_record({
-    #         'repo': alice.did,
+    #         'repo': 'did:web:user.com',
     #         'collection': ids.AppBskyActorProfile,
     #         'rkey': 'self',
     #         'swapRecord': profile1.cid,
     #         'record': profileRecord(),
     #     })
 
-    #     data = xrpc_repo.get_record({
-    #         'repo': alice.did,
-    #         'collection': ids.AppBskyActorProfile,
-    #         'rkey': 'self',
-    #     })
+    #     data = xrpc_repo.get_record(
+    #         repo='did:web:user.com',
+    #         collection=ids.AppBskyActorProfile,
+    #         rkey='self',
+    #     )
     #     self.assertEqual(profile2.cid, checkProfile2.cid)
 
     # def test_putRecord_fails_on_bad_record_cas(self):
@@ -633,7 +638,7 @@ class XrpcRepoTest(testutil.TestCase):
     #     # putRecord.InvalidSwapError
     #     with self.assertRaises(ValueError):
     #         xrpc_repo.put_record({
-    #             'repo': alice.did,
+    #             'repo': 'did:web:user.com',
     #             'collection': ids.AppBskyActorProfile,
     #             'rkey': 'self',
     #             'swapRecord': null,
@@ -644,7 +649,7 @@ class XrpcRepoTest(testutil.TestCase):
     #     # putRecord.InvalidSwapError
     #     with self.assertRaises(ValueError):
     #         xrpc_repo.put_record({
-    #             'repo': alice.did,
+    #             'repo': 'did:web:user.com',
     #             'collection': ids.AppBskyActorProfile,
     #             'rkey': 'self',
     #             'swapRecord': (cidForCbor({})),
@@ -652,9 +657,9 @@ class XrpcRepoTest(testutil.TestCase):
     #         })
 
     # def test_applyWrites_succeeds_on_proper_commit_cas(self):
-    #     data = sync.getHead({ 'did': alice.did })
+    #     data = sync.getHead({ 'did': 'did:web:user.com' })
     #     xrpc_repo.apply_writes({
-    #         'repo': alice.did,
+    #         'repo': 'did:web:user.com',
     #         'swapCommit': head.root,
     #         'writes': [{
     #             '$type': f'{ids.ComAtprotoRepoApplyWrites}#create',
@@ -665,11 +670,11 @@ class XrpcRepoTest(testutil.TestCase):
     #     })
 
     # def test_applyWrites_fails_on_bad_commit_cas(self):
-    #     data = xrpc_sync.getHead({ 'did': alice.did })
+    #     data = xrpc_sync.getHead({ 'did': 'did:web:user.com' })
 
     #     # Update repo, change head
     #     xrpc_repo.create_record({
-    #         'repo': alice.did,
+    #         'repo': 'did:web:user.com',
     #         'collection': ids.AppBskyFeedPost,
     #         'record': postRecord(),
     #     })
@@ -677,7 +682,7 @@ class XrpcRepoTest(testutil.TestCase):
     #     # applyWrites.InvalidSwapError,
     #     with self.assertRaises(ValueError):
     #         xrpc_repo.apply_writes({
-    #             'repo': alice.did,
+    #             'repo': 'did:web:user.com',
     #             'swapCommit': staleHead.root,
     #             'writes': [
     #                 {
@@ -695,7 +700,7 @@ class XrpcRepoTest(testutil.TestCase):
     #         'post',
     #         { **aliceAgent.api.xrpc.headers, 'Content-Type': 'application/json' },
     #         json.dumps({
-    #             'repo': alice.did,
+    #             'repo': 'did:web:user.com',
     #             'collection': 'app.bsky.feed.post',
     #             'record': {
     #                 'text': 'x',
@@ -720,7 +725,7 @@ class XrpcRepoTest(testutil.TestCase):
     #     likes = []
     #     for uri, cid in [(uriA, cidA), (uriB, cidB), (uriA, cidA)]:
     #         likes.append(xrpc_repo.create_record({
-    #             'repo': alice.did,
+    #             'repo': 'did:web:user.com',
     #             'collection': 'app.bsky.feed.like',
     #             'record': {
     #                 '$type': 'app.bsky.feed.like',
@@ -731,25 +736,22 @@ class XrpcRepoTest(testutil.TestCase):
 
     #     # Could not locate record
     #     with self.assertRaises(ValueError):
-    #         xrpc_repo.get_record({
-    #             'repo': alice.did,
-    #             'collection': 'app.bsky.feed.like',
-    #             'rkey': AtUri(likes[0].uri).rkey,
-    #         })
+    #         xrpc_repo.get_record(
+    #             repo='did:web:user.com',
+    #             collection='app.bsky.feed.like',
+    #             rkey=AtUri(likes[0].uri).rkey,
+    #         )
 
-    #     getLike2 = xrpc_repo.get_record({
-    #         'repo': alice.did,
-    #         'collection': 'app.bsky.feed.like',
-    #         'rkey': AtUri(likes[1].uri).rkey,
-    #     })
-    #     assert getLike2
-
-    #     getLike3 = xrpc_repo.get_record({
-    #         'repo': alice.did,
-    #         'collection': 'app.bsky.feed.like',
-    #         'rkey': AtUri(likes[2].uri).rkey,
-    #     })
-    #     assert getLike3
+    #     assert xrpc_repo.get_record(
+    #         repo='did:web:user.com',
+    #         collection='app.bsky.feed.like',
+    #         rkey=AtUri(likes[1].uri).rkey,
+    #     )
+    #     assert xrpc_repo.get_record(
+    #         repo='did:web:user.com',
+    #         collection='app.bsky.feed.like',
+    #         rkey=AtUri(likes[2].uri).rkey,
+    #     )
 
     # def test_prevents_duplicate_reposts(self):
     #     now = testutil.NOW.isoformat()
@@ -761,7 +763,7 @@ class XrpcRepoTest(testutil.TestCase):
     #     reposts = []
     #     for uri, cid in [(uriA, cidA), (uriB, cidB), (uriA, cidA)]:
     #         reposts.append(xrpc_repo.create_record({
-    #             'repo': alice.did,
+    #             'repo': 'did:web:user.com',
     #             'collection': 'app.bsky.feed.repost',
     #             'record': {
     #                 '$type': 'app.bsky.feed.repost',
@@ -772,22 +774,18 @@ class XrpcRepoTest(testutil.TestCase):
 
     #     # Could not locate record
     #     with self.assertRaises(ValueError):
-    #         xrpc_repo.get_record({
-    #             'repo': alice.did,
-    #             'collection': 'app.bsky.feed.repost',
-    #             'rkey': AtUri(reposts[0].uri).rkey,
-    #         })
-
-    #     getRepost2 = xrpc_repo.get_record({
-    #         'repo': alice.did,
-    #         'collection': 'app.bsky.feed.repost',
-    #         'rkey': AtUri(reposts[1].uri).rkey,
-    #     })
-    #     assert getRepost2
-
-    #     getRepost3 = xrpc_repo.get_record({
-    #         'repo': alice.did,
-    #         'collection': 'app.bsky.feed.repost',
-    #         'rkey': AtUri(reposts[2].uri).rkey,
-    #     })
-    #     assert getRepost3
+    #         xrpc_repo.get_record(
+    #             repo='did:web:user.com',
+    #             collection='app.bsky.feed.repost',
+    #             rkey=AtUri(reposts[0].uri).rkey,
+    #         )
+    #     assert xrpc_repo.get_record(
+    #         repo='did:web:user.com',
+    #         collection='app.bsky.feed.repost',
+    #         rkey=AtUri(reposts[1].uri).rkey,
+    #     )
+    #     assert xrpc_repo.get_record(
+    #         repo='did:web:user.com',
+    #         collection='app.bsky.feed.repost',
+    #         rkey=AtUri(reposts[2].uri).rkey,
+    #     )

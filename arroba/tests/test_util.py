@@ -50,7 +50,7 @@ class UtilTest(TestCase):
 
     def test_at_uri(self):
         with self.assertRaises(AssertionError):
-            at_uri()
+            at_uri(None, '', None)
 
         uri = at_uri('did:web:user.com', 'app.bsky.feed.post', 123)
         self.assertEqual('at://did:web:user.com/app.bsky.feed.post/123', uri)

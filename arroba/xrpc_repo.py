@@ -1,7 +1,7 @@
 """com.atproto.repo.* XRPC methods.
 
 TODO:
-* cid in listRecords output
+* cid in getRecord, listRecords output
 """
 import logging
 
@@ -48,9 +48,22 @@ def create_record(input):
 
 
 @server.server.method('com.atproto.repo.getRecord')
-def get_record(input, repo=None, nsid=None, cid=None):
+def get_record(input, repo=None, collection=None, rkey=None, cid=None):
     """
     """
+    validate(input, repo=repo, collection=collection, rkey=rkey, cid=cid)
+    if cid:
+        raise ValueError(f'cid not supported yet')
+
+    record = server.repo.get_record(collection, rkey)
+    if record is None:
+        raise ValueError(f'{collection} {rkey} not found')
+
+    return {
+        'uri': at_uri(repo, collection, rkey),
+        'cid': 'TODO',
+        'value': record,
+    }
 
 
 @server.server.method('com.atproto.repo.deleteRecord')
