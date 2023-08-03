@@ -31,7 +31,7 @@ class XrpcRepoTest(testutil.TestCase):
         self.assertEqual('did:web:user.com', resp['did'])
         self.assertEqual('user.com', resp['handle'])
 
-    # atproto/packages/pds/tests/crud.test.ts
+    # based on atproto/packages/pds/tests/crud.test.ts
     def test_create_record(self):
         resp = xrpc_repo.create_record({
             'repo': 'did:web:user.com',

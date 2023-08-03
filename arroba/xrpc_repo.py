@@ -1,7 +1,10 @@
 """com.atproto.repo.* XRPC methods.
 
 TODO:
+* auth
 * cid in getRecord, listRecords output
+* apply_writes
+* rebase_repo
 """
 import logging
 
@@ -13,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 def auth():
-    pass
+    # TODO
 
 
 def validate(input, **params):

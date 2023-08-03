@@ -10,3 +10,10 @@ logger = logging.getLogger(__name__)
 def resolve_handle(input, handle=None):
     """
     """
+    assert handle
+    handle = handle.lower()
+
+    if server.repo.did == f'did:web:{handle}':
+        return {'did': server.repo.did}
+
+    raise ValueError(f'{handle} not found')
