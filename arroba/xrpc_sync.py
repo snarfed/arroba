@@ -39,7 +39,10 @@ def get_repo(input, did=None, earliest=None, latest=None):
 def list_repos(input, limit=None, cursor=None):
     """
     """
-    # output: {'repos': [#repo: {'did': ..., 'head': ...}], cursor: '...'}
+    return [{
+        'did': server.repo.did,
+        'head': server.repo.cid.encode('base32'),
+    }]
 
 
 @server.server.method('com.atproto.sync.subscribeRepos')

@@ -61,7 +61,7 @@ class XrpcSyncTest(testutil.XrpcTestCase):
         roots, blocks = read_car(resp)
         self.assertEqual(self.data, load_checkout(blocks))
 
-    # def test_syncs_creates_and_deletes(self):
+    # def test_get_repo_creates_and_deletes(self):
     #     ADD_COUNT = 10
     #     DEL_COUNT = 4
 
@@ -150,7 +150,6 @@ class XrpcSyncTest(testutil.XrpcTestCase):
     #         local[2].commit,
     #     )
     #     assert commits, 'expected commits to be defined'
-{},
     #     localSlice = local.slice(2, 15)
     #     self.assertEqual(localSlice.length, commits.length)
     #     for fromRemote, fromLocal in zip(commits, localSlice):
@@ -378,15 +377,13 @@ class XrpcSyncTest(testutil.XrpcTestCase):
     #     with self.assertRaises(ValueError):
     #         sync.loadCheckout(syncStorage, checkoutCar, repoDid, keypair.did())
 
-    # # atproto/packages/pds/tests/sync/list.test.ts
-    # def test_lists_hosted_repos_in_order_of_creation(self):
-    #     resp = xrpc_sync.list_repos({})
-    #     self.assertEqual([
-    #         sc.dids.alice,
-    #         sc.dids.bob,
-    #         sc.dids.carol,
-    #         sc.dids.dan,
-    #     ], [r.did for r in resp.repos])
+    # based atproto/packages/pds/tests/sync/list.test.ts
+    def test_lists_hosted_repos_in_order_of_creation(self):
+        resp = xrpc_sync.list_repos({})
+        self.assertEqual([{
+            'did': 'did:web:user.com',
+            'head': server.repo.cid.encode('base32'),
+        }], resp)
 
     # def test_paginates_listed_hosted_repos(self):
     #     full = xrpc_sync.list_repos({})
