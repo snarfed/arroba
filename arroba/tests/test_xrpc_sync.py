@@ -55,12 +55,23 @@ class XrpcSyncTest(testutil.XrpcTestCase):
         roots, blocks = read_car(resp)
         self.assertEqual(self.data, load_checkout(blocks))
 
-    # based on atproto/packages/pds/tests/sync/sync.test.ts
     def test_get_repo(self):
         resp = xrpc_sync.get_repo({}, did='did:web:user.com')
         roots, blocks = read_car(resp)
         self.assertEqual(self.data, load_checkout(blocks))
 
+    def test_lists_hosted_repos_in_order_of_creation(self):
+        resp = xrpc_sync.list_repos({})
+        self.assertEqual([{
+            'did': 'did:web:user.com',
+            'head': server.repo.cid.encode('base32'),
+        }], resp)
+
+    def test_get_head(self):
+        resp = xrpc_sync.get_head({}, did='did:web:user.com')
+        self.assertEqual({'root': server.repo.cid.encode('base32')}, resp)
+
+    # based on atproto/packages/pds/tests/sync/sync.test.ts
     # def test_get_repo_creates_and_deletes(self):
     #     ADD_COUNT = 10
     #     DEL_COUNT = 4
@@ -378,20 +389,13 @@ class XrpcSyncTest(testutil.XrpcTestCase):
     #         sync.loadCheckout(syncStorage, checkoutCar, repoDid, keypair.did())
 
     # based atproto/packages/pds/tests/sync/list.test.ts
-    def test_lists_hosted_repos_in_order_of_creation(self):
-        resp = xrpc_sync.list_repos({})
-        self.assertEqual([{
-            'did': 'did:web:user.com',
-            'head': server.repo.cid.encode('base32'),
-        }], resp)
-
     # def test_paginates_listed_hosted_repos(self):
     #     full = xrpc_sync.list_repos({})
     #     pt1 = xrpc_sync.list_repos({}, limit=2)
     #     pt2 = xrpc_sync.list_repos({}, cursor=pt1.cursor)
     #     self.assertEqual(full.repos, pt1.repos + pt2.repos)
 
-    # # atproto/packages/pds/tests/sync/subscribe-repos.test.ts
+    # # based on atproto/packages/pds/tests/sync/subscribe-repos.test.ts
     # def _setUp(self):
     #     server = runTestServer({
     #         'dbPostgresSchema': 'repo_subscribe_repos',

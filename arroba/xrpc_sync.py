@@ -1,4 +1,9 @@
-"""com.atproto.sync.* XRPC methods."""
+"""com.atproto.sync.* XRPC methods.
+
+TODO:
+* getBlocks?
+* getCommitPath?
+"""
 import logging
 
 from carbox.car import Block, write_car
@@ -8,9 +13,16 @@ from . import server
 logger = logging.getLogger(__name__)
 
 
+def validate(did=None):
+    if did != server.repo.did:
+        raise ValueError(f'Unknown DID: {did}')
+
+
 @server.server.method('com.atproto.sync.getCheckout')
 def get_checkout(input, did=None, commit=None):
     """Gets a checkout, either head or a specific commit."""
+    validate(did=did)
+
     if not commit:
         commit = server.repo.cid
 
@@ -29,6 +41,8 @@ def get_checkout(input, did=None, commit=None):
 def get_repo(input, did=None, earliest=None, latest=None):
     """
     """
+    validate(did=did)
+
     blocks, missing = server.storage.read_blocks([server.repo.cid])
     return write_car(
         [server.repo.cid],
@@ -52,25 +66,30 @@ def subscribe_repos(input, cursor=None):  # int, seq # ?
     # subscription
 
 
-@server.server.method('com.atproto.sync.getBlocks')
-def get_blocks(input, did=None, cids=None):
-    """
-    """
-    # output: CAR
+# @server.server.method('com.atproto.sync.getBlocks')
+# def get_blocks(input, did=None, cids=None):
+#     """
+#     """
+#     # TODO
+#     return b''
 
 
-@server.server.method('com.atproto.sync.getCommitPath')
-def get_commit_path(input, did=None, earliest=None, latest=None):
-    """
-    """
-    # output: {'commits': [CID]}
+# @server.server.method('com.atproto.sync.getCommitPath')
+# def get_commit_path(input, did=None, earliest=None, latest=None):
+#     """
+#     """
+#     # TODO
 
 
 @server.server.method('com.atproto.sync.getHead')
 def get_head(input, did=None):
     """
     """
-    # output: {'root': CID}
+    validate(did=did)
+
+    return {
+        'root': server.repo.cid.encode('base32'),
+    }
 
 
 @server.server.method('com.atproto.sync.getRecord')
