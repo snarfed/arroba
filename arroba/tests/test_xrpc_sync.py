@@ -4,7 +4,7 @@ TODO:
 * getCheckout commit param
 * getRepo earliest, latest params
 """
-from carbox.car import read_car
+from carbox.car import Block, read_car
 
 from ..repo import Action, Repo, Write
 from .. import server
@@ -13,7 +13,7 @@ from .. import xrpc_sync
 from . import testutil
 
 
-def load_checkout(blocks):
+def load(blocks):
     """
     Args:
       root: CID
@@ -53,12 +53,12 @@ class XrpcSyncTest(testutil.XrpcTestCase):
                                       # TODO
                                       # commit=xrpc_sync.repo.cid)
         roots, blocks = read_car(resp)
-        self.assertEqual(self.data, load_checkout(blocks))
+        self.assertEqual(self.data, load(blocks))
 
     def test_get_repo(self):
         resp = xrpc_sync.get_repo({}, did='did:web:user.com')
         roots, blocks = read_car(resp)
-        self.assertEqual(self.data, load_checkout(blocks))
+        self.assertEqual(self.data, load(blocks))
 
     def test_lists_hosted_repos_in_order_of_creation(self):
         resp = xrpc_sync.list_repos({})
@@ -70,6 +70,22 @@ class XrpcSyncTest(testutil.XrpcTestCase):
     def test_get_head(self):
         resp = xrpc_sync.get_head({}, did='did:web:user.com')
         self.assertEqual({'root': server.repo.cid.encode('base32')}, resp)
+
+    def test_get_record(self):
+        path, obj = next(iter(self.data.items()))
+        coll, rkey = path.split('/')
+        resp = xrpc_sync.get_record({}, did='did:web:user.com', collection=coll,
+                                    rkey=rkey)
+
+        expected = Block(decoded=obj)
+        roots, blocks = read_car(resp)
+        self.assertEqual([expected.cid], roots)
+        self.assertEqual([expected], blocks)
+
+    def test_get_record_not_found(self):
+        with self.assertRaises(ValueError):
+            resp = xrpc_sync.get_record({}, did='did:web:user.com',
+                                        collection='com.example.posts', rkey='9999')
 
     # based on atproto/packages/pds/tests/sync/sync.test.ts
     # def test_get_repo_creates_and_deletes(self):

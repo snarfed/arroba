@@ -38,6 +38,7 @@ def create_record(input):
 def get_record(input, repo=None, collection=None, rkey=None, cid=None):
     """
     """
+    # Largely duplicates xrpc_sync.get_record
     validate(input, repo=repo, collection=collection, rkey=rkey, cid=cid)
     if cid:
         raise ValueError(f'cid not supported yet')

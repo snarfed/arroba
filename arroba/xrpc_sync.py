@@ -7,13 +7,16 @@ TODO:
 import logging
 
 from carbox.car import Block, write_car
+import dag_cbor
 
 from . import server
+from . import xrpc_repo
+from .util import dag_cbor_cid
 
 logger = logging.getLogger(__name__)
 
 
-def validate(did=None):
+def validate(did=None, collection=None, rkey=None):
     if did != server.repo.did:
         raise ValueError(f'Unknown DID: {did}')
 
@@ -96,8 +99,18 @@ def get_head(input, did=None):
 def get_record(input, did=None, collection=None, rkey=None, commit=None):
     """
     """
-    # output: CAR
+    # Largely duplicates xrpc_repo.get_record
+    validate(did=did, collection=collection, rkey=rkey)
 
+    if commit:
+        raise ValueError('commit not supported yet')
+
+    record = server.repo.get_record(collection, rkey)
+    if record is None:
+        raise ValueError(f'{collection} {rkey} not found')
+
+    block = Block(decoded=record)
+    return write_car([block.cid], [block])
 
 @server.server.method('com.atproto.sync.notifyOfUpdate')
 def notify_of_update(input, did=None, earliest=None, latest=None):
