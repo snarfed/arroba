@@ -15,10 +15,6 @@ from .util import at_uri, next_tid
 logger = logging.getLogger(__name__)
 
 
-def auth():
-    # TODO
-
-
 def validate(input, **params):
     input.update(params)
 
@@ -61,7 +57,7 @@ def get_record(input, repo=None, collection=None, rkey=None, cid=None):
 def delete_record(input):
     """
     """
-    auth()
+    # server.auth()
     validate(input)
 
     record = server.repo.get_record(input['collection'], input['rkey'])
@@ -101,7 +97,7 @@ def list_records(input, repo=None, collection=None, limit=None, cursor=None,
 def put_record(input):
     """
     """
-    auth()
+    # server.auth()
     validate(input)
 
     existing = server.repo.get_record(input['collection'], input['rkey'])
@@ -145,12 +141,16 @@ def describe_repo(input, repo=None):
 def rebase_repo(input):
     """
     """
+    # server.auth()
+    validate(input)
 
 
 @server.server.method('com.atproto.repo.applyWrites')
 def apply_writes(input):
     """
     """
+    # server.auth()
+    validate(input)
 
 
 @server.server.method('com.atproto.repo.uploadBlob')
@@ -158,3 +158,5 @@ def upload_blob(input):
     """
     """
     # input: binary
+    # server.auth()
+    validate(input)

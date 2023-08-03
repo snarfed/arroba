@@ -1,8 +1,10 @@
 """Temporary!"""
+import os
 from pathlib import Path
 import random
 
 from Crypto.PublicKey import ECC
+from flask import request
 from lexrpc.server import Server
 
 from .mst import MST
@@ -31,3 +33,8 @@ def init():
     global repo, storage
     storage = MemoryStorage()
     repo = Repo.create(storage, 'did:web:user.com', key)
+
+
+def auth():
+    if request.headers.get('Authorization') != f'Bearer {os.environ["ARROBA_JWT"]}':
+        raise ValueError('Invalid bearer token in Authorization header')

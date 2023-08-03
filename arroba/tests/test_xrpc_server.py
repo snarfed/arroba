@@ -1,8 +1,11 @@
 """Unit tests for xrpc_server.py."""
-from arroba import xrpc_server
+from flask import Flask, request
 
 from .. import server
+from .. import xrpc_server
 from . import testutil
+
+app = Flask(__name__, static_folder=None)
 
 
 class XrpcServerTest(testutil.TestCase):
@@ -11,33 +14,52 @@ class XrpcServerTest(testutil.TestCase):
         super().setUp()
         server.init()
 
-    def test_create_account(self):
-        pass
+        self.request_context = app.test_request_context('/')
+        self.request_context.push()
 
+        request.headers = {}
+
+    def tearDown(self):
+        self.request_context.pop()
+        super().tearDown()
+
+    # based on atproto/packages/pds/tests/account.test.ts
     def test_create_session(self):
-        pass
+        resp = xrpc_server.create_session({
+            'identifier': 'user.com',
+            'password': 'sooper-sekret',
+        })
+        self.assertEqual({
+            'handle': 'user.com',
+            'did': 'did:web:user.com',
+            'accessJwt': 'towkin',
+            'refreshJwt': 'towkin',
+        }, resp)
 
-    def test_get_session(self):
-        pass
+        request.headers['Authorization'] = 'Bearer towkin'
+        resp = xrpc_server.get_session({})
+        self.assertEqual({
+            'handle': 'user.com',
+            'did': 'did:web:user.com',
+        }, resp)
 
-    def test_refresh_session(self):
-        pass
+    def test_create_session_fail(self):
+        with self.assertRaises(ValueError):
+            resp = xrpc_server.create_session({
+                'identifier': 'nope.com',
+                'password': 'sooper-sekret',
+            })
 
-    # # atproto/packages/pds/tests/account.test.ts
-    # def test_login(self):
-    #     res = xrpc_server.createSession({
-    #         identifier: handle,
-    #         password,
-    #     })
-    #     jwt = res.data.accessJwt
-    #     self.assertEqual('string', typeof jwt)
-    #     self.assertEqual('alice.test', res.data.handle)
-    #     self.assertEqual(did, res.data.did)
-    #     self.assertEqual(email, res.data.email)
+        with self.assertRaises(ValueError):
+            resp = xrpc_server.create_session({
+                'identifier': 'user.com',
+                'password': 'nope',
+            })
 
-    # def test_can_perform_authenticated_requests(self):
-    #     agent.api.setHeader('authorization', f'Bearer {jwt}')
-    #     res = xrpc_server.getSession({})
-    #     self.assertEqual(did, res.data.did)
-    #     self.assertEqual(handle, res.data.handle)
-    #     self.assertEqual(email, res.data.email)
+    def test_get_session_not_logged_in(self):
+        with self.assertRaises(ValueError):
+            resp = xrpc_server.get_session({})
+
+        request.headers['Authorization'] = 'Bearer nope'
+        with self.assertRaises(ValueError):
+            resp = xrpc_server.get_session({})

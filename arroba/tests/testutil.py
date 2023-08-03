@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 from multiformats import CID
 import random
+import os
 import unittest
 from unittest.mock import ANY, call
 
@@ -40,6 +41,11 @@ class TestCase(unittest.TestCase):
         # reuse this because it's expensive to generate
         if not TestCase.key:
             TestCase.key = ECC.generate(curve='P-256', randfunc=random.randbytes)
+
+        os.environ.update({
+            'ARROBA_PASSWORD': 'sooper-sekret',
+            'ARROBA_JWT': 'towkin',
+        })
 
     @staticmethod
     def random_keys_and_cids(num):

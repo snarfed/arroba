@@ -38,6 +38,9 @@ classifiers = [
 datastore = [
     'google-cloud-ndb>=2.0',
 ]
+flask = [
+    'Flask>=2.0',
+]
 
 [project.urls]
 'Homepage' = 'https://github.com/snarfed/arroba'
