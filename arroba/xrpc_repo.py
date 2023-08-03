@@ -22,29 +22,17 @@ def validate(input, **params):
     if input['repo'] != server.repo.did:
         raise ValueError(f'Unknown repo: {input["repo"]}')
 
-    if input.get('swapCommit'):
-        raise ValueError('swapCommit not supported yet')
+    for field in 'swapCommit', 'swapRecord':
+        if input.get(field):
+            raise ValueError(f'{field} not supported yet')
 
 
 @server.server.method('com.atproto.repo.createRecord')
 def create_record(input):
     """
     """
-    auth()
-    validate(input)
-
-    rkey = input.get('rkey') or next_tid()
-    repo = server.repo = server.repo.apply_writes([Write(
-        action=Action.CREATE,
-        collection=input['collection'],
-        rkey=rkey,
-        record=input['record'],
-    )], server.key)
-
-    return {
-        'uri': at_uri(server.repo.did, input['collection'], rkey),
-        'cid': repo.commit['data'],
-    }
+    input['rkey'] = next_tid()
+    return put_record(input)
 
 
 @server.server.method('com.atproto.repo.getRecord')
@@ -110,6 +98,22 @@ def list_records(input, repo=None, collection=None, limit=None, cursor=None,
 def put_record(input):
     """
     """
+    auth()
+    validate(input)
+
+    existing = server.repo.get_record(input['collection'], input['rkey'])
+
+    repo = server.repo = server.repo.apply_writes([Write(
+        action=Action.CREATE if existing is None else Action.UPDATE,
+        collection=input['collection'],
+        rkey=input['rkey'],
+        record=input['record'],
+    )], server.key)
+
+    return {
+        'uri': at_uri(repo.did, input['collection'], input['rkey']),
+        'cid': repo.commit['data'],
+    }
 
 
 @server.server.method('com.atproto.repo.describeRepo')
