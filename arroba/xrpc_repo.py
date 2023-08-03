@@ -57,7 +57,7 @@ def get_record(input, repo=None, collection=None, rkey=None, cid=None):
 def delete_record(input):
     """
     """
-    # server.auth()
+    server.auth()
     validate(input)
 
     record = server.repo.get_record(input['collection'], input['rkey'])
@@ -97,7 +97,7 @@ def list_records(input, repo=None, collection=None, limit=None, cursor=None,
 def put_record(input):
     """
     """
-    # server.auth()
+    server.auth()
     validate(input)
 
     existing = server.repo.get_record(input['collection'], input['rkey'])
@@ -141,7 +141,7 @@ def describe_repo(input, repo=None):
 def rebase_repo(input):
     """
     """
-    # server.auth()
+    server.auth()
     validate(input)
 
 
@@ -149,7 +149,7 @@ def rebase_repo(input):
 def apply_writes(input):
     """
     """
-    # server.auth()
+    server.auth()
     validate(input)
 
 
@@ -158,5 +158,5 @@ def upload_blob(input):
     """
     """
     # input: binary
-    # server.auth()
+    server.auth()
     validate(input)

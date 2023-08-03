@@ -5,6 +5,7 @@ TODO:
 * paging, cursors
 * blobs
 """
+from flask import request
 import itertools
 
 from arroba import xrpc_repo
@@ -98,6 +99,29 @@ class XrpcRepoTest(testutil.XrpcTestCase):
             'collection': 'app.bsky.feed.post',
             'rkey': '9999',
         })
+
+    def test_writes_without_auth_fail(self):
+        del request.headers['Authorization']
+
+        input = {  # union of all inputs
+            'repo': 'did:web:user.com',
+            'collection': 'app.bsky.feed.post',
+            'rkey': '9999',
+            'record': {
+                '$type': 'app.bsky.feed.post',
+                'text': 'Hello, world!',
+                'createdAt': testutil.NOW.isoformat(),
+            },
+        }
+
+        with self.assertRaises(ValueError):
+            xrpc_repo.create_record(input)
+
+        with self.assertRaises(ValueError):
+            xrpc_repo.delete_record(input)
+
+        with self.assertRaises(ValueError):
+            xrpc_repo.put_record(input)
 
     # def test_attaches_images_to_a_post(self):
     #     file = fs.readFile('tests/image/fixtures/key-landscape-small.jpg')
