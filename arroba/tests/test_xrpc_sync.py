@@ -1,4 +1,9 @@
-"""Unit tests for xrpc_sync.py."""
+"""Unit tests for xrpc_sync.py.
+
+TODO:
+* getCheckout commit param
+* getRepo earliest, latest params
+"""
 from carbox.car import read_car
 
 from ..repo import Action, Repo, Write
@@ -50,46 +55,11 @@ class XrpcSyncTest(testutil.XrpcTestCase):
         roots, blocks = read_car(resp)
         self.assertEqual(self.data, load_checkout(blocks))
 
-    # # atproto/packages/pds/tests/sync/sync.test.ts
-    # def _setUp(self):
-    #     server = runTestServer({
-    #         'dbPostgresSchema': 'repo_sync',
-    #     })
-    #     ctx = server.ctx
-    #     close = server.close
-    #     agent = new AtpAgent({ 'service': server.url })
-    #     sc = new SeedClient(agent)
-    #     sc.createAccount('alice', {
-    #         'email': 'alice@test.com',
-    #         'handle': 'alice.test',
-    #         'password': 'alice-pass',
-    #     })
-    #     did = sc.dids.alice
-    #     agent.api.setHeader('authorization', f'Bearer {sc.accounts[did].accessJwt}')
-
-    # def test_creates_and_syncs_some_records(self):
-    #     ADD_COUNT = 10
-    #     for (let i = 0; i < ADD_COUNT; i++):
-    #         { obj, uri } = makePost(sc, did)
-    #         repoData.setdefault(uri.collection, {})[uri.rkey] = obj
-    #         uris.push(uri)
-
-
-    #     car = xrpc_sync.get_repo({}, did='did:web:user.com')
-    #     synced = repo.loadFullRepo(
-    #         storage,
-    #         Uint8Array(car),
-    #         did,
-    #         ctx.repoSigningKey.did(),
-    #     )
-    #     self.assertEqual(ADD_COUNT + 1, synced.writeLog.length) # +1 because of repo
-    #     ops = collapseWriteLog(synced.writeLog)
-    #     self.assertEqual(ADD_COUNT, ops.length) # Does not include empty initial commit
-    #     loaded = repo.Repo.load(storage, synced.root)
-    #     contents = loaded.getContents()
-    #     self.assertEqual(repoData, contents)
-
-    #     currRoot = synced.root
+    # based on atproto/packages/pds/tests/sync/sync.test.ts
+    def test_get_repo(self):
+        resp = xrpc_sync.get_repo({}, did='did:web:user.com')
+        roots, blocks = read_car(resp)
+        self.assertEqual(self.data, load_checkout(blocks))
 
     # def test_syncs_creates_and_deletes(self):
     #     ADD_COUNT = 10

@@ -29,7 +29,10 @@ def get_checkout(input, did=None, commit=None):
 def get_repo(input, did=None, earliest=None, latest=None):
     """
     """
-    # output: CAR
+    blocks, missing = server.storage.read_blocks([server.repo.cid])
+    return write_car(
+        [server.repo.cid],
+        (Block(cid=cid, data=data) for cid, data in server.repo.mst.load_all()))
 
 
 @server.server.method('com.atproto.sync.listRepos')
