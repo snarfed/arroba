@@ -1,27 +1,15 @@
 """Unit tests for xrpc_server.py."""
-from flask import Flask, request
+from flask import request
 
-from .. import server
 from .. import xrpc_server
 from . import testutil
 
-app = Flask(__name__, static_folder=None)
 
-
-class XrpcServerTest(testutil.TestCase):
+class XrpcServerTest(testutil.XrpcTestCase):
 
     def setUp(self):
         super().setUp()
-        server.init()
-
-        self.request_context = app.test_request_context('/')
-        self.request_context.push()
-
         request.headers = {}
-
-    def tearDown(self):
-        self.request_context.pop()
-        super().tearDown()
 
     # based on atproto/packages/pds/tests/account.test.ts
     def test_create_session(self):

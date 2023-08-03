@@ -9,16 +9,11 @@ import itertools
 
 from arroba import xrpc_repo
 
-from .. import server
 from .. import util
 from . import testutil
 
 
-class XrpcRepoTest(testutil.TestCase):
-
-    def setUp(self):
-        super().setUp()
-        server.init()
+class XrpcRepoTest(testutil.XrpcTestCase):
 
     def last_at_uri(self):
         return f'at://did:web:user.com/app.bsky.feed.post/{util._tid_last}'

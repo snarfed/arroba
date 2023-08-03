@@ -1,6 +1,5 @@
 """Common test utility code."""
 from datetime import datetime, timezone
-from multiformats import CID
 import random
 import os
 import unittest
@@ -8,7 +7,10 @@ from unittest.mock import ANY, call
 
 from Crypto.PublicKey import ECC
 import dag_cbor.random
+from flask import Flask, request
+from multiformats import CID
 
+from .. import server
 from .. import util
 from ..util import datetime_to_tid, next_tid
 
@@ -42,11 +44,6 @@ class TestCase(unittest.TestCase):
         if not TestCase.key:
             TestCase.key = ECC.generate(curve='P-256', randfunc=random.randbytes)
 
-        os.environ.update({
-            'ARROBA_PASSWORD': 'sooper-sekret',
-            'ARROBA_JWT': 'towkin',
-        })
-
     @staticmethod
     def random_keys_and_cids(num):
         timestamps = random.choices(range(int(datetime(2020, 1, 1).timestamp()) * 1000,
@@ -64,3 +61,25 @@ class TestCase(unittest.TestCase):
     @staticmethod
     def random_objects(num):
         return {next_tid(): {'foo': random.randint(0, 1000)} for i in range(num)}
+
+
+class XrpcTestCase(TestCase):
+    app = Flask(__name__, static_folder=None)
+
+    def setUp(self):
+        super().setUp()
+        server.init()
+
+        self.request_context = self.app.test_request_context('/')
+        self.request_context.push()
+
+        os.environ.update({
+            'ARROBA_PASSWORD': 'sooper-sekret',
+            'ARROBA_JWT': 'towkin',
+        })
+        request.headers = {'Authorization': 'Bearer towkin'}
+
+    def tearDown(self):
+        self.request_context.pop()
+        super().tearDown()
+

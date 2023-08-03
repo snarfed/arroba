@@ -23,7 +23,8 @@ TODO
 
 ### 0.3 - unreleased
 
-Add Google Cloud Datastore implementation of repo storage.
+* Add Google Cloud Datastore implementation of repo storage.
+* Implement `com.atproto` XRPC methods needed to federate with sandbox, including most of `repo` and `sync.
 
 ### 0.2 - 2023-05-18
 

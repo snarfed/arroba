@@ -29,11 +29,10 @@ def load_checkout(blocks):
     return objs
 
 
-class XrpcSyncTest(testutil.TestCase):
+class XrpcSyncTest(testutil.XrpcTestCase):
 
     def setUp(self):
         super().setUp()
-        server.init()
 
         self.data = {}  # maps path to obj
         writes = []

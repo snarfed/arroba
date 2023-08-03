@@ -5,15 +5,10 @@ TODO:
 """
 from arroba import xrpc_identity
 
-from .. import server
 from . import testutil
 
 
-class XrpcIdentityTest(testutil.TestCase):
-
-    def setUp(self):
-        super().setUp()
-        server.init()
+class XrpcIdentityTest(testutil.XrpcTestCase):
 
     # based on atproto/packages/pds/tests/handles.test.ts
     def test_resolve_handle(self):
