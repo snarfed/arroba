@@ -20,6 +20,7 @@ keywords = ['arroba', 'AT Protocol', 'ATP', 'Bluesky']
 dependencies = [
     'carbox',
     'dag-cbor',
+    'dag-json',
     'lexrpc',
     'multiformats>=0.2.0',
     'pycryptodome>=3.0',

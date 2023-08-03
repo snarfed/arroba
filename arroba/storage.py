@@ -121,7 +121,7 @@ class Storage:
         """
         raise NotImplementedError()
 
-    def apply_commit(self, commit_data):
+    def apply_commit(self, commit):
         """Writes a commit to storage.
 
         Args:
@@ -135,8 +135,10 @@ class MemoryStorage(Storage):
 
     Attributes:
       blocks: :class:`BlockMap`
+      head: :class:`CID`
     """
     blocks = None
+    head = None
 
     def __init__(self):
         self.blocks = BlockMap()

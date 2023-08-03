@@ -21,10 +21,6 @@ from .storage import BlockMap, CommitData, Storage
 
 logger = logging.getLogger(__name__)
 
-COLLECTIONS = [
-    'app.bsky.feed.post',
-]
-
 class Action(Enum):
     """Used in :meth:`Repo.format_commit`."""
     CREATE = auto()
@@ -71,10 +67,6 @@ class Repo:
         self.mst = mst
         self.commit = commit
         self.cid = cid
-
-    # def head(self, cid):
-    #     """Returns the current head commit's :class:`CID`."""
-    #     raise NotImplementedError()
 
     # def rebase(self):
     #     """TODO"""
