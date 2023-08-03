@@ -961,7 +961,7 @@ def layer_for_entries(entries):
     """
     for entry in entries:
         if isinstance(entry, Leaf):
-            return leading_zeros_on_hash(first_leaf.key)
+            return leading_zeros_on_hash(entry.key)
 
 
 def deserialize_node_data(*, storage=None, data=None, layer=None):
