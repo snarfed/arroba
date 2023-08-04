@@ -154,10 +154,10 @@ def apply_writes(input):
     validate(input)
 
 
-@server.server.method('com.atproto.repo.uploadBlob')
-def upload_blob(input):
-    """
-    """
-    # input: binary
-    server.auth()
-    validate(input)
+# @server.server.method('com.atproto.repo.uploadBlob')
+# def upload_blob(input):
+#     """
+#     """
+#     # input: binary
+#     server.auth()
+#     validate(input)
