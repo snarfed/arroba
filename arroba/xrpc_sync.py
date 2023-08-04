@@ -3,6 +3,7 @@
 TODO:
 * getBlocks?
 * getCommitPath?
+* blobs
 """
 import logging
 
@@ -63,10 +64,9 @@ def list_repos(input, limit=None, cursor=None):
 
 
 @server.server.method('com.atproto.sync.subscribeRepos')
-def subscribe_repos(input, cursor=None):  # int, seq # ?
+def subscribe_repos(input, cursor=None):
     """
     """
-    # subscription
 
 
 # @server.server.method('com.atproto.sync.getBlocks')
@@ -112,30 +112,30 @@ def get_record(input, did=None, collection=None, rkey=None, commit=None):
     block = Block(decoded=record)
     return write_car([block.cid], [block])
 
-@server.server.method('com.atproto.sync.notifyOfUpdate')
-def notify_of_update(input, did=None, earliest=None, latest=None):
-    """
-    """
-    # input: {'hostname': ...}
-    # no output
+# @server.server.method('com.atproto.sync.notifyOfUpdate')
+# def notify_of_update(input, did=None, earliest=None, latest=None):
+#     """
+#     """
+#     # input: {'hostname': ...}
+#     # no output
 
 
-@server.server.method('com.atproto.sync.requestCrawl')
-def request_crawl(input):
-    """
-    """
-    # input: {'hostname': ...}
-    # no output
+# @server.server.method('com.atproto.sync.requestCrawl')
+# def request_crawl(input):
+#     """
+#     """
+#     # input: {'hostname': ...}
+#     # no output
 
 
-@server.server.method('com.atproto.sync.getBlob')
-def get_blob(input, did=None, cid=None):
-    """
-    """
-    # output: binary
+# @server.server.method('com.atproto.sync.getBlob')
+# def get_blob(input, did=None, cid=None):
+#     """
+#     """
+#     # output: binary
 
-@server.server.method('com.atproto.sync.listBlobs')
-def list_blobs(input, did=None, earliest=None, latest=None):
-    """
-    """
-    # output: {'cids': [CID, ...]}
+# @server.server.method('com.atproto.sync.listBlobs')
+# def list_blobs(input, did=None, earliest=None, latest=None):
+#     """
+#     """
+#     # output: {'cids': [CID, ...]}

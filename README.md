@@ -18,6 +18,11 @@ License: This project is placed into the public domain.
 
 TODO
 
+Environment variables:
+
+* `ARROBA_PASSWORD`
+* `ARROBA_JWT`
+
 
 ## Changelog
 
