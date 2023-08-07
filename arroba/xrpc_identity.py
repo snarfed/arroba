@@ -1,19 +1,16 @@
 """com.atproto.identity.* XRPC methods."""
 import logging
+import os
+
+from lexrpc.client import Client
 
 from . import server
 
 logger = logging.getLogger(__name__)
 
 
-@server.server.method('com.atproto.server.resolveHandle')
+@server.server.method('com.atproto.identity.resolveHandle')
 def resolve_handle(input, handle=None):
-    """
-    """
-    assert handle
-    handle = handle.lower()
-
-    if server.repo.did == f'did:web:{handle}':
-        return {'did': server.repo.did}
-
-    raise ValueError(f'{handle} not found')
+    """Proxies to the appview."""
+    appview = Client('https://' + os.environ['APPVIEW_HOST'], server.lexicons)
+    return appview.com.atproto.identity.resolveHandle(input, handle=handle)
