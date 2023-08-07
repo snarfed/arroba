@@ -21,7 +21,6 @@ import sys
 
 from Crypto.Hash import SHA256
 from Crypto.PublicKey import ECC
-from Crypto.Signature import DSS
 import dag_cbor
 from multiformats import multibase, multicodec
 import requests

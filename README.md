@@ -24,10 +24,11 @@ Single-user demo PDS based on arroba, for testing with the [ATProto federation s
 * `BGS_HOST`, default `bgs.bsky-sandbox.dev`
 * `PLC_HOST`, default `plc.bsky-sandbox.dev`
 * `PDS_HOST`, where you're running your PDS
-* `REPO_DID`, repo user's DID
-* `REPO_HANDLE`, repo user's domain handle
-* `REPO_PASSWORD`, repo user's password
-* `REPO_TOKEN`, static token to use as both `accessJwt` and `refreshJwt`. Not required to be an actual JWT.
+* `REPO_DID`, repo user's DID, defaults to contents of `repo_did` file
+* `REPO_HANDLE`, repo user's domain handle, defaults to contents of `repo_handle` file
+* `REPO_PASSWORD`, repo user's password, defaults to contents of `repo_password` file
+* `REPO_PRIVKEY`, repo user's private key in PEM format, defaults to contents of `privkey.pem` file
+* `REPO_TOKEN`, static token to use as both `accessJwt` and `refreshJwt`, defaults to contents of `repo_token` file. Not required to be an actual JWT.
 
 
 ## Changelog

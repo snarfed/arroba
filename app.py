@@ -3,8 +3,11 @@ import logging
 import os
 from urllib.parse import urljoin
 
-from flask import make_response, redirect, request
+from Crypto.PublicKey import ECC
+from flask import Flask, make_response, redirect, request
 import google.cloud.logging
+from google.cloud import ndb
+import lexrpc.flask_server
 
 logger = logging.getLogger(__name__)
 logging.basicConfig()
@@ -14,28 +17,33 @@ for logger in ('google.cloud', 'oauthlib', 'requests', 'requests_oauthlib',
   logging.getLogger(logger).setLevel(logging.INFO)
 # logging.getLogger('lexrpc').setLevel(logging.INFO)
 
-from flask import Flask
-from google.cloud import ndb
-import lexrpc.flask_server
-
+from arroba.repo import Repo
 from arroba import server
+from arroba.datastore_storage import DatastoreStorage
 from arroba import xrpc_identity, xrpc_repo, xrpc_server, xrpc_sync
 
 os.environ.setdefault('APPVIEW_HOST', 'api.bsky-sandbox.dev')
 os.environ.setdefault('BGS_HOST', 'bgs.bsky-sandbox.dev')
 os.environ.setdefault('PLC_HOST', 'plc.bsky-sandbox.dev')
+os.environ.setdefault('PDS_HOST', open('pds_host').read().strip())
 os.environ.setdefault('REPO_DID', open('repo_did').read().strip())
 os.environ.setdefault('REPO_HANDLE', open('repo_handle').read().strip())
-if os.environ.get('GAE_ENV') == 'standard':
-    os.environ.setdefault('REPO_PASSWORD', open('repo_password').read().strip())
-    os.environ.setdefault('REPO_TOKEN', open('repo_token').read().strip())
+os.environ.setdefault('REPO_PRIVKEY', open('privkey.pem').read().strip())
+os.environ.setdefault('REPO_PASSWORD', open('repo_password').read().strip())
+os.environ.setdefault('REPO_TOKEN', open('repo_token').read().strip())
 
+if os.environ.get('GAE_ENV') == 'standard':
+    # prod App Engine
     logging_client = google.cloud.logging.Client()
     logging_client.setup_logging(log_level=logging.DEBUG)
 else:
-    os.environ.setdefault('REPO_PASSWORD', 'sooper-sekret')
-    os.environ.setdefault('REPO_TOKEN', 'towkin')
-
+    # local
+    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = os.path.join(
+        os.path.dirname(__file__), 'fake_user_account.json')
+    os.environ.setdefault('CLOUDSDK_CORE_PROJECT', 'app')
+    os.environ.setdefault('DATASTORE_DATASET', 'app')
+    os.environ.setdefault('GOOGLE_CLOUD_PROJECT', 'app')
+    os.environ.setdefault('DATASTORE_EMULATOR_HOST', 'localhost:8089')
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ['REPO_TOKEN']
@@ -57,11 +65,15 @@ def proxy_appview(nsid_rest=None):
     resp.headers.update(lexrpc.flask_server.RESPONSE_HEADERS)
     return resp
 
-server.init()
 lexrpc.flask_server.init_flask(server.server, app)
 
+server.key = ECC.import_key(os.environ['REPO_PRIVKEY'])
 
 ndb_client = ndb.Client()
+with ndb_client:
+    server.storage = DatastoreStorage()
+    server.repo = Repo.create(server.storage, os.environ['REPO_DID'], server.key)
+
 
 def ndb_context_middleware(wsgi_app):
     """WSGI middleware to add an NDB context per request.

@@ -10,7 +10,9 @@ import dag_cbor.random
 from flask import Flask, request
 from multiformats import CID
 
+from ..repo import Repo
 from .. import server
+from ..storage import MemoryStorage
 from .. import util
 from ..util import datetime_to_tid, next_tid
 
@@ -44,6 +46,9 @@ class TestCase(unittest.TestCase):
         if not TestCase.key:
             TestCase.key = ECC.generate(curve='P-256', randfunc=random.randbytes)
 
+        os.environ.setdefault('REPO_PASSWORD', 'sooper-sekret')
+        os.environ.setdefault('REPO_TOKEN', 'towkin')
+
     @staticmethod
     def random_keys_and_cids(num):
         timestamps = random.choices(range(int(datetime(2020, 1, 1).timestamp()) * 1000,
@@ -68,7 +73,10 @@ class XrpcTestCase(TestCase):
 
     def setUp(self):
         super().setUp()
-        server.init()
+
+        server.storage = MemoryStorage()
+        server.repo = Repo.create(server.storage, 'did:web:user.com', self.key)
+        server.key = self.key
 
         self.request_context = self.app.test_request_context('/')
         self.request_context.push()
@@ -82,4 +90,3 @@ class XrpcTestCase(TestCase):
     def tearDown(self):
         self.request_context.pop()
         super().tearDown()
-

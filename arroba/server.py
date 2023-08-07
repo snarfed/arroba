@@ -24,15 +24,10 @@ for filename in (Path(__file__).parent / 'lexicons').glob('**/*.json'):
 
 server = Server(lexicons, validate=False)
 
-# repo
-key = ECC.generate(curve='P-256', randfunc=random.randbytes)
+# these are initialized in app.py, testutil.XrpcTestCase.setUp
+key = None
 storage = None
 repo = None
-
-def init():
-    global repo, storage
-    storage = MemoryStorage()
-    repo = Repo.create(storage, 'did:web:user.com', key)
 
 
 def auth():
