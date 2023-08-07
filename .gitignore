@@ -1,5 +1,5 @@
-pds_password
-pds_jwt
+repo_password
+repo_token
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

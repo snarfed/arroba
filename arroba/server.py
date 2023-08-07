@@ -36,5 +36,5 @@ def init():
 
 
 def auth():
-    if request.headers.get('Authorization') != f'Bearer {os.environ["ARROBA_JWT"]}':
+    if request.headers.get('Authorization') != f'Bearer {os.environ["REPO_TOKEN"]}':
         raise ValueError('Invalid bearer token in Authorization header')

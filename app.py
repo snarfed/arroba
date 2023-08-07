@@ -22,17 +22,23 @@ from arroba import server
 from arroba import xrpc_identity, xrpc_repo, xrpc_server, xrpc_sync
 
 if os.environ.get('GAE_ENV') == 'standard':
-    os.environ.setdefault('ARROBA_PASSWORD', open('pds_password').read().strip())
-    os.environ.setdefault('ARROBA_JWT', open('pds_jwt').read().strip())
+    os.environ.setdefault('APPVIEW_HOST', 'api.bsky-sandbox.dev')
+    os.environ.setdefault('BGS_HOST', 'bgs.bsky-sandbox.dev')
+    os.environ.setdefault('PLC_HOST', 'plc.bsky-sandbox.dev')
+    os.environ.setdefault('REPO_DID', open('repo_did').read().strip())
+    os.environ.setdefault('REPO_HANDLE', open('repo_handle').read().strip())
+    os.environ.setdefault('REPO_PASSWORD', open('repo_password').read().strip())
+    os.environ.setdefault('REPO_TOKEN', open('repo_token').read().strip())
+
     logging_client = google.cloud.logging.Client()
     logging_client.setup_logging(log_level=logging.DEBUG)
 else:
-    os.environ.setdefault('ARROBA_PASSWORD', 'sooper-sekret')
-    os.environ.setdefault('ARROBA_JWT', 'towkin')
+    os.environ.setdefault('REPO_PASSWORD', 'sooper-sekret')
+    os.environ.setdefault('REPO_TOKEN', 'towkin')
 
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ['ARROBA_JWT']
+app.config['SECRET_KEY'] = os.environ['REPO_TOKEN']
 app.json.compact = False
 
 # redirect app.bsky.* XRPCs to sandbox AppView

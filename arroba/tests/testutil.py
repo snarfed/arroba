@@ -74,8 +74,8 @@ class XrpcTestCase(TestCase):
         self.request_context.push()
 
         os.environ.update({
-            'ARROBA_PASSWORD': 'sooper-sekret',
-            'ARROBA_JWT': 'towkin',
+            'REPO_PASSWORD': 'sooper-sekret',
+            'REPO_TOKEN': 'towkin',
         })
         request.headers = {'Authorization': 'Bearer towkin'}
 

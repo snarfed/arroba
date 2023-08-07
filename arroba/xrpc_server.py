@@ -21,13 +21,13 @@ def create_session(input):
     input_handle = input['identifier'].removeprefix('did:web:')
 
     if (input_handle == repo_handle
-            and input['password'] == os.environ['ARROBA_PASSWORD']):
-        jwt = os.environ['ARROBA_JWT']
+            and input['password'] == os.environ['REPO_PASSWORD']):
+        token = os.environ['REPO_TOKEN']
         return {
             'handle': server.repo.did.removeprefix('did:web:'),
             'did': server.repo.did,
-            'accessJwt': jwt,
-            'refreshJwt': jwt,
+            'accessJwt': token,
+            'refreshJwt': token,
         }
 
     raise ValueError('Bad user or password')
@@ -51,11 +51,12 @@ def refresh_session(input, did=None, commit=None):
     """
     server.auth()
 
+    token = os.environ['REPO_TOKEN']
     return {
         'handle': server.repo.did.removeprefix('did:web:'),
         'did': server.repo.did,
-        'accessJwt': jwt,
-        'refreshJwt': jwt,
+        'accessJwt': token,
+        'refreshJwt': token,
     }
 
 

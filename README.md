@@ -18,10 +18,16 @@ License: This project is placed into the public domain.
 
 TODO
 
-Environment variables:
+Single-user demo PDS based on arroba, for testing with the [ATProto federation sandbox](https://atproto.com/blog/federation-developer-sandbox). Environment variables:
 
-* `ARROBA_PASSWORD`
-* `ARROBA_JWT`
+* `APPVIEW_HOST`, default `api.bsky-sandbox.dev`
+* `BGS_HOST`, default `bgs.bsky-sandbox.dev`
+* `PLC_HOST`, default `plc.bsky-sandbox.dev`
+* `PDS_HOST`, where you're running your PDS
+* `REPO_DID`, repo user's DID
+* `REPO_HANDLE`, repo user's domain handle
+* `REPO_PASSWORD`, repo user's password
+* `REPO_TOKEN`, static token to use as both `accessJwt` and `refreshJwt`. Not required to be an actual JWT.
 
 
 ## Changelog
