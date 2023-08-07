@@ -3,6 +3,8 @@
 # oauth-dropins, etc. If you make a change here, change them too!
 #
 # https://cloud.google.com/appengine/docs/standard/python/config/appref#Python_app_yaml_Includes
+did:plc:*
+privkey.pem
 
 *.bak
 *.c
