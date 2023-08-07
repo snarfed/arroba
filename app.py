@@ -21,12 +21,12 @@ import lexrpc.flask_server
 from arroba import server
 from arroba import xrpc_identity, xrpc_repo, xrpc_server, xrpc_sync
 
+os.environ.setdefault('APPVIEW_HOST', 'api.bsky-sandbox.dev')
+os.environ.setdefault('BGS_HOST', 'bgs.bsky-sandbox.dev')
+os.environ.setdefault('PLC_HOST', 'plc.bsky-sandbox.dev')
+os.environ.setdefault('REPO_DID', open('repo_did').read().strip())
+os.environ.setdefault('REPO_HANDLE', open('repo_handle').read().strip())
 if os.environ.get('GAE_ENV') == 'standard':
-    os.environ.setdefault('APPVIEW_HOST', 'api.bsky-sandbox.dev')
-    os.environ.setdefault('BGS_HOST', 'bgs.bsky-sandbox.dev')
-    os.environ.setdefault('PLC_HOST', 'plc.bsky-sandbox.dev')
-    os.environ.setdefault('REPO_DID', open('repo_did').read().strip())
-    os.environ.setdefault('REPO_HANDLE', open('repo_handle').read().strip())
     os.environ.setdefault('REPO_PASSWORD', open('repo_password').read().strip())
     os.environ.setdefault('REPO_TOKEN', open('repo_token').read().strip())
 
@@ -49,7 +49,8 @@ app.json.compact = False
 @app.route(f'/xrpc/app.bsky.<nsid_rest>', methods=['GET', 'OPTIONS'])
 def proxy_appview(nsid_rest=None):
     if request.method == 'GET':
-        resp = redirect(urljoin('https://api.bsky-sandbox.dev/', request.full_path))
+        resp = redirect(urljoin('https://' + os.environ['APPVIEW_HOST'],
+                                request.full_path))
     else:
         resp = make_response('')
 
@@ -58,17 +59,6 @@ def proxy_appview(nsid_rest=None):
 
 server.init()
 lexrpc.flask_server.init_flask(server.server, app)
-
-
-# print(lexicon_dir)
-# for path in (lexicon_dir / 'app/bsky/').glob('**/*.json'):
-#     nsid = str(path).removeprefix(str(lexicon_dir))\
-#                     .strip('/')\
-#                     .removesuffix('.json')\
-#                     .replace('/', '.')
-#     print(f'registering {nsid}')
-#     server.register(nsid, proxy_appview)
-
 
 
 ndb_client = ndb.Client()

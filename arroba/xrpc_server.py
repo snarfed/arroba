@@ -7,12 +7,6 @@ from . import server
 logger = logging.getLogger(__name__)
 
 
-# @server.server.method('com.atproto.server.createAccount')
-# def create_account(input):
-#     """
-#     """
-
-
 @server.server.method('com.atproto.server.createSession')
 def create_session(input):
     """
