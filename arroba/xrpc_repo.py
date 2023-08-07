@@ -10,7 +10,7 @@ import logging
 
 from .repo import Action, Repo, Write
 from . import server
-from .util import at_uri, next_tid
+from .util import at_uri, dag_cbor_cid, next_tid
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ def get_record(input, repo=None, collection=None, rkey=None, cid=None):
 
     return {
         'uri': at_uri(repo, collection, rkey),
-        'cid': 'TODO',
+        'cid': dag_cbor_cid(record).encode('base32'),
         'value': record,
     }
 
@@ -85,7 +85,7 @@ def list_records(input, repo=None, collection=None, limit=None, cursor=None,
 
     records = [{
         'uri': at_uri(repo, collection, rkey),
-        'cid': 'TODO',
+        'cid': dag_cbor_cid(record).encode('base32'),
         'value': record,
     } for rkey, record in server.repo.get_contents()[collection].items()]
     if reverse:
@@ -112,7 +112,7 @@ def put_record(input):
 
     return {
         'uri': at_uri(repo.did, input['collection'], input['rkey']),
-        'cid': repo.commit['data'],
+        'cid': dag_cbor_cid(input['record']).encode('base32'),
     }
 
 

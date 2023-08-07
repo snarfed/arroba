@@ -38,7 +38,10 @@ class XrpcRepoTest(testutil.XrpcTestCase):
                 'createdAt': testutil.NOW.isoformat(),
             },
         })
-        self.assertEqual(self.last_at_uri(), resp['uri'])
+        self.assertEqual({
+            'cid': 'bafyreibwxoxuto2bj2lsspzs6dl4kw6cyu3goswuxi5qbhpc2xlqvnnjg4',
+            'uri': self.last_at_uri(),
+        }, resp)
 
     def test_list_records(self):
         resp = xrpc_repo.list_records({}, repo='did:web:user.com',
@@ -59,8 +62,15 @@ class XrpcRepoTest(testutil.XrpcTestCase):
             collection='app.bsky.feed.post',
             rkey=str(util._tid_last),
         )
-        self.assertEqual(self.last_at_uri(), resp['uri'])
-        self.assertEqual('Hello, world!', resp['value']['text'])
+        self.assertEqual({
+            'cid': 'bafyreibwxoxuto2bj2lsspzs6dl4kw6cyu3goswuxi5qbhpc2xlqvnnjg4',
+            'uri': self.last_at_uri(),
+            'value': {
+                '$type': 'app.bsky.feed.post',
+                'text': 'Hello, world!',
+                'createdAt': testutil.NOW.isoformat(),
+            },
+        }, resp)
 
     def test_get_record_not_found(self):
         with self.assertRaises(ValueError):
