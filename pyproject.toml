@@ -24,6 +24,7 @@ dependencies = [
     'lexrpc',
     'multiformats>=0.2.0',
     'pycryptodome>=3.0',
+    'simple-websocket',
 ]
 classifiers = [
     'Programming Language :: Python :: 3',
@@ -41,6 +42,7 @@ datastore = [
 ]
 flask = [
     'Flask>=2.0',
+    'flask-sock',
 ]
 
 [project.urls]
