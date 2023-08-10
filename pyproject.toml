@@ -41,7 +41,7 @@ datastore = [
     'google-cloud-ndb>=2.0',
 ]
 flask = [
-    'Flask>=2.0',
+    'Flask[async]>=2.0',
     'flask-sock',
 ]
 

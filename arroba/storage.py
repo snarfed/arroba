@@ -16,6 +16,13 @@ CommitData = namedtuple('CommitData', [
   'blocks',  # BlockMap
   'prev',    # CID or None
 ])
+# commit record format is:
+# {
+#     'version': 2,
+#     'did': [repo],
+#     'prev': [CID],
+#     'data': [CID],
+# }
 
 
 class BlockMap(dict):

@@ -5,6 +5,7 @@ TODO:
 * getCommitPath?
 * blobs
 """
+import asyncio
 import logging
 
 from carbox.car import Block, write_car
@@ -15,6 +16,10 @@ from . import xrpc_repo
 from .util import dag_cbor_cid
 
 logger = logging.getLogger(__name__)
+
+# used in subscribeRepos. 
+repo_subscribers = []  # list of asyncio.Queue that contain dict messages
+repo_subscribers_lock = asyncio.Lock()  # read/write for repo_subscribers
 
 
 def validate(did=None, collection=None, rkey=None):
@@ -54,7 +59,7 @@ def get_repo(input, did=None, earliest=None, latest=None):
 
 
 @server.server.method('com.atproto.sync.listRepos')
-def list_repos(input, limit=None, cursor=None):
+async def list_repos(input, limit=None, cursor=None):
     """
     """
     return [{
@@ -64,9 +69,19 @@ def list_repos(input, limit=None, cursor=None):
 
 
 @server.server.method('com.atproto.sync.subscribeRepos')
-def subscribe_repos(input, cursor=None):
+async def subscribe_repos(cursor=None):
     """
     """
+    queue = asyncio.Queue()
+    async with repo_subscribers_lock:
+        repo_subscribers.append(queue)
+
+    while True:
+        try:
+            yield await queue.get()
+        except simple_websocket.ConnectionClosed:
+            async with repo_subscribers_lock:
+                repo_subscribers.remove(queue)
 
 
 # @server.server.method('com.atproto.sync.getBlocks')

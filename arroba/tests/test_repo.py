@@ -10,9 +10,12 @@ import copy
 from itertools import chain
 import random
 
+import dag_cbor
+
 from ..repo import Action, Repo, Write
 from ..storage import MemoryStorage
-from ..util import next_tid, verify_commit_sig
+from .. import util
+from ..util import dag_cbor_cid, next_tid
 from .testutil import NOW, TestCase
 
 
@@ -27,7 +30,7 @@ class RepoTest(TestCase):
         self.assertEqual(2, self.repo.version)
         self.assertEqual('did:web:user.com', self.repo.did)
 
-    def test_does_basic_operations(self):
+    async def test_does_basic_operations(self):
         profile = {
             '$type': 'app.bsky.actor.profile',
             'displayName': 'Alice',
@@ -36,31 +39,31 @@ class RepoTest(TestCase):
         }
 
         tid = next_tid()
-        repo = self.repo.apply_writes(Write(
+        await self.repo.apply_writes(Write(
             action=Action.CREATE,
             collection='my.stuff',
             rkey=tid,
             record=profile,
         ), self.key)
-        self.assertEqual(profile, repo.get_record('my.stuff', tid))
+        self.assertEqual(profile, self.repo.get_record('my.stuff', tid))
 
         profile['description'] = "I'm the best"
-        repo = repo.apply_writes(Write(
+        await self.repo.apply_writes(Write(
             action=Action.UPDATE,
             collection='my.stuff',
             rkey=tid,
             record=profile,
         ), self.key)
-        self.assertEqual(profile, repo.get_record('my.stuff', tid))
+        self.assertEqual(profile, self.repo.get_record('my.stuff', tid))
 
-        repo = repo.apply_writes(Write(
+        await self.repo.apply_writes(Write(
             action=Action.DELETE,
             collection='my.stuff',
             rkey=tid,
         ), self.key)
-        self.assertIsNone(repo.get_record('my.stuff', tid))
+        self.assertIsNone(self.repo.get_record('my.stuff', tid))
 
-    def test_adds_content_collections(self):
+    async def test_adds_content_collections(self):
         data = {
             'example.foo': self.random_objects(10),
             'example.bar': self.random_objects(20),
@@ -71,41 +74,90 @@ class RepoTest(TestCase):
             [Write(Action.CREATE, coll, tid, obj) for tid, obj in objs.items()]
             for coll, objs in data.items())))
 
-        repo = self.repo.apply_writes(writes, self.key)
-        self.assertEqual(data, repo.get_contents())
+        await self.repo.apply_writes(writes, self.key)
+        self.assertEqual(data, self.repo.get_contents())
 
-    def test_edits_and_deletes_content(self):
+    async def test_edits_and_deletes_content(self):
         objs = list(self.random_objects(20).items())
 
-        repo = self.repo.apply_writes(
+        await self.repo.apply_writes(
             [Write(Action.CREATE, 'co.ll', tid, obj) for tid, obj in objs],
             self.key)
 
         random.shuffle(objs)
-        repo = repo.apply_writes(
+        await self.repo.apply_writes(
             [Write(Action.UPDATE, 'co.ll', tid, {'bar': 'baz'}) for tid, _ in objs],
             self.key)
 
         random.shuffle(objs)
-        repo = repo.apply_writes(
+        await self.repo.apply_writes(
             [Write(Action.DELETE, 'co.ll', tid) for tid, _ in objs],
             self.key)
 
-        self.assertEqual({}, repo.get_contents())
+        self.assertEqual({}, self.repo.get_contents())
 
     def test_has_a_valid_signature_to_commit(self):
-        assert verify_commit_sig(self.repo.commit, self.key)
+        assert util.verify_commit_sig(self.repo.commit, self.key)
 
-    def test_loads_from_blockstore(self):
-
+    async def test_loads_from_blockstore(self):
         objs = self.random_objects(5)
-        repo = self.repo.apply_writes(
+        await self.repo.apply_writes(
             [Write(Action.CREATE, 'co.ll', tid, obj)
              for tid, obj in objs.items()],
             self.key)
 
-        reloaded = Repo.load(self.storage, repo.cid)
+        reloaded = Repo.load(self.storage, self.repo.cid)
 
         self.assertEqual(2, reloaded.version)
         self.assertEqual('did:web:user.com', reloaded.did)
         self.assertEqual({'co.ll': objs}, reloaded.get_contents())
+
+    async def test_subscriptions(self):
+        def assertCommitIs(commit_data, obj):
+            commit = dag_cbor.decode(commit_data.blocks[commit_data.commit])
+            mst_entry = dag_cbor.decode(commit_data.blocks[commit['data']])
+            cid = dag_cbor_cid(obj)
+            self.assertEqual([{
+                'k': f'co.ll/{util._tid_last}'.encode(),
+                'p': 0,
+                't': None,
+                'v': cid,
+            }], mst_entry['e'])
+            self.assertEqual(obj, dag_cbor.decode(commit_data.blocks[cid]))
+
+        commits_a = []
+        def callback_a(commit):
+            commits_a.append(commit)
+
+        # create new object; a is subscribed
+        await self.repo.subscribe(callback_a)
+        tid = next_tid()
+        create = Write(Action.CREATE, 'co.ll', tid, {'foo': 'bar'})
+        await self.repo.apply_writes([create], self.key)
+
+        self.assertEqual(1, len(commits_a))
+        assertCommitIs(commits_a[0], {'foo': 'bar'})
+
+        # update object; a and b are subscribed
+        commits_b = []
+        def callback_b(commit):
+            commits_b.append(commit)
+
+        await self.repo.subscribe(callback_b)
+        update = Write(Action.UPDATE, 'co.ll', tid, {'foo': 'baz'})
+        await self.repo.apply_writes([update], self.key)
+
+        self.assertEqual(2, len(commits_a))
+        assertCommitIs(commits_a[1], {'foo': 'baz'})
+        self.assertEqual(1, len(commits_b))
+        assertCommitIs(commits_b[0], {'foo': 'baz'})
+
+        # delete object; b is subscribed
+        await self.repo.unsubscribe(callback_a)
+        delete = Write(Action.UPDATE, 'co.ll', tid, {'biff': 0})
+        await self.repo.apply_writes([delete], self.key)
+
+        self.assertEqual(2, len(commits_a))
+        self.assertEqual(2, len(commits_b))
+        assertCommitIs(commits_b[1], {'biff': 0})
+

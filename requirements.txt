@@ -2,6 +2,7 @@ git+https://github.com/snarfed/dag-json.git#egg=dag_json
 git+https://github.com/snarfed/carbox.git#egg=carbox
 git+https://github.com/snarfed/lexrpc.git#egg=lexrpc
 
+asgiref==3.7.2
 async-timeout==4.0.2
 attrs==23.1.0
 bases==0.2.1

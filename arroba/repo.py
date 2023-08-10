@@ -8,10 +8,12 @@ https://github.com/bluesky-social/atproto/blob/main/packages/repo/src/repo.ts
 Huge thanks to the Bluesky team for working in the public, in open source, and to
 Daniel Holmgren and Devin Ivy for this code specifically!
 """
+import asyncio
 from collections import defaultdict, namedtuple
 from enum import auto, Enum
 import logging
 
+import dag_cbor
 from multiformats import CID
 
 from . import util
@@ -20,6 +22,7 @@ from .mst import MST
 from .storage import BlockMap, CommitData, Storage
 
 logger = logging.getLogger(__name__)
+
 
 class Action(Enum):
     """Used in :meth:`Repo.format_commit`."""
@@ -47,11 +50,17 @@ class Repo:
       mst: :class:`MST`
       commit: dict, head commit
       cid: :class:`CID`, head CID
+      subscriptions: set of callbacks to call on new commits. callback
+        functions take one positional argument, :class:`CommitData`.
+      _subscriptions_lock: :class:`asyncio.Lock`, read/write lock for
+        subscriptions
     """
     storage = None
     mst = None
     commit = None
     cid = None
+    subscriptions = None
+    _subscriptions_lock = None
 
     def __init__(self, *, storage=None, mst=None, commit=None, cid=None):
         """Constructor.
@@ -67,6 +76,8 @@ class Repo:
         self.mst = mst
         self.commit = commit
         self.cid = cid
+        self.subscriptions = set()
+        self._subscriptions_lock = asyncio.Lock()
 
     # def rebase(self):
     #     """TODO"""
@@ -258,10 +269,10 @@ class Repo:
         }, key)
         commit_cid = commit_blocks.add(commit)
 
-        # self.mst = mst  # ??? this isn't in repo.ts
+        self.mst = mst
         return CommitData(commit=commit_cid, prev=self.cid, blocks=commit_blocks)
 
-    def apply_commit(self, commit_data):
+    async def apply_commit(self, commit_data):
         """
 
         Args:
@@ -271,9 +282,15 @@ class Repo:
           :class:`Repo`
         """
         self.storage.apply_commit(commit_data)
-        return self.load(self.storage, commit_data.commit)
+        self.commit = dag_cbor.decode(commit_data.blocks[commit_data.commit])
 
-    def apply_writes(self, writes, key):
+        async with self._subscriptions_lock:
+            for callback in self.subscriptions:
+                callback(commit_data)
+
+        return self
+
+    async def apply_writes(self, writes, key):
         """
 
         Args:
@@ -284,7 +301,7 @@ class Repo:
           :class:`Repo`
         """
         commit = self.format_commit(writes, key)
-        return self.apply_commit(commit)
+        return await self.apply_commit(commit)
 
     # def format_rebase(self, key):
     #     """TODO
@@ -332,3 +349,21 @@ class Repo:
     #   """
     #     rebase_data = self.format_rebase(key)
     #     return self.apply_rebase(rebase_data)
+
+    async def subscribe(self, callback):
+        """Adds a subscriber callback to be called on new commits.
+
+        Args:
+          callback: callable, (:class:`CommitData`) => None
+        """
+        async with self._subscriptions_lock:
+            self.subscriptions.add(callback)
+
+    async def unsubscribe(self, callback):
+        """Removes a subscriber callback.
+
+        Args:
+          callback: callable, (:class:`CommitData`) => None
+        """
+        async with self._subscriptions_lock:
+            self.subscriptions.remove(callback)
