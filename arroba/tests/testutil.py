@@ -67,7 +67,9 @@ class TestCase(unittest.TestCase):
 
     @staticmethod
     def random_objects(num):
-        return {next_tid(): {'foo': random.randint(0, 1000)} for i in range(num)}
+        assert num < 1000
+        return {next_tid(): {'foo': val}
+                for val in random.choices(range(num), k=num)}
 
 
 class XrpcTestCase(TestCase):

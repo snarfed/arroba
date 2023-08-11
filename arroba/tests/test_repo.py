@@ -108,3 +108,44 @@ class RepoTest(TestCase):
         self.assertEqual(2, reloaded.version)
         self.assertEqual('did:web:user.com', reloaded.did)
         self.assertEqual({'co.ll': objs}, reloaded.get_contents())
+
+    def test_callback(self):
+        def assertCommitIs(commit_data, obj):
+            commit = dag_cbor.decode(commit_data.blocks[commit_data.commit])
+            mst_entry = dag_cbor.decode(commit_data.blocks[commit['data']])
+            cid = dag_cbor_cid(obj)
+            self.assertEqual([{
+                'k': f'co.ll/{util._tid_last}'.encode(),
+                'p': 0,
+                't': None,
+                'v': cid,
+            }], mst_entry['e'])
+            self.assertEqual(obj, dag_cbor.decode(commit_data.blocks[cid]))
+
+        commits_a = []
+        def callback_a(commit):
+            commits_a.append(commit)
+
+        # create new object with callback
+        self.repo.set_callback(callback_a)
+        tid = next_tid()
+        create = Write(Action.CREATE, 'co.ll', tid, {'foo': 'bar'})
+        self.repo.apply_writes([create], self.key)
+
+        self.assertEqual(1, len(commits_a))
+        assertCommitIs(commits_a[0], {'foo': 'bar'})
+
+        # update object
+        update = Write(Action.UPDATE, 'co.ll', tid, {'foo': 'baz'})
+        self.repo.apply_writes([update], self.key)
+
+        self.assertEqual(2, len(commits_a))
+        assertCommitIs(commits_a[1], {'foo': 'baz'})
+
+        # unset callback, update again
+        self.repo.set_callback(None)
+        delete = Write(Action.UPDATE, 'co.ll', tid, {'biff': 0})
+        self.repo.apply_writes([delete], self.key)
+
+        self.assertEqual(2, len(commits_a))
+
