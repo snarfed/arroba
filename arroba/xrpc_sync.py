@@ -6,15 +6,23 @@ TODO:
 * blobs
 """
 import logging
+from queue import Queue
+from threading import Lock
 
 from carbox.car import Block, write_car
 import dag_cbor
+import simple_websocket
 
 from . import server
+from . import util
 from . import xrpc_repo
-from .util import dag_cbor_cid
 
 logger = logging.getLogger(__name__)
+
+# used by subscribe_repos and enqueue_commit
+subscribers = set()  # stores Queue, one per subscriber
+# TODO: do we need this?
+# _subscribers_lock = Lock()
 
 
 def validate(did=None, collection=None, rkey=None):
@@ -63,10 +71,61 @@ def list_repos(input, limit=None, cursor=None):
     }]
 
 
-@server.server.method('com.atproto.sync.subscribeRepos')
-def subscribe_repos(input, cursor=None):
+def enqueue_commit(commit_data):
     """
+    Args:
+      did: str
+      commit_data: :class:`CommitData`
     """
+    if subscribers:
+        logger.debug(f'Enqueueing commit {commit_data.cid} for {len(subscribers)} subscribers')
+
+    for subscriber in subscribers:
+        subscriber.put(commit_data)
+
+
+def subscribe_repos(cursor=None):
+    """Firehose event stream XRPC (ie type: subscription) for all new commits.
+
+    This function serves forever, which ties up a runtime context, so it's not
+    automatically registered with the XRPC server. Instead, clients should
+    choose how to register and serve it themselves, eg asyncio vs threads vs
+    WSGI workers.
+
+    See :func:`enqueue_commit` for an example thread-based callback to register
+    with :class:`Repo` to deliver all new commits. Here's how to register that
+    callback and this XRPC method in a threaded context:
+
+      server.server.register('com.atproto.sync.subscribeRepos',
+                             xrpc_sync.subscribe_repos)
+      server.repo.set_callback(xrpc_sync.enqueue_commit)
+    """
+    assert not cursor, 'cursor not implemented yet'
+
+    queue = Queue()
+    subscribers.add(queue)
+
+    while True:
+        commit_data = queue.get()
+        cid = commit_data.cid
+        commit = dag_cbor.decode(commit_data.blocks[cid])
+        car_blocks = [Block(cid=cid, data=data)
+                      for cid, data in commit_data.blocks.items()]
+        yield {
+            'repo': commit['did'],
+            'commit': cid,
+            'blocks': write_car([cid], car_blocks),
+            'time': util.now().isoformat(),
+            # TODO
+            'prev': False,
+            'seq': None,
+            'rebase': False,
+            'tooBig': False,
+            'blobs': [],
+        }
+
+    # TODO: this is never reached, so we currently slowly leak queues. fix that
+    subscribers.remove(queue)
 
 
 # @server.server.method('com.atproto.sync.getBlocks')

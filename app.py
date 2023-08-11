@@ -74,6 +74,9 @@ with ndb_client:
     server.storage = DatastoreStorage()
     server.repo = Repo.create(server.storage, os.environ['REPO_DID'], server.key)
 
+server.server.register('com.atproto.sync.subscribeRepos', xrpc_sync.subscribe_repos)
+server.repo.set_callback(xrpc_sync.enqueue_commit)
+
 
 def ndb_context_middleware(wsgi_app):
     """WSGI middleware to add an NDB context per request.

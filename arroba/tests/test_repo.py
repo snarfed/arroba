@@ -145,7 +145,7 @@ class RepoTest(TestCase):
 
         # unset callback, update again
         self.repo.callback = None
-        delete = Write(Action.UPDATE, 'co.ll', tid, {'biff': 0})
-        self.repo.apply_writes([delete], self.key)
+        update = Write(Action.UPDATE, 'co.ll', tid, {'biff': 0})
+        self.repo.apply_writes([update], self.key)
         self.assertEqual(2, len(seen))
 

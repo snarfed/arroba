@@ -4,10 +4,15 @@ TODO:
 * getCheckout commit param
 * getRepo earliest, latest params
 """
+from threading import Semaphore, Thread
+
 from carbox.car import Block, read_car
+import dag_cbor
 
 from ..repo import Action, Repo, Write
 from .. import server
+from .. import util
+from ..util import dag_cbor_cid, next_tid
 from .. import xrpc_sync
 
 from . import testutil
@@ -412,8 +417,113 @@ class XrpcSyncTest(testutil.XrpcTestCase):
     #     self.assertEqual(full.repos, pt1.repos + pt2.repos)
 
 
-# class SubscribeReposTest(testutil.XrpcTestCase):
-#     # based on atproto/packages/pds/tests/sync/subscribe-repos.test.ts
+class SubscribeReposTest(testutil.XrpcTestCase):
+    def setUp(self):
+        super().setUp()
+
+        server.server.register('com.atproto.sync.subscribeRepos',
+                               xrpc_sync.subscribe_repos)
+        server.repo.callback = xrpc_sync.enqueue_commit
+
+    def assertCommitMessage(self, record, prev, commit_msg):
+        blocks = commit_msg.pop('blocks')
+        self.assertEqual({
+            'repo': 'did:web:user.com',
+            'commit': server.repo.cid,
+            'time': testutil.NOW.isoformat(),
+            # TODO
+            'prev': False,
+            'seq': None,
+            'rebase': False,
+            'tooBig': False,
+            'blobs': [],
+        }, commit_msg)
+
+        msg_roots, msg_blocks = read_car(blocks)
+        self.assertEqual([server.repo.cid], msg_roots)
+
+        record_cid = dag_cbor_cid(record)
+        mst_entry = {
+            'e': [{
+                'k': f'co.ll/{util._tid_last}'.encode(),
+                'v': record_cid,
+                'p': 0,
+                't': None,
+            }],
+            'l': None,
+        }
+        commit_record = {
+            'version': 2,
+            'did': 'did:web:user.com',
+            'data': dag_cbor_cid(mst_entry),#record_cid,
+            'prev': prev,
+        }
+        msg_records = [b.decoded for b in msg_blocks]
+        # TODO: if I util.sign_commit(commit_record), the sig doesn't match. why?
+        del msg_records[2]['sig']
+        self.assertEqual([record, mst_entry, commit_record], msg_records)
+
+    def test_subscribe_repos(self):
+        def client(received, delivered):
+            for i, commit_msg in enumerate(xrpc_sync.subscribe_repos()):
+                received.append(commit_msg)
+                delivered.release()
+                if i == 1:  # read two commits, then quit
+                    return
+
+        received_a = []
+        delivered_a = Semaphore(value=0)
+        subscriber_a = Thread(target=client, args=[received_a, delivered_a])
+        subscriber_a.start()
+
+        # create, subscriber_a
+        prev = server.repo.cid
+        tid = next_tid()
+        create = Write(Action.CREATE, 'co.ll', tid, {'foo': 'bar'})
+        server.repo.apply_writes([create], self.key)
+        delivered_a.acquire()
+
+        self.assertEqual(1, len(received_a))
+        self.assertCommitMessage({'foo': 'bar'}, prev, received_a[0])
+        # TODO
+        # self.assertEqual(1, len(xrpc_sync.subscribers))
+
+        # update, subscriber_a and subscriber_b
+        received_b = []
+        delivered_b = Semaphore(value=0)
+        subscriber_b = Thread(target=client, args=[received_b, delivered_b])
+        subscriber_b.start()
+
+        prev = server.repo.cid
+        update = Write(Action.UPDATE, 'co.ll', tid, {'foo': 'baz'})
+        server.repo.apply_writes([update], self.key)
+        delivered_a.acquire()
+        delivered_b.acquire()
+
+        self.assertEqual(2, len(received_a))
+        self.assertCommitMessage({'foo': 'baz'}, prev, received_a[1])
+        self.assertEqual(1, len(received_b))
+        self.assertCommitMessage({'foo': 'baz'}, prev, received_b[0])
+
+        subscriber_a.join()
+        # TODO
+        # self.assertEqual(1, len(xrpc_sync.subscribers))
+
+        # update, subscriber_b
+        prev = server.repo.cid
+        update = Write(Action.UPDATE, 'co.ll', tid, {'biff': 0})
+        server.repo.apply_writes([update], self.key)
+        delivered_b.acquire()
+
+        self.assertEqual(2, len(received_a))
+        self.assertEqual(2, len(received_b))
+        self.assertCommitMessage({'biff': 0}, prev, received_b[1])
+
+        subscriber_b.join()
+        # TODO
+        # self.assertEqual(0, len(xrpc_sync.subscribers))
+
+    # based on atproto/packages/pds/tests/sync/subscribe-repos.test.ts
 #     def setUp(self):
 #         server = runTestServer({
 #             'dbPostgresSchema': 'repo_subscribe_repos',
