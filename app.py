@@ -1,12 +1,15 @@
 """Demo PDS app."""
+from datetime import datetime, timedelta
 import logging
 import os
 from urllib.parse import urljoin
 
 from Crypto.PublicKey import ECC
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from flask import Flask, make_response, redirect, request
 import google.cloud.logging
 from google.cloud import ndb
+import jwt
 import lexrpc.flask_server
 
 logger = logging.getLogger(__name__)
@@ -70,13 +73,23 @@ lexrpc.flask_server.init_flask(server.server, app)
 server.key = ECC.import_key(os.environ['REPO_PRIVKEY'])
 
 ndb_client = ndb.Client()
-with ndb_client:
+
+with ndb_client.context():
     server.storage = DatastoreStorage()
     server.repo = Repo.create(server.storage, os.environ['REPO_DID'], server.key)
 
 server.server.register('com.atproto.sync.subscribeRepos', xrpc_sync.subscribe_repos)
-server.repo.set_callback(xrpc_sync.enqueue_commit)
+server.repo.callback = xrpc_sync.enqueue_commit
 
+# https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification
+privkey_bytes = server.key = load_pem_private_key(
+    os.environ['REPO_PRIVKEY'].encode(), password=None)
+APPVIEW_JWT = jwt.encode({
+    'iss': os.environ['REPO_DID'],
+    'aud': f'did:web:{os.environ["APPVIEW_HOST"]}',
+    'alg': 'ES256',  # p256
+    'exp': int((datetime.now() + timedelta(days=7)).timestamp()),  # 😎
+}, privkey_bytes, algorithm='ES256')
 
 def ndb_context_middleware(wsgi_app):
     """WSGI middleware to add an NDB context per request.
