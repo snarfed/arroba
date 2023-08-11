@@ -46,11 +46,14 @@ class Repo:
       mst: :class:`MST`
       commit: dict, head commit    # TODO: replace these with CommitData?
       cid: :class:`CID`, head CID
+      callback: callable, (:class:`CommitData`) => None, called on new commits
+        May be set directly by clients. None means no callback.
     """
     storage = None
     mst = None
     commit = None
     cid = None
+    callback = None
 
     def __init__(self, *, storage=None, mst=None, commit=None, cid=None):
         """Constructor.
@@ -281,6 +284,8 @@ class Repo:
           :class:`Repo`
         """
         commit = self.format_commit(writes, key)
+        if self.callback:
+            self.callback(commit)
         return self.apply_commit(commit)
 
     # def format_rebase(self, key):

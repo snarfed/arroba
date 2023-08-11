@@ -10,9 +10,13 @@ import copy
 from itertools import chain
 import random
 
+import dag_cbor
+
 from ..repo import Action, Repo, Write
 from ..storage import MemoryStorage
-from ..util import next_tid, verify_commit_sig
+from .. import util
+from ..util import dag_cbor_cid, next_tid, verify_commit_sig
+
 from .testutil import NOW, TestCase
 
 
@@ -111,7 +115,7 @@ class RepoTest(TestCase):
 
     def test_callback(self):
         def assertCommitIs(commit_data, obj):
-            commit = dag_cbor.decode(commit_data.blocks[commit_data.commit])
+            commit = dag_cbor.decode(commit_data.blocks[commit_data.cid])
             mst_entry = dag_cbor.decode(commit_data.blocks[commit['data']])
             cid = dag_cbor_cid(obj)
             self.assertEqual([{
@@ -122,30 +126,26 @@ class RepoTest(TestCase):
             }], mst_entry['e'])
             self.assertEqual(obj, dag_cbor.decode(commit_data.blocks[cid]))
 
-        commits_a = []
-        def callback_a(commit):
-            commits_a.append(commit)
+        seen = []
 
         # create new object with callback
-        self.repo.set_callback(callback_a)
+        self.repo.callback = lambda commit: seen.append(commit)
         tid = next_tid()
         create = Write(Action.CREATE, 'co.ll', tid, {'foo': 'bar'})
         self.repo.apply_writes([create], self.key)
 
-        self.assertEqual(1, len(commits_a))
-        assertCommitIs(commits_a[0], {'foo': 'bar'})
+        self.assertEqual(1, len(seen))
+        assertCommitIs(seen[0], {'foo': 'bar'})
 
         # update object
         update = Write(Action.UPDATE, 'co.ll', tid, {'foo': 'baz'})
         self.repo.apply_writes([update], self.key)
-
-        self.assertEqual(2, len(commits_a))
-        assertCommitIs(commits_a[1], {'foo': 'baz'})
+        self.assertEqual(2, len(seen))
+        assertCommitIs(seen[1], {'foo': 'baz'})
 
         # unset callback, update again
-        self.repo.set_callback(None)
+        self.repo.callback = None
         delete = Write(Action.UPDATE, 'co.ll', tid, {'biff': 0})
         self.repo.apply_writes([delete], self.key)
-
-        self.assertEqual(2, len(commits_a))
+        self.assertEqual(2, len(seen))
 
