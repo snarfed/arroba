@@ -140,7 +140,7 @@ class XrpcSyncTest(testutil.XrpcTestCase):
 
     #     localStr = local.map((c) => c)
     #     commit_path = xrpc_sync.get_commit_path({}, did='did:web:user.com')
-    #     self.assertEqual(localStr, commi{}, t_path.commits
+    #     self.assertEqual(localStr, commit_path.commits)
 
     #     partial_commit_path = xrpc_sync.get_commit_path({},
     #         did='did:web:user.com',

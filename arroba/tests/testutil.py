@@ -51,9 +51,11 @@ class TestCase(unittest.TestCase):
 
     @staticmethod
     def random_keys_and_cids(num):
-        timestamps = random.choices(range(int(datetime(2020, 1, 1).timestamp()) * 1000,
-                                          int(datetime(2100, 1, 1).timestamp()) * 1000),
-                                    k=num)
+        timestamps = random.choices(
+            range(int(datetime(2020, 1, 1).timestamp()) * 1000,
+                  int(datetime(2100, 1, 1).timestamp()) * 1000),
+            k=num)
+
         cids = set()
         for cid in dag_cbor.random.rand_cid():
             cids.add(cid)

@@ -12,10 +12,17 @@ from .util import dag_cbor_cid
 
 
 CommitData = namedtuple('CommitData', [
-  'commit',  # CID
+  'cid',     # CID
   'blocks',  # BlockMap
   'prev',    # CID or None
 ])
+# commit record format is:
+# {
+#     'version': 2,
+#     'did': [repo],
+#     'prev': [CID],
+#     'data': [CID],
+# }
 
 
 class BlockMap(dict):
@@ -172,4 +179,4 @@ class MemoryStorage(Storage):
 
     def apply_commit(self, commit_data):
         self.blocks.update(commit_data.blocks)
-        self.head = commit_data.commit
+        self.head = commit_data.cid

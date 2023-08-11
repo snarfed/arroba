@@ -109,13 +109,13 @@ class DatastoreStorageTest(TestCase):
         commit = repo.format_commit(writes, self.key)
 
         self.storage.apply_commit(commit)
-        self.assertEqual(commit.commit, self.storage.head)
+        self.assertEqual(commit.cid, self.storage.head)
 
         found, missing = self.storage.read_many(commit.blocks.keys())
         # found has one extra MST Data node
         self.assertEqual(4, len(found))
         self.assertIn(objs[0], found.values())
         self.assertIn(objs[1], found.values())
-        commit_obj = dag_cbor.decode(commit.blocks[commit.commit])
-        self.assertEqual(commit_obj, found[commit.commit])
+        commit_obj = dag_cbor.decode(commit.blocks[commit.cid])
+        self.assertEqual(commit_obj, found[commit.cid])
         self.assertEqual([], missing)

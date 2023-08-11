@@ -139,4 +139,4 @@ class DatastoreStorage(Storage):
     def apply_commit(self, commit):
         ndb.put_multi(AtpNode(id=cid.encode('base32'), dag_cbor=block)
                       for cid, block in commit.blocks.items())
-        self.head = commit.commit
+        self.head = commit.cid

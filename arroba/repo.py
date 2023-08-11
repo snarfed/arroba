@@ -12,6 +12,7 @@ from collections import defaultdict, namedtuple
 from enum import auto, Enum
 import logging
 
+import dag_cbor
 from multiformats import CID
 
 from . import util
@@ -20,6 +21,7 @@ from .mst import MST
 from .storage import BlockMap, CommitData, Storage
 
 logger = logging.getLogger(__name__)
+
 
 class Action(Enum):
     """Used in :meth:`Repo.format_commit`."""
@@ -39,13 +41,10 @@ Write = namedtuple('Write', [
 class Repo:
     """AT Protocol data repo implementation, storage agnostic.
 
-    Instances of this class are generally *immutable*. Methods that modify the
-    repo return a new repo with the changes.
-
     Attributes:
       storage: :class:`Storage`
       mst: :class:`MST`
-      commit: dict, head commit
+      commit: dict, head commit    # TODO: replace these with CommitData?
       cid: :class:`CID`, head CID
     """
     storage = None
@@ -67,10 +66,6 @@ class Repo:
         self.mst = mst
         self.commit = commit
         self.cid = cid
-
-    # def rebase(self):
-    #     """TODO"""
-    #     raise NotImplementedError()
 
     @property
     def did(self):
@@ -154,7 +149,7 @@ class Repo:
             'data': root,
         }, key)
         commit_cid = new_blocks.add(commit)
-        return CommitData(commit=commit_cid, prev=None, blocks=new_blocks)
+        return CommitData(cid=commit_cid, prev=None, blocks=new_blocks)
 
     @classmethod
     def create_from_commit(cls, storage, commit):
@@ -168,7 +163,7 @@ class Repo:
           :class:`Repo`
         """
         storage.apply_commit(commit)
-        return cls.load(storage, commit.commit)
+        return cls.load(storage, commit.cid)
 
     @classmethod
     def create(cls, storage, did, key, initial_writes=None):
@@ -258,8 +253,8 @@ class Repo:
         }, key)
         commit_cid = commit_blocks.add(commit)
 
-        # self.mst = mst  # ??? this isn't in repo.ts
-        return CommitData(commit=commit_cid, prev=self.cid, blocks=commit_blocks)
+        self.mst = mst
+        return CommitData(cid=commit_cid, prev=self.cid, blocks=commit_blocks)
 
     def apply_commit(self, commit_data):
         """
@@ -271,7 +266,9 @@ class Repo:
           :class:`Repo`
         """
         self.storage.apply_commit(commit_data)
-        return self.load(self.storage, commit_data.commit)
+        self.commit = dag_cbor.decode(commit_data.blocks[commit_data.cid])
+        self.cid = commit_data.cid
+        return self
 
     def apply_writes(self, writes, key):
         """
