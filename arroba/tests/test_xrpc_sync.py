@@ -411,160 +411,162 @@ class XrpcSyncTest(testutil.XrpcTestCase):
     #     pt2 = xrpc_sync.list_repos({}, cursor=pt1.cursor)
     #     self.assertEqual(full.repos, pt1.repos + pt2.repos)
 
-    # # based on atproto/packages/pds/tests/sync/subscribe-repos.test.ts
-    # def _setUp(self):
-    #     server = runTestServer({
-    #         'dbPostgresSchema': 'repo_subscribe_repos',
-    #     })
-    #     serverHost = server.url.replace('http://', '')
-    #     ctx = server.ctx
-    #     db = server.ctx.db
-    #     close = server.close
-    #     agent = AtpAgent({ 'service': server.url })
-    #     sc = SeedClient(agent)
-    #     basicSeed(sc)
-    #     alice = sc.dids.alice
-    #     bob = sc.dids.bob
-    #     carol = sc.dids.carol
-    #     dan = sc.dids.dan
 
-    # def getRepo(did):
-    #     car = xrpc_sync.get_repo({}, did=did)
-    #     storage = MemoryBlockstore()
-    #     synced = repo.loadFullRepo(
-    #         storage,
-    #         Uint8Array(car),
-    #         did='did:web:user.com',
-    #         ctx.repoSigningKey.did(),
-    #     )
-    #     return repo.Repo.load(storage, synced.root)
+# class SubscribeReposTest(testutil.XrpcTestCase):
+#     # based on atproto/packages/pds/tests/sync/subscribe-repos.test.ts
+#     def setUp(self):
+#         server = runTestServer({
+#             'dbPostgresSchema': 'repo_subscribe_repos',
+#         })
+#         serverHost = server.url.replace('http://', '')
+#         ctx = server.ctx
+#         db = server.ctx.db
+#         close = server.close
+#         agent = AtpAgent({ 'service': server.url })
+#         sc = SeedClient(agent)
+#         basicSeed(sc)
+#         alice = sc.dids.alice
+#         bob = sc.dids.bob
+#         carol = sc.dids.carol
+#         dan = sc.dids.dan
 
-    # def getHandleEvts(frames):
-    #     evts = []
-    #     for frame in frames:
-    #         if frame instanceof MessageFrame and frame.header.t == '#handle':
-    #             evts.push(frame.body)
+#     def getRepo(did):
+#         car = xrpc_sync.get_repo({}, did=did)
+#         storage = MemoryBlockstore()
+#         synced = repo.loadFullRepo(
+#             storage,
+#             Uint8Array(car),
+#             did='did:web:user.com',
+#             ctx.repoSigningKey.did(),
+#         )
+#         return repo.Repo.load(storage, synced.root)
 
-    #     return evts
+#     def getHandleEvts(frames):
+#         evts = []
+#         for frame in frames:
+#             if frame instanceof MessageFrame and frame.header.t == '#handle':
+#                 evts.push(frame.body)
 
-    # def getTombstoneEvts(frames):
-    #     evts = []
-    #     for frame in frames:
-    #         if frame instanceof MessageFrame and frame.header.t == '#tombstone':
-    #             evts.push(frame.body)
+#         return evts
 
-    #     return evts
+#     def getTombstoneEvts(frames):
+#         evts = []
+#         for frame in frames:
+#             if frame instanceof MessageFrame and frame.header.t == '#tombstone':
+#                 evts.push(frame.body)
 
-    # def verifyHandleEvent(evt, did, handle):
-    #     self.assertEqual(did, evt['did'])
-    #     self.assertEqual(handle, evt['handle'])
-    #     self.assertTrue(isinstance(str, evt['time']))
-    #     self.assertTrue(isinstance(int, evt['seq']))
+#         return evts
 
-    # def verifyTombstoneEvent(evt, did):
-    #     self.assertEqual(did, evt['did'])
-    #     self.assertTrue(isinstance(str, evt['time']))
-    #     self.assertTrue(isinstance(int, evt['seq']))
+#     def verifyHandleEvent(evt, did, handle):
+#         self.assertEqual(did, evt['did'])
+#         self.assertEqual(handle, evt['handle'])
+#         self.assertTrue(isinstance(str, evt['time']))
+#         self.assertTrue(isinstance(int, evt['seq']))
 
-    # def getCommitEvents(userDid, frames):
-    #     evts = []
-    #     for frame in frames:
-    #         if frame instanceof MessageFrame and frame.header.t == '#commit':
-    #             body = frame.body as CommitEvt
-    #             if body.repo == userDid:
-    #                 evts.push(frame.body)
+#     def verifyTombstoneEvent(evt, did):
+#         self.assertEqual(did, evt['did'])
+#         self.assertTrue(isinstance(str, evt['time']))
+#         self.assertTrue(isinstance(int, evt['seq']))
 
-    #     return evts
+#     def getCommitEvents(userDid, frames):
+#         evts = []
+#         for frame in frames:
+#             if frame instanceof MessageFrame and frame.header.t == '#commit':
+#                 body = frame.body as CommitEvt
+#                 if body.repo == userDid:
+#                     evts.push(frame.body)
 
-    # def getAllEvents(userDid, frames):
-    #     types = []
-    #     for frame in frames:
-    #         if frame instanceof MessageFrame:
-    #             if ((frame.header.t == '#commit' and frame.body.repo == userDid) or
-    #                 (frame.header.t == '#handle' and frame.body.did == userDid) or
-    #                 (frame.header.t == '#tombstone' and frame.body.did == userDid)):
-    #                 types.push(frame.body)
+#         return evts
 
-    #     return types
+#     def getAllEvents(userDid, frames):
+#         types = []
+#         for frame in frames:
+#             if frame instanceof MessageFrame:
+#                 if ((frame.header.t == '#commit' and frame.body.repo == userDid) or
+#                     (frame.header.t == '#handle' and frame.body.did == userDid) or
+#                     (frame.header.t == '#tombstone' and frame.body.did == userDid)):
+#                     types.push(frame.body)
 
-    # def verifyCommitEvents(frames):
-    #     verifyRepo(alice, getCommitEvents(alice, frames))
-    #     verifyRepo(bob, getCommitEvents(bob, frames))
-    #     verifyRepo(carol, getCommitEvents(carol, frames))
-    #     verifyRepo(dan, getCommitEvents(dan, frames))
+#         return types
 
-    # def verifyRepo(did, evts):
-    #     didRepo = getRepo(did)
-    #     writeLog = getWriteLog(didRepo.storage, didRepo.cid, null)
-    #     commits = didRepo.storage.getCommits(didRepo.cid, null)
-    #     if not commits:
-    #         return expect(commits !== null)
+#     def verifyCommitEvents(frames):
+#         verifyRepo(alice, getCommitEvents(alice, frames))
+#         verifyRepo(bob, getCommitEvents(bob, frames))
+#         verifyRepo(carol, getCommitEvents(carol, frames))
+#         verifyRepo(dan, getCommitEvents(dan, frames))
 
-    #     self.assertEqual(commits.length, evts.length)
-    #     self.assertEqual(writeLog.length, evts.length)
+#     def verifyRepo(did, evts):
+#         didRepo = getRepo(did)
+#         writeLog = getWriteLog(didRepo.storage, didRepo.cid, null)
+#         commits = didRepo.storage.getCommits(didRepo.cid, null)
+#         if not commits:
+#             return expect(commits !== null)
 
-    #     last_commit = None
-    #     for commit in commits:
-    #         commit = commits[i]
-    #         evt = evts[i]
-    #         self.assertEqual(did, evt.repo)
-    #         self.assertEqual(commit.commit, evt.commit)
-    #         self.assertEqual(last_commit, evt.prev)
-    #         car = repo.readCarWithRoot(evt.blocks as Uint8Array)
-    #         expect(car.root.equals(commit.commit))
-    #         expect(car.blocks.equals(commit.blocks))
-    #         writes = writeLog[i].map((w) => ({
-    #             'action': w.action,
-    #             'path': w.collection + '/' + w.rkey,
-    #             'cid': None if w.action == WriteOpAction.Delete else w.cid,
-    #         }))
-    #         sortedOps = evt.ops
-    #             .sort((a, b) => a.path.localeCompare(b.path))
-    #             .map((op) => ({ **op, 'cid': op.cid ?? null }))
-    #         sortedWrites = writes.sort((a, b) => a.path.localeCompare(b.path))
-    #         self.assertEqual(sortedWrites, sortedOps)
-    #         last_commit = commit
+#         self.assertEqual(commits.length, evts.length)
+#         self.assertEqual(writeLog.length, evts.length)
 
-    # def makePosts(self):
-    #     for i in range(10):
-    #         sc.post(alice, f'foo {i}'),
-    #         sc.post(bob, f'bar {i}'),
-    #         sc.post(carol, f'baz {i}'),
-    #         sc.post(dan, f'biff {i}'),
+#         last_commit = None
+#         for commit in commits:
+#             commit = commits[i]
+#             evt = evts[i]
+#             self.assertEqual(did, evt.repo)
+#             self.assertEqual(commit.commit, evt.commit)
+#             self.assertEqual(last_commit, evt.prev)
+#             car = repo.readCarWithRoot(evt.blocks as Uint8Array)
+#             expect(car.root.equals(commit.commit))
+#             expect(car.blocks.equals(commit.blocks))
+#             writes = writeLog[i].map((w) => ({
+#                 'action': w.action,
+#                 'path': w.collection + '/' + w.rkey,
+#                 'cid': None if w.action == WriteOpAction.Delete else w.cid,
+#             }))
+#             sortedOps = evt.ops
+#                 .sort((a, b) => a.path.localeCompare(b.path))
+#                 .map((op) => ({ **op, 'cid': op.cid ?? null }))
+#             sortedWrites = writes.sort((a, b) => a.path.localeCompare(b.path))
+#             self.assertEqual(sortedWrites, sortedOps)
+#             last_commit = commit
 
-    # def readTillCaughtUp(gen, # AsyncGenerator<T>,
-    #                      waitFor?: Promise<unknown>,
-    # ) => {
-    #     isDone = (evt: any) => {
-    #         if (evt == undefined) return false
-    #         if (evt instanceof ErrorFrame) return true
-    #         caughtUp = ctx.sequencerLeader.isCaughtUp()
-    #         if not caughtUp:
-    #             return false
-    #         curr = db.db
-    #             .selectFrom('repo_seq')
-    #             .where('seq', 'is not', null)
-    #             .select('seq')
-    #             .limit(1)
-    #             .orderBy('seq', 'desc')
-    #             .executeTakeFirst()
-    #         return curr !== undefined and evt.body.seq == curr.seq
+#     def makePosts(self):
+#         for i in range(10):
+#             sc.post(alice, f'foo {i}'),
+#             sc.post(bob, f'bar {i}'),
+#             sc.post(carol, f'baz {i}'),
+#             sc.post(dan, f'biff {i}'),
+
+#     def readTillCaughtUp(gen, # AsyncGenerator<T>,
+#                          waitFor?: Promise<unknown>,
+#     ) => {
+#         isDone = (evt: any) => {
+#             if (evt == undefined) return false
+#             if (evt instanceof ErrorFrame) return true
+#             caughtUp = ctx.sequencerLeader.isCaughtUp()
+#             if not caughtUp:
+#                 return false
+#             curr = db.db
+#                 .selectFrom('repo_seq')
+#                 .where('seq', 'is not', null)
+#                 .select('seq')
+#                 .limit(1)
+#                 .orderBy('seq', 'desc')
+#                 .executeTakeFirst()
+#             return curr !== undefined and evt.body.seq == curr.seq
 
 
-    #     return readFromGenerator(gen, isDone, waitFor)
+#         return readFromGenerator(gen, isDone, waitFor)
 
-    # def test_sync_backfilled_events(self):
-    #     ws = WebSocket(
-    #         f'ws://{serverHost}/xrpc/com.atproto.sync.subscribeRepos?cursor={-1}',
-    #     )
+#     def test_sync_backfilled_events(self):
+#         ws = WebSocket(
+#             f'ws://{serverHost}/xrpc/com.atproto.sync.subscribeRepos?cursor={-1}',
+#         )
 
-    #     gen = byFrame(ws)
-    #     evts = readTillCaughtUp(gen)
-    #     ws.terminate()
+#         gen = byFrame(ws)
+#         evts = readTillCaughtUp(gen)
+#         ws.terminate()
 
-    #     verifyCommitEvents(evts)
+#         verifyCommitEvents(evts)
 
-    # def test_syncs_new_events(self):
+    # def test_sync_new_events(self):
     #     postPromise = makePosts()
 
     #     readAfterDelay = () => {
@@ -581,7 +583,7 @@ class XrpcSyncTest(testutil.XrpcTestCase):
 
     #     verifyCommitEvents(evts)
 
-    # def test_handles_no_backfill(self):
+    # def test_sync_no_backfill(self):
     #     ws = WebSocket(
     #         f'ws://{serverHost}/xrpc/com.atproto.sync.subscribeRepos',
     #     )
@@ -606,7 +608,7 @@ class XrpcSyncTest(testutil.XrpcTestCase):
     #     wait(100) # Let cleanup occur on server
     #     self.assertEqual(0, ctx.sequencer.listeners('events').length)
 
-    # def test_backfills_only_from_provided_cursor(self):
+    # def test_sync_backfill_from_cursor(self):
     #     seqs = db.db
     #         .selectFrom('repo_seq')
     #         .where('seq', 'is not', null)
@@ -631,7 +633,7 @@ class XrpcSyncTest(testutil.XrpcTestCase):
     #         self.assertEquals(evt.commit, seqEvt.commit)
     #         self.assertEqual(seq.did, evt.repo)
 
-    # def test_syncs_handle_changes(self):
+    # def test_sync_changes(self):
     #     sc.updateHandle(alice, 'alice2.test')
     #     sc.updateHandle(bob, 'bob2.test')
 
@@ -648,7 +650,7 @@ class XrpcSyncTest(testutil.XrpcTestCase):
     #     verifyHandleEvent(handleEvts[0], alice, 'alice2.test')
     #     verifyHandleEvent(handleEvts[1], bob, 'bob2.test')
 
-    # def test_syncs_tombstones(self):
+    # def test_sync_tombstones(self):
     #     baddie1 = (
     #         sc.createAccount('baddie1.test', {
     #             'email': 'baddie1@test.com',
@@ -718,7 +720,7 @@ class XrpcSyncTest(testutil.XrpcTestCase):
     #     bobEvts = getCommitEvents(bob, frames)
     #     self.assertGreater(10, bobEvts.length)
 
-    # def test_sends_info_frame_on_out_of_date_cursor(self):
+    # def test_sync_info_on_out_of_date_cursor(self):
     #     # we rewrite the sequenceAt time for existing seqs to be past the
     #     # backfill cutoff, then we create some posts
     #     overAnHourAgo = Date(Date.now() - HOUR - MINUTE).toISOString()
@@ -742,7 +744,7 @@ class XrpcSyncTest(testutil.XrpcTestCase):
     #     self.assertEqual('OutdatedCursor', body.name)
     #     self.assertEqual(40, evts.length)
 
-    # def test_errors_on_future_cursor(self):
+    # def test_sync_future_cursor_error(self):
     #     ws = WebSocket(
     #         f'ws://{serverHost}/xrpc/com.atproto.sync.subscribeRepos?cursor={100000}',
     #     )
