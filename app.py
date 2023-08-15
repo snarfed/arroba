@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta
 import logging
 import os
+from pathlib import Path
 from urllib.parse import urljoin
 
 from Crypto.PublicKey import ECC
@@ -11,13 +12,15 @@ import google.cloud.logging
 from google.cloud import ndb
 import jwt
 import lexrpc.flask_server
+import requests
 
 logger = logging.getLogger(__name__)
 logging.basicConfig()
 logging.getLogger().setLevel(logging.DEBUG)
-for logger in ('google.cloud', 'oauthlib', 'requests', 'requests_oauthlib',
+
+for module in ('google.cloud', 'oauthlib', 'requests', 'requests_oauthlib',
                'urllib3'):
-  logging.getLogger(logger).setLevel(logging.INFO)
+  logging.getLogger(module).setLevel(logging.INFO)
 # logging.getLogger('lexrpc').setLevel(logging.INFO)
 
 from arroba.repo import Repo
@@ -25,15 +28,20 @@ from arroba import server
 from arroba.datastore_storage import DatastoreStorage
 from arroba import xrpc_identity, xrpc_repo, xrpc_server, xrpc_sync
 
+USER_AGENT = 'Arroba PDS (https://arroba-pds.appspot.com/)'
+
 os.environ.setdefault('APPVIEW_HOST', 'api.bsky-sandbox.dev')
 os.environ.setdefault('BGS_HOST', 'bgs.bsky-sandbox.dev')
 os.environ.setdefault('PLC_HOST', 'plc.bsky-sandbox.dev')
 os.environ.setdefault('PDS_HOST', open('pds_host').read().strip())
-os.environ.setdefault('REPO_DID', open('repo_did').read().strip())
 os.environ.setdefault('REPO_HANDLE', open('repo_handle').read().strip())
 os.environ.setdefault('REPO_PRIVKEY', open('privkey.pem').read().strip())
 os.environ.setdefault('REPO_PASSWORD', open('repo_password').read().strip())
 os.environ.setdefault('REPO_TOKEN', open('repo_token').read().strip())
+
+did_docs = list(Path(__file__).parent.glob('did:plc:*.json'))
+assert len(did_docs) == 1, f'Expected one DID doc file; got {did_docs}'
+os.environ.setdefault('REPO_DID', str(did_docs[0]).removeprefix('.json'))
 
 if os.environ.get('GAE_ENV') == 'standard':
     # prod App Engine
@@ -52,21 +60,35 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ['REPO_TOKEN']
 app.json.compact = False
 
-# redirect app.bsky.* XRPCs to sandbox AppView
-# https://atproto.com/blog/federation-developer-sandbox#bluesky-app-view
-#
-# WARNING: this only works for GETs, but we're doing it for POSTs too. should be
-# ok as long as client apps don't send us app.bsky POSTs. we'll see.
-@app.route(f'/xrpc/app.bsky.<nsid_rest>', methods=['GET', 'OPTIONS'])
-def proxy_appview(nsid_rest=None):
-    if request.method == 'GET':
-        resp = redirect(urljoin('https://' + os.environ['APPVIEW_HOST'],
-                                request.full_path))
-    else:
-        resp = make_response('')
+# https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification
+privkey_bytes = server.key = load_pem_private_key(
+    os.environ['REPO_PRIVKEY'].encode(), password=None)
+APPVIEW_JWT = jwt.encode({
+    'iss': os.environ['REPO_DID'],
+    'aud': f'did:web:{os.environ["APPVIEW_HOST"]}',
+    'alg': 'ES256',  # p256
+    'exp': int((datetime.now() + timedelta(days=7)).timestamp()),  # 😎
+}, privkey_bytes, algorithm='ES256')
+APPVIEW_HEADERS = {
+      'User-Agent': USER_AGENT,
+      'Authorization': f'Bearer {APPVIEW_JWT}',
+}
 
-    resp.headers.update(lexrpc.flask_server.RESPONSE_HEADERS)
-    return resp
+# proxy app.bsky.* XRPCs to sandbox AppView
+# https://atproto.com/blog/federation-developer-sandbox#bluesky-app-view
+@app.route(f'/xrpc/app.bsky.<nsid_rest>', methods=['GET', 'OPTIONS', 'POST'])
+def proxy_appview(nsid_rest=None):
+    if request.method == 'OPTIONS':
+        return '', lexrpc.flask_server.RESPONSE_HEADERS  # CORS preflight
+
+    url = urljoin('https://' + os.environ['APPVIEW_HOST'], request.full_path)
+    resp = requests.request(request.method, url, headers=APPVIEW_HEADERS)
+    logger.debug(resp.json())
+    resp.raise_for_status()
+    return resp.data, resp.status_code, {
+      **lexrpc.flask_server.RESPONSE_HEADERS,
+      **resp.headers,
+    }
 
 lexrpc.flask_server.init_flask(server.server, app)
 
@@ -80,16 +102,6 @@ with ndb_client.context():
 
 server.server.register('com.atproto.sync.subscribeRepos', xrpc_sync.subscribe_repos)
 server.repo.callback = xrpc_sync.enqueue_commit
-
-# https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification
-privkey_bytes = server.key = load_pem_private_key(
-    os.environ['REPO_PRIVKEY'].encode(), password=None)
-APPVIEW_JWT = jwt.encode({
-    'iss': os.environ['REPO_DID'],
-    'aud': f'did:web:{os.environ["APPVIEW_HOST"]}',
-    'alg': 'ES256',  # p256
-    'exp': int((datetime.now() + timedelta(days=7)).timestamp()),  # 😎
-}, privkey_bytes, algorithm='ES256')
 
 def ndb_context_middleware(wsgi_app):
     """WSGI middleware to add an NDB context per request.
