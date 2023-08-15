@@ -11,14 +11,14 @@ logger = logging.getLogger(__name__)
 def create_session(input):
     """
     """
-    repo_handle = server.repo.did.removeprefix('did:web:')
-    input_handle = input['identifier'].removeprefix('did:web:')
+    id = input['identifier']
 
-    if (input_handle == repo_handle
+    logger.debug(f'Expecting {server.repo.handle} {server.repo.did}')
+    if (id and id in (server.repo.did, server.repo.handle)
             and input['password'] == os.environ['REPO_PASSWORD']):
         token = os.environ['REPO_TOKEN']
         return {
-            'handle': server.repo.did.removeprefix('did:web:'),
+            'handle': server.repo.handle,
             'did': server.repo.did,
             'accessJwt': token,
             'refreshJwt': token,
@@ -34,7 +34,7 @@ def get_session(input):
     server.auth()
 
     return {
-        'handle': server.repo.did.removeprefix('did:web:'),
+        'handle': server.repo.handle,
         'did': server.repo.did,
     }
 
@@ -47,7 +47,7 @@ def refresh_session(input, did=None, commit=None):
 
     token = os.environ['REPO_TOKEN']
     return {
-        'handle': server.repo.did.removeprefix('did:web:'),
+        'handle': server.repo.handle,
         'did': server.repo.did,
         'accessJwt': token,
         'refreshJwt': token,

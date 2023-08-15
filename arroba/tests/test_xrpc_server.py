@@ -1,6 +1,8 @@
 """Unit tests for xrpc_server.py."""
 from flask import request
 
+from ..repo import Repo
+from .. import server
 from .. import xrpc_server
 from . import testutil
 
@@ -14,11 +16,11 @@ class XrpcServerTest(testutil.XrpcTestCase):
     # based on atproto/packages/pds/tests/account.test.ts
     def test_create_session(self):
         resp = xrpc_server.create_session({
-            'identifier': 'user.com',
+            'identifier': 'did:web:user.com',
             'password': 'sooper-sekret',
         })
         self.assertEqual({
-            'handle': 'user.com',
+            'handle': None,
             'did': 'did:web:user.com',
             'accessJwt': 'towkin',
             'refreshJwt': 'towkin',
@@ -27,10 +29,24 @@ class XrpcServerTest(testutil.XrpcTestCase):
         request.headers['Authorization'] = 'Bearer towkin'
         resp = xrpc_server.get_session({})
         self.assertEqual({
-            'handle': 'user.com',
+            'handle': None,
             'did': 'did:web:user.com',
         }, resp)
 
+    def test_create_session_handle(self):
+        server.repo = Repo.create(server.storage, 'did:plc:abc123', self.key,
+                                  handle='user.handle')
+
+        resp = xrpc_server.create_session({
+            'identifier': 'user.handle',
+            'password': 'sooper-sekret',
+        })
+        self.assertEqual({
+            'handle': 'user.handle',
+            'did': 'did:plc:abc123',
+            'accessJwt': 'towkin',
+            'refreshJwt': 'towkin',
+        }, resp)
     def test_create_session_fail(self):
         with self.assertRaises(ValueError):
             resp = xrpc_server.create_session({

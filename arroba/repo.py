@@ -46,6 +46,7 @@ class Repo:
       mst: :class:`MST`
       commit: dict, head commit    # TODO: replace these with CommitData?
       cid: :class:`CID`, head CID
+      handle: str
       callback: callable, (:class:`CommitData`) => None, called on new commits
         May be set directly by clients. None means no callback.
     """
@@ -55,7 +56,8 @@ class Repo:
     cid = None
     callback = None
 
-    def __init__(self, *, storage=None, mst=None, commit=None, cid=None):
+    def __init__(self, *, storage=None, mst=None, commit=None, cid=None,
+                 handle=None):
         """Constructor.
 
         Args:
@@ -69,6 +71,7 @@ class Repo:
         self.mst = mst
         self.commit = commit
         self.cid = cid
+        self.handle = handle
 
     @property
     def did(self):
@@ -155,28 +158,30 @@ class Repo:
         return CommitData(cid=commit_cid, prev=None, blocks=new_blocks)
 
     @classmethod
-    def create_from_commit(cls, storage, commit):
+    def create_from_commit(cls, storage, commit, **kwargs):
         """
 
         Args:
           storage: :class:`Storage`
           commit: :class:`CommitData`
+          kwargs: passed through to :class:`Repo` constructor
 
         Returns:
           :class:`Repo`
         """
         storage.apply_commit(commit)
-        return cls.load(storage, commit.cid)
+        return cls.load(storage, commit.cid, **kwargs)
 
     @classmethod
-    def create(cls, storage, did, key, initial_writes=None):
+    def create(cls, storage, did, key, initial_writes=None, **kwargs):
         """
 
         Args:
           storage: :class:`Storage`
-          did: string,
+          did: string
           key: :class:`Crypto.PublicKey.ECC.EccKey`
           initial_writes: sequence of :class:`Write`
+          kwargs: passed through to :class:`Repo` constructor
 
         Returns:
           :class:`Repo`
@@ -187,14 +192,15 @@ class Repo:
             key,
             initial_writes,
         )
-        return cls.create_from_commit(storage, commit)
+        return cls.create_from_commit(storage, commit, **kwargs)
 
     @classmethod
-    def load(cls, storage, cid=None):
+    def load(cls, storage, cid=None, **kwargs):
         """
         Args:
           storage: :class:`Storage`
           cid: :class:`CID`, optional
+          kwargs: passed through to :class:`Repo` constructor
 
         Returns:
           :class:`Repo`
@@ -205,7 +211,7 @@ class Repo:
         commit = storage.read(commit_cid)
         mst = MST.load(storage=storage, cid=commit['data'])
         logger.info(f'loaded repo for {commit["did"]} at commit {commit_cid}')
-        return Repo(storage=storage, mst=mst, commit=commit, cid=commit_cid)
+        return Repo(storage=storage, mst=mst, commit=commit, cid=commit_cid, **kwargs)
 
     def format_commit(self, writes, key):
         """

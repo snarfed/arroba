@@ -120,13 +120,12 @@ def put_record(input):
 def describe_repo(input, repo=None):
     """
     """
-    handle = server.repo.did.removeprefix('did:web:')
-    if repo not in (server.repo.did, handle):
+    if not repo or repo not in (server.repo.did, server.repo.handle):
         raise ValueError(f'Unknown DID or handle: {repo}')
 
     return {
         'did': server.repo.did,
-        'handle': handle,
+        'handle': server.repo.handle,
         'didDoc': {'TODO': 'TODO'},
         # TODO
         'collections': [

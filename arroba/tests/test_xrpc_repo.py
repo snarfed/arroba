@@ -23,9 +23,9 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         with self.assertRaises(ValueError):
             xrpc_repo.describe_repo({}, repo='unknown')
 
-        resp = xrpc_repo.describe_repo({}, repo='user.com')
+        resp = xrpc_repo.describe_repo({}, repo='did:web:user.com')
         self.assertEqual('did:web:user.com', resp['did'])
-        self.assertEqual('user.com', resp['handle'])
+        self.assertIsNone(resp['handle'])
 
     # based on atproto/packages/pds/tests/crud.test.ts
     def test_create_record(self):
