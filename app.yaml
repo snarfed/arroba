@@ -4,6 +4,15 @@
 
 runtime: python39
 
+# need only one instance so that new commits can be delivered to subscribeRepos
+# subscribers in memory
+automatic_scaling:
+  min_instances: 1
+  max_instances: 1
+
+inbound_services:
+  - warmup
+
 # https://cloud.google.com/appengine/docs/standard/python3/runtime#entrypoint_best_practices
 # https://docs.gunicorn.org/en/latest/settings.html#timeout
 # Will probably need to add -k eventlet once I switch to Flex and start serving

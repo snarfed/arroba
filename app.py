@@ -1,5 +1,6 @@
 """Demo PDS app."""
 from datetime import datetime, timedelta
+import json
 import logging
 import os
 from pathlib import Path
@@ -34,14 +35,18 @@ os.environ.setdefault('APPVIEW_HOST', 'api.bsky-sandbox.dev')
 os.environ.setdefault('BGS_HOST', 'bgs.bsky-sandbox.dev')
 os.environ.setdefault('PLC_HOST', 'plc.bsky-sandbox.dev')
 os.environ.setdefault('PDS_HOST', open('pds_host').read().strip())
-os.environ.setdefault('REPO_HANDLE', open('repo_handle').read().strip())
+# Alternative: include these as env vars in app.yaml
+# https://cloud.google.com/appengine/docs/standard/python/config/appref#Python_app_yaml_Includes
 os.environ.setdefault('REPO_PRIVKEY', open('privkey.pem').read().strip())
 os.environ.setdefault('REPO_PASSWORD', open('repo_password').read().strip())
 os.environ.setdefault('REPO_TOKEN', open('repo_token').read().strip())
 
 did_docs = list(Path(__file__).parent.glob('did:plc:*.json'))
 assert len(did_docs) == 1, f'Expected one DID doc file; got {did_docs}'
-os.environ.setdefault('REPO_DID', str(did_docs[0]).removeprefix('.json'))
+os.environ.setdefault('REPO_DID', did_docs[0].name.removesuffix('.json'))
+with open(did_docs[0]) as f:
+  handle = json.load(f)['alsoKnownAs'][0].removeprefix('at://').strip('/')
+os.environ.setdefault('REPO_HANDLE', handle)
 
 if os.environ.get('GAE_ENV') == 'standard':
     # prod App Engine
@@ -63,29 +68,39 @@ app.json.compact = False
 # https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification
 privkey_bytes = server.key = load_pem_private_key(
     os.environ['REPO_PRIVKEY'].encode(), password=None)
-APPVIEW_JWT = jwt.encode({
+jwt_raw = {
     'iss': os.environ['REPO_DID'],
     'aud': f'did:web:{os.environ["APPVIEW_HOST"]}',
     'alg': 'ES256',  # p256
     'exp': int((datetime.now() + timedelta(days=7)).timestamp()),  # 😎
-}, privkey_bytes, algorithm='ES256')
+}
+APPVIEW_JWT = jwt.encode(jwt_raw, privkey_bytes, algorithm='ES256')
 APPVIEW_HEADERS = {
       'User-Agent': USER_AGENT,
       'Authorization': f'Bearer {APPVIEW_JWT}',
 }
 
-# proxy app.bsky.* XRPCs to sandbox AppView
+# proxy all other app.bsky.* XRPCs to sandbox AppView
 # https://atproto.com/blog/federation-developer-sandbox#bluesky-app-view
 @app.route(f'/xrpc/app.bsky.<nsid_rest>', methods=['GET', 'OPTIONS', 'POST'])
 def proxy_appview(nsid_rest=None):
-    if request.method == 'OPTIONS':
-        return '', lexrpc.flask_server.RESPONSE_HEADERS  # CORS preflight
+    if request.method == 'OPTIONS':  # CORS preflight
+        return '', lexrpc.flask_server.RESPONSE_HEADERS
+    elif nsid_rest == 'actor.getPreferences':
+        # special case we have to handle ourselves
+        return {
+          'preferences': [],
+        }, lexrpc.flask_server.RESPONSE_HEADERS
+
+    logger.info(f'JWT raw: {jwt_raw}')
 
     url = urljoin('https://' + os.environ['APPVIEW_HOST'], request.full_path)
+    logger.info(f'requests.{request.method} {url} {APPVIEW_HEADERS}')
     resp = requests.request(request.method, url, headers=APPVIEW_HEADERS)
-    logger.debug(resp.json())
+    logger.info(f'Received {resp.status_code}: {"" if resp.ok else resp.text[:500]}')
     resp.raise_for_status()
-    return resp.data, resp.status_code, {
+    logger.info(resp.json())
+    return resp.content, resp.status_code, {
       **lexrpc.flask_server.RESPONSE_HEADERS,
       **resp.headers,
     }
@@ -98,7 +113,8 @@ ndb_client = ndb.Client()
 
 with ndb_client.context():
     server.storage = DatastoreStorage()
-    server.repo = Repo.create(server.storage, os.environ['REPO_DID'], server.key)
+    server.repo = Repo.create(server.storage, os.environ['REPO_DID'], server.key,
+                              handle=os.environ['REPO_HANDLE'])
 
 server.server.register('com.atproto.sync.subscribeRepos', xrpc_sync.subscribe_repos)
 server.repo.callback = xrpc_sync.enqueue_commit
