@@ -1,13 +1,17 @@
 """Google Cloud Datastore implementation of repo storage."""
 import json
+import logging
 
 import dag_cbor
 import dag_json
 from google.cloud import ndb
 from multiformats import CID, multicodec, multihash
 
+from .repo import Repo
 from .storage import BlockMap, Storage
 from .util import dag_cbor_cid
+
+logger = logging.getLogger(__name__)
 
 
 class WriteOnce:
@@ -59,7 +63,7 @@ class WriteOnceBlobProperty(WriteOnce, ndb.BlobProperty):
     pass
 
 
-class AtpNode(ndb.Model):
+class AtpBlock(ndb.Model):
     """A data record, MST node, or commit.
 
     Key name is the DAG-CBOR base32 CID of the data.
@@ -76,21 +80,35 @@ class AtpNode(ndb.Model):
 
     @staticmethod
     def create(data):
-        """Writes a new AtpNode to the datastore.
+        """Writes a new AtpBlock to the datastore.
 
         Args:
           data: dict value
 
         Returns:
-          :class:`AtpNode`
+          :class:`AtpBlock`
         """
         encoded = dag_cbor.encode(data)
         digest = multihash.digest(encoded, 'sha2-256')
         cid = CID('base58btc', 1, multicodec.get('dag-cbor'), digest)
 
-        node = AtpNode(id=cid.encode('base32'), dag_cbor=encoded)
+        node = AtpBlock(id=cid.encode('base32'), dag_cbor=encoded)
         node.put()
         return node
+
+
+class AtpRepo(ndb.Model):
+    """An ATProto repo.
+
+    Key name is DID. Only stores the repo's metadata. Blocks are stored in
+    :class:`AtpBlock`s.
+
+    Properties:
+    * handles: str, repeated, optional
+    * head: str CID
+    """
+    handles = ndb.StringProperty(repeated=True)
+    head = ndb.StringProperty(required=True)
 
 
 class DatastoreStorage(Storage):
@@ -98,8 +116,35 @@ class DatastoreStorage(Storage):
 
     See :class:`Storage` for method details
     """
+    def store_repo(self, repo):
+        assert repo.did
+        assert repo.cid
+
+        handles = [repo.handle] if repo.handle else []
+        atp_repo = AtpRepo(id=repo.did, handles=handles,
+                           head=repo.cid.encode('base32'))
+        atp_repo.put()
+        logger.info(f'Stored repo {atp_repo}')
+
+    def load_repo(self, did=None, handle=None):
+        assert bool(did) ^ bool(handle), f'{did} {handle}'
+
+        repo = None
+        if did:
+            repo = AtpRepo.get_by_id(did)
+        else:
+            repo = AtpRepo.query(AtpRepo.handles == handle).get()
+
+        if not repo:
+            logger.info(f"Couldn't find repo for {did} {handle}")
+            return None
+
+        logger.info(f'Loading repo {repo}')
+        self.head = CID.decode(repo.head)
+        return Repo.load(self, cid=self.head)
+
     def read(self, cid):
-        node = AtpNode.get_by_id(cid.encode('base32'))
+        node = AtpBlock.get_by_id(cid.encode('base32'))
         if node:
             return dag_cbor.decode(node.dag_cbor)
 
@@ -115,15 +160,15 @@ class DatastoreStorage(Storage):
         return blocks, missing
 
     def _read_nodes(self, cids):
-        """Internal helper, loads AtpNodes for a set of cids.
+        """Internal helper, loads AtpBlocks for a set of cids.
 
         Args:
           cids: sequence of :class:`CID`
 
         Returns:
-          tuple, (dict mapping found CIDs to AtpNodes, list of CIDs not found)
+          tuple, (dict mapping found CIDs to AtpBlocks, list of CIDs not found)
         """
-        keys = [ndb.Key(AtpNode, cid.encode('base32')) for cid in cids]
+        keys = [ndb.Key(AtpBlock, cid.encode('base32')) for cid in cids]
         got = list(zip(cids, ndb.get_multi(keys)))
         found = {CID.decode(node.key.id()): node
                  for _, node in got if node is not None}
@@ -134,9 +179,9 @@ class DatastoreStorage(Storage):
         return self.read(cid) is not None
 
     def write(self, node):
-        return CID.decode(AtpNode.create(node).key.id())
+        return CID.decode(AtpBlock.create(node).key.id())
 
     def apply_commit(self, commit):
-        ndb.put_multi(AtpNode(id=cid.encode('base32'), dag_cbor=block)
+        ndb.put_multi(AtpBlock(id=cid.encode('base32'), dag_cbor=block)
                       for cid, block in commit.blocks.items())
         self.head = commit.cid

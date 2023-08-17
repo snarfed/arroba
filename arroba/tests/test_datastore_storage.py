@@ -8,7 +8,12 @@ import dag_cbor
 from google.auth.credentials import AnonymousCredentials
 from multiformats import CID
 
-from ..datastore_storage import AtpNode, DatastoreStorage, WriteOnceBlobProperty
+from ..datastore_storage import (
+    AtpBlock,
+    AtpRepo,
+    DatastoreStorage,
+    WriteOnceBlobProperty,
+)
 from ..repo import Action, Repo, Write
 from ..storage import BlockMap, CommitData, MemoryStorage
 from ..util import dag_cbor_cid, next_tid
@@ -43,10 +48,27 @@ class DatastoreStorageTest(TestCase):
         self.ndb_context.__exit__(None, None, None)
         super().tearDown()
 
-    def test_atp_node_create(self):
+    def test_store_load_repo(self):
+        self.assertIsNone(self.storage.load_repo(handle='han.dull'))
+        self.assertIsNone(self.storage.load_repo(did='did:web:user.com'))
+
+        repo = Repo.create(self.storage, 'did:web:user.com', key=self.key,
+                           handle='han.dull')
+        self.storage.store_repo(repo)
+
+        self.assertEqual(repo, self.storage.load_repo(handle='han.dull'))
+        self.assertEqual(repo, self.storage.load_repo(did='did:web:user.com'))
+
+    def test_store_load_repo_no_handle(self):
+        repo = Repo.create(self.storage, 'did:web:user.com', key=self.key)
+        self.storage.store_repo(repo)
+        self.assertEqual([], AtpRepo.get_by_id('did:web:user.com').handles)
+        self.assertIsNone(self.storage.load_repo(handle='han.dull'))
+
+    def test_atp_block_create(self):
         data = {'foo': 'bar'}
-        AtpNode.create(data)
-        stored = AtpNode.get_by_id(dag_cbor_cid(data).encode('base32'))
+        AtpBlock.create(data)
+        stored = AtpBlock.get_by_id(dag_cbor_cid(data).encode('base32'))
         self.assertEqual(data, stored.data)
 
     def test_write_once(self):

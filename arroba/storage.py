@@ -70,6 +70,30 @@ class Storage:
     """
     head = None
 
+    def store_repo(self, repo):
+        """Stores a new repo's metadata in storage.
+
+        Only stores the repo's DID, handle, and head commit CID, not blocks!
+
+        Args:
+          repo: :class:`Repo`
+        """
+        raise NotImplementedError()
+
+    def load_repo(self, did=None, handle=None):
+        """Loads a repo from storage.
+
+        Either did or handle should be provided, but not both.
+
+        Args:
+          did: str, optional
+          handle: str, optional
+
+        Returns:
+          :class:`Repo`, or None if the did or handle weren't found
+        """
+        raise NotImplementedError()
+
     def read(self, cid):
         """Reads a node from storage.
 
@@ -141,14 +165,27 @@ class MemoryStorage(Storage):
     """In memory storage implementation.
 
     Attributes:
+      repos: list of :class:`Repo`
       blocks: :class:`BlockMap`
       head: :class:`CID`
     """
+    repos = []
     blocks = None
     head = None
 
     def __init__(self):
         self.blocks = BlockMap()
+
+    def store_repo(self, repo):
+        if repo not in self.repos:
+            repos.append(repo)
+
+    def load_repo(self, did=None, handle=None):
+        assert bool(did) ^ bool(handle), f'{did} {handle}'
+
+        for repo in self.repos:
+            if (did and repo.did == did) or (handle and repo.handle == handle):
+                return repo
 
     def read(self, cid):
         return dag_cbor.decode(self.blocks[cid])

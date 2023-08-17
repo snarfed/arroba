@@ -73,6 +73,12 @@ class Repo:
         self.cid = cid
         self.handle = handle
 
+    def __eq__(self, other):
+        return (self.commit and other.commit
+                and self.version == other.version
+                and self.did == other.did
+                and self.cid == other.cid)
+
     @property
     def did(self):
         """
