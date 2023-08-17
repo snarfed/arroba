@@ -84,6 +84,7 @@ def enqueue_commit(commit_data):
         subscriber.put(commit_data)
 
 
+@server.server.method('com.atproto.sync.subscribeRepos')
 def subscribe_repos(cursor=None):
     """Firehose event stream XRPC (ie type: subscription) for all new commits.
 

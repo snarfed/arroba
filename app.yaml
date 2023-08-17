@@ -1,27 +1,21 @@
-# https://cloud.google.com/appengine/docs/standard/python/config/appref
+# https://cloud.google.com/appengine/docs/flexible/reference/app-yaml?tab=python
+#
+# gcloud -q app deploy --project arroba-pds app.yaml
 
 # application: arroba-pds
 
-runtime: python39
+env: flex
+runtime: python
+runtime_config:
+    operating_system: ubuntu18
+    runtime_version: 3.9
 
 # need only one instance so that new commits can be delivered to subscribeRepos
 # subscribers in memory
-automatic_scaling:
-  min_instances: 1
-  max_instances: 1
+manual_scaling:
+  instances: 1
 
-inbound_services:
-  - warmup
-
-# https://cloud.google.com/appengine/docs/standard/python3/runtime#entrypoint_best_practices
+# https://cloud.google.com/appengine/docs/flexible/python/runtime#application_startup
 # https://docs.gunicorn.org/en/latest/settings.html#timeout
-# Will probably need to add -k eventlet once I switch to Flex and start serving
-# websockets, but that crashes on Standard.
-entrypoint: gunicorn --workers 1 --threads 10 --timeout 60 -b :$PORT app:app
-
-handlers:
-
-# dynamic
-- url: .*
-  script: auto
-  secure: always
+# TODO: try asyncio w/eventlet workers
+entrypoint: gunicorn --workers 1 --threads 20 -b :$PORT app:app

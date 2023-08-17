@@ -421,9 +421,6 @@ class XrpcSyncTest(testutil.XrpcTestCase):
 class SubscribeReposTest(testutil.XrpcTestCase):
     def setUp(self):
         super().setUp()
-
-        server.server.register('com.atproto.sync.subscribeRepos',
-                               xrpc_sync.subscribe_repos)
         server.repo.callback = xrpc_sync.enqueue_commit
 
     def assertCommitMessage(self, record, prev, commit_msg):

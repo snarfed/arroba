@@ -49,7 +49,8 @@ with open(did_docs[0]) as f:
   handle = json.load(f)['alsoKnownAs'][0].removeprefix('at://').strip('/')
 os.environ.setdefault('REPO_HANDLE', handle)
 
-if os.environ.get('GAE_ENV') == 'standard':
+# https://cloud.google.com/appengine/docs/flexible/python/runtime#environment_variables
+if os.environ.get('GAE_INSTANCE'):
     # prod App Engine
     logging_client = google.cloud.logging.Client()
     logging_client.setup_logging(log_level=logging.DEBUG)
@@ -118,7 +119,6 @@ with ndb_client.context():
     server.repo = Repo.create(server.storage, os.environ['REPO_DID'], server.key,
                               handle=os.environ['REPO_HANDLE'])
 
-server.server.register('com.atproto.sync.subscribeRepos', xrpc_sync.subscribe_repos)
 server.repo.callback = xrpc_sync.enqueue_commit
 
 def ndb_context_middleware(wsgi_app):
@@ -134,3 +134,13 @@ def ndb_context_middleware(wsgi_app):
 
 
 app.wsgi_app = ndb_context_middleware(app.wsgi_app)
+
+
+@app.get('/liveness_check')
+@app.get('/readiness_check')
+def health_check():
+  """App Engine Flex health checks.
+
+  https://cloud.google.com/appengine/docs/flexible/reference/app-yaml?tab=python#updated_health_checks
+  """
+  return 'OK'
