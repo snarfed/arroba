@@ -4,6 +4,7 @@ TODO:
 * getCheckout commit param
 * getRepo earliest, latest params
 """
+from io import BytesIO
 from threading import Semaphore, Thread
 
 from carbox.car import Block, read_car
@@ -427,9 +428,17 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
     def assertCommitMessage(self, record, prev, commit_msg):
         blocks = commit_msg.pop('blocks')
+        msg_roots, msg_blocks = read_car(blocks)
+        self.assertEqual([server.repo.cid], msg_roots)
+
         self.assertEqual({
             'repo': 'did:web:user.com',
             'commit': server.repo.cid,
+            'ops': [{
+                'action': 'create',
+                'path': 'TODO!',
+                'cid': b.cid
+            } for b in msg_blocks],
             'time': testutil.NOW.isoformat(),
             # TODO
             'prev': False,
@@ -438,9 +447,6 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             'tooBig': False,
             'blobs': [],
         }, commit_msg)
-
-        msg_roots, msg_blocks = read_car(blocks)
-        self.assertEqual([server.repo.cid], msg_roots)
 
         record_cid = dag_cbor_cid(record)
         mst_entry = {
@@ -458,6 +464,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             'data': dag_cbor_cid(mst_entry),#record_cid,
             'prev': prev,
         }
+
         msg_records = [b.decoded for b in msg_blocks]
         # TODO: if I util.sign_commit(commit_record), the sig doesn't match. why?
         del msg_records[2]['sig']
@@ -465,8 +472,12 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
     def test_subscribe_repos(self):
         def client(received, delivered):
-            for i, commit_msg in enumerate(xrpc_sync.subscribe_repos()):
-                received.append(commit_msg)
+            for i, (header, payload) in enumerate(xrpc_sync.subscribe_repos()):
+                self.assertEqual({
+                    'op': 1,
+                    't': '#commit',
+                }, header)
+                received.append(payload)
                 delivered.release()
                 if i == 1:  # read two commits, then quit
                     return

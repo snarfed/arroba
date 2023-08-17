@@ -11,7 +11,6 @@ from threading import Lock
 
 from carbox.car import Block, write_car
 import dag_cbor
-import simple_websocket
 
 from . import server
 from . import util
@@ -77,8 +76,9 @@ def enqueue_commit(commit_data):
       did: str
       commit_data: :class:`CommitData`
     """
+    logger.debug(f'New commit {commit_data.cid}')
     if subscribers:
-        logger.debug(f'Enqueueing commit {commit_data.cid} for {len(subscribers)} subscribers')
+        logger.debug(f'Enqueueing for {len(subscribers)} subscribers')
 
     for subscriber in subscribers:
         subscriber.put(commit_data)
@@ -86,6 +86,8 @@ def enqueue_commit(commit_data):
 
 def subscribe_repos(cursor=None):
     """Firehose event stream XRPC (ie type: subscription) for all new commits.
+
+    Event stream details: https://atproto.com/specs/event-stream#framing
 
     This function serves forever, which ties up a runtime context, so it's not
     automatically registered with the XRPC server. Instead, clients should
@@ -99,6 +101,9 @@ def subscribe_repos(cursor=None):
       server.server.register('com.atproto.sync.subscribeRepos',
                              xrpc_sync.subscribe_repos)
       server.repo.set_callback(xrpc_sync.enqueue_commit)
+
+    Returns:
+      (dict header, dict payload)
     """
     assert not cursor, 'cursor not implemented yet'
 
@@ -111,9 +116,18 @@ def subscribe_repos(cursor=None):
         commit = dag_cbor.decode(commit_data.blocks[cid])
         car_blocks = [Block(cid=cid, data=data)
                       for cid, data in commit_data.blocks.items()]
-        yield {
+
+        yield ({  # header
+          'op': 1,
+          't': '#commit',
+        }, {  # payload
             'repo': commit['did'],
-            'commit': cid,
+            'ops': [{
+                'action': 'create',  # TODO: update, delete
+                'path': 'TODO!',
+                'cid': b.cid,
+            } for b in car_blocks],
+            'commit': cid, #.encode('base32'),
             'blocks': write_car([cid], car_blocks),
             'time': util.now().isoformat(),
             # TODO
@@ -122,7 +136,7 @@ def subscribe_repos(cursor=None):
             'rebase': False,
             'tooBig': False,
             'blobs': [],
-        }
+        })
 
     # TODO: this is never reached, so we currently slowly leak queues. fix that
     subscribers.remove(queue)
