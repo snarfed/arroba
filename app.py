@@ -144,3 +144,16 @@ def health_check():
   https://cloud.google.com/appengine/docs/flexible/reference/app-yaml?tab=python#updated_health_checks
   """
   return 'OK'
+
+
+@app.get('/')
+def homepage():
+  return """\
+<!DOCTYPE html>
+<html>
+<body>
+<h1>Arroba PDS</h1>
+<p>This is a demo <a href="https://atproto.com/">AT Protocol</a> <a href="https://atproto.com/blog/federation-developer-sandbox">federation sandbox</a> <a href="https://atproto.com/guides/applications#applications-model">PDS</a> based on <a href="https://github.com/snarfed/arroba">arroba</a>.</p>
+</body>
+</html>
+"""
