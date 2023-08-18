@@ -23,7 +23,6 @@ logging.getLogger().setLevel(logging.DEBUG)
 for module in ('google.cloud', 'oauthlib', 'requests', 'requests_oauthlib',
                'urllib3'):
   logging.getLogger(module).setLevel(logging.INFO)
-# logging.getLogger('lexrpc').setLevel(logging.INFO)
 
 from arroba.repo import Repo
 from arroba import server
@@ -50,7 +49,8 @@ with open(did_docs[0]) as f:
 os.environ.setdefault('REPO_HANDLE', handle)
 
 # https://cloud.google.com/appengine/docs/flexible/python/runtime#environment_variables
-if os.environ.get('GAE_INSTANCE'):
+is_prod = 'GAE_INSTANCE' in os.environ
+if is_prod:
     # prod App Engine
     logging_client = google.cloud.logging.Client()
     logging_client.setup_logging(log_level=logging.DEBUG)
@@ -83,25 +83,29 @@ APPVIEW_HEADERS = {
       'Authorization': f'Bearer {APPVIEW_JWT}',
 }
 
+@app.get('/xrpc/app.bsky.actor.getPreferences')
+def get_preferences():
+    return {
+        'preferences': [],
+    }, lexrpc.flask_server.RESPONSE_HEADERS
+
+@app.post('/xrpc/app.bsky.actor.putPreferences')
+def put_preferences():
+    return {}, lexrpc.flask_server.RESPONSE_HEADERS
+
 # proxy all other app.bsky.* XRPCs to sandbox AppView
 # https://atproto.com/blog/federation-developer-sandbox#bluesky-app-view
-@app.route(f'/xrpc/app.bsky.<nsid_rest>', methods=['GET', 'OPTIONS', 'POST'])
+@app.route(f'/xrpc/app.bsky.<nsid_rest>', methods=['OPTIONS'])
+def cors_preflight(nsid_rest=None):
+    return '', lexrpc.flask_server.RESPONSE_HEADERS
+
+@app.route(f'/xrpc/app.bsky.<nsid_rest>', methods=['GET', 'POST'])
 def proxy_appview(nsid_rest=None):
-    if request.method == 'OPTIONS':  # CORS preflight
-        return '', lexrpc.flask_server.RESPONSE_HEADERS
-    elif nsid_rest == 'actor.getPreferences':
-        # special case we have to handle ourselves
-        return {
-          'preferences': [],
-        }, lexrpc.flask_server.RESPONSE_HEADERS
-
     logger.info(f'JWT raw: {jwt_raw}')
-
     url = urljoin('https://' + os.environ['APPVIEW_HOST'], request.full_path)
     logger.info(f'requests.{request.method} {url} {APPVIEW_HEADERS}')
     resp = requests.request(request.method, url, headers=APPVIEW_HEADERS)
     logger.info(f'Received {resp.status_code}: {"" if resp.ok else resp.text[:500]}')
-    resp.raise_for_status()
     logger.info(resp.json())
     return resp.content, resp.status_code, {
       **lexrpc.flask_server.RESPONSE_HEADERS,
@@ -116,10 +120,15 @@ ndb_client = ndb.Client()
 
 with ndb_client.context():
     server.storage = DatastoreStorage()
-    server.repo = Repo.create(server.storage, os.environ['REPO_DID'], server.key,
-                              handle=os.environ['REPO_HANDLE'])
+    if is_prod:
+        server.repo = server.storage.load_repo(did=os.environ['REPO_DID'])
+    else:
+        server.repo = Repo.create(server.storage, os.environ['REPO_DID'],
+                                  server.key, handle=os.environ['REPO_HANDLE'])
 
 server.repo.callback = xrpc_sync.enqueue_commit
+if server.repo.handle != os.environ['REPO_HANDLE']:
+    logger.warning(f"$REPO_HANDLE is {os.environ['REPO_HANDLE']} but loaded repo's handle is {server.repo.handle} !")
 
 def ndb_context_middleware(wsgi_app):
     """WSGI middleware to add an NDB context per request.
