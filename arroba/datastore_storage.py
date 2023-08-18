@@ -8,7 +8,7 @@ from google.cloud import ndb
 from multiformats import CID, multicodec, multihash
 
 from .repo import Repo
-from .storage import BlockMap, Storage
+from .storage import BlockMap, Storage, SUBSCRIBE_REPOS_NSID
 from .util import dag_cbor_cid
 
 logger = logging.getLogger(__name__)
@@ -71,30 +71,35 @@ class AtpBlock(ndb.Model):
     Properties:
     * dag_cbor: bytes, DAG-CBOR encoded value
     * data: dict, DAG-JSON value, only used for human debugging
+    * seq: int, sequence number for the subscribeRepos event stream
+
     """
     dag_cbor = WriteOnceBlobProperty(required=True)
+    seq = ndb.IntegerProperty(required=True)
 
     @ComputedJsonProperty
     def data(self):
         return json.loads(dag_json.encode(dag_cbor.decode(self.dag_cbor)))
 
     @staticmethod
-    def create(data):
+    def create(data, seq):
         """Writes a new AtpBlock to the datastore.
 
         Args:
           data: dict value
+          seq: integer
 
         Returns:
           :class:`AtpBlock`
         """
+        assert seq > 0
         encoded = dag_cbor.encode(data)
         digest = multihash.digest(encoded, 'sha2-256')
         cid = CID('base58btc', 1, multicodec.get('dag-cbor'), digest)
 
-        node = AtpBlock(id=cid.encode('base32'), dag_cbor=encoded)
-        node.put()
-        return node
+        block = AtpBlock(id=cid.encode('base32'), dag_cbor=encoded, seq=seq)
+        block.put()
+        return block
 
 
 class AtpRepo(ndb.Model):
@@ -111,10 +116,50 @@ class AtpRepo(ndb.Model):
     head = ndb.StringProperty(required=True)
 
 
+class AtpSequence(ndb.Model):
+    """A sequence number for a given event stream NSID.
+
+    Sequence numbers are monotonically increasing, without gaps (which ATProto
+    deoesn't require), starting at 1. Background:
+    https://atproto.com/specs/event-stream#sequence-numbers
+
+    Key name is XRPC method NSID.
+
+    At first, I considered using datastore allocated ids for sequence numbers,
+    but they're not guaranteed to be monotonically increasing, so I switched to
+    this.
+    """
+    next = ndb.IntegerProperty(required=True)
+
+    @classmethod
+    @ndb.transactional()
+    def get_next(cls, nsid):
+        """Returns the next sequence number for a given NSID.
+
+        Creates a new :class:`AtpSequence` entity if one doesn't already exist
+        for the given NSID.
+
+        Args:
+          nsid: str, the subscription XRPC method for this sequence number
+
+        Returns:
+          integer, next sequence number for this NSID
+        """
+        seq = AtpSequence.get_or_insert(nsid, next=1)
+        ret = seq.next
+        seq.next += 1
+        seq.put()
+        return ret
+
+
 class DatastoreStorage(Storage):
     """Google Cloud Datastore implementation of :class:`Storage`.
 
-    See :class:`Storage` for method details
+    Sequence numbers in :class:`AtpBlock` are allocated per commit; all blocks
+    in a given commit will have the same sequence number. They're currently
+    sequential counters, starting at 1, stored in an :class:`AtpSequence` entity.
+
+    See :class:`Storage` for method details.
     """
     def create_repo(self, repo):
         assert repo.did
@@ -145,22 +190,22 @@ class DatastoreStorage(Storage):
         return Repo.load(self, cid=self.head, handle=handle)
 
     def read(self, cid):
-        node = AtpBlock.get_by_id(cid.encode('base32'))
-        if node:
-            return dag_cbor.decode(node.dag_cbor)
+        block = AtpBlock.get_by_id(cid.encode('base32'))
+        if block:
+            return dag_cbor.decode(block.dag_cbor)
 
     def read_many(self, cids):
-        found, missing = self._read_nodes(cids)
-        found_objs = {cid: dag_cbor.decode(node.dag_cbor)
-                      for cid, node in found.items()}
+        found, missing = self._read_blocks(cids)
+        found_objs = {cid: dag_cbor.decode(block.dag_cbor)
+                      for cid, block in found.items()}
         return found_objs, missing
 
     def read_blocks(self, cids):
-        found, missing = self._read_nodes(cids)
-        blocks = BlockMap((cid, node.dag_cbor) for cid, node in found.items())
+        found, missing = self._read_blocks(cids)
+        blocks = BlockMap((cid, block.dag_cbor) for cid, block in found.items())
         return blocks, missing
 
-    def _read_nodes(self, cids):
+    def _read_blocks(self, cids):
         """Internal helper, loads AtpBlocks for a set of cids.
 
         Args:
@@ -171,20 +216,22 @@ class DatastoreStorage(Storage):
         """
         keys = [ndb.Key(AtpBlock, cid.encode('base32')) for cid in cids]
         got = list(zip(cids, ndb.get_multi(keys)))
-        found = {CID.decode(node.key.id()): node
-                 for _, node in got if node is not None}
-        missing = [cid for cid, node in got if node is None]
+        found = {CID.decode(block.key.id()): block
+                 for _, block in got if block is not None}
+        missing = [cid for cid, block in got if block is None]
         return found, missing
 
     def has(self, cid):
         return self.read(cid) is not None
 
-    def write(self, node):
-        return CID.decode(AtpBlock.create(node).key.id())
+    def write(self, block):
+        seq = AtpSequence.get_next(SUBSCRIBE_REPOS_NSID)
+        return CID.decode(AtpBlock.create(block, seq=seq).key.id())
 
     @ndb.transactional()
     def apply_commit(self, commit_data):
-        ndb.put_multi(AtpBlock(id=cid.encode('base32'), dag_cbor=block)
+        seq = AtpSequence.get_next(SUBSCRIBE_REPOS_NSID)
+        ndb.put_multi(AtpBlock(id=cid.encode('base32'), dag_cbor=block, seq=seq)
                       for cid, block in commit_data.blocks.items())
         self.head = commit_data.cid
 

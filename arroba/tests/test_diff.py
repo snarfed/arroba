@@ -54,6 +54,7 @@ class DiffTest(testutil.TestCase):
         diff = Diff.of(after, before)
 
         self.assertEqual(100, len(diff.adds))
+        # TODO: this is flaky, it's occasionally 99 instead of 100 :(
         self.assertEqual(100, len(diff.updates))
         self.assertEqual(100, len(diff.deletes))
 

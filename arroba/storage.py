@@ -10,6 +10,8 @@ from multiformats import CID, multicodec, multihash
 
 from .util import dag_cbor_cid
 
+SUBSCRIBE_REPOS_NSID = 'com.atproto.sync.subscribeRepos'
+
 
 CommitData = namedtuple('CommitData', [
   'cid',     # CID

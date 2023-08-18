@@ -68,9 +68,10 @@ class DatastoreStorageTest(TestCase):
 
     def test_atp_block_create(self):
         data = {'foo': 'bar'}
-        AtpBlock.create(data)
+        AtpBlock.create(data, seq=1)
         stored = AtpBlock.get_by_id(dag_cbor_cid(data).encode('base32'))
         self.assertEqual(data, stored.data)
+        self.assertGreater(stored.seq, 0)
 
     def test_write_once(self):
         class Foo(ndb.Model):
@@ -117,7 +118,23 @@ class DatastoreStorageTest(TestCase):
         map.add(data[1])
         self.assertEqual((map, [CIDS[0]]), self.storage.read_blocks(cids))
 
+    def assert_same_seq(self, cids):
+        """
+        Args:
+          cids: iterable of str base32 CIDs
+        """
+        cids = list(cids)
+        assert cids
+        blocks = ndb.get_multi(ndb.Key(AtpBlock, cid) for cid in cids)
+        assert len(blocks) == len(cids)
+
+        seq = blocks[0].seq
+        for block in blocks[1:]:
+            self.assertEqual(seq, block.seq)
+
     def test_apply_commits(self):
+        self.assertEqual(0, AtpBlock.query().count())
+
         objs = [
             {'foo': 'bar'},
             {'baz': 'biff'},
@@ -126,13 +143,17 @@ class DatastoreStorageTest(TestCase):
         blocks.add(objs[0])
         blocks.add(objs[1])
 
-        # temporary repo, just for making the commit
+        # new repo with initial commit
         repo = Repo.create(self.storage, 'did:web:user.com', self.key)
+        self.assert_same_seq(b.key.id() for b in AtpBlock.query())
+
+        # new commit
         writes = [Write(Action.CREATE, 'coll', next_tid(), obj) for obj in objs]
         commit = repo.format_commit(writes, self.key)
 
         self.storage.apply_commit(commit)
         self.assertEqual(commit.cid, self.storage.head)
+        self.assert_same_seq(k.encode('base32') for k in commit.blocks.keys())
 
         repo = self.storage.load_repo(did='did:web:user.com')
         self.assertEqual('did:web:user.com', repo.did)
