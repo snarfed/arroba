@@ -48,20 +48,21 @@ class DatastoreStorageTest(TestCase):
         self.ndb_context.__exit__(None, None, None)
         super().tearDown()
 
-    def test_store_load_repo(self):
+    def test_create_load_repo(self):
         self.assertIsNone(self.storage.load_repo(handle='han.dull'))
         self.assertIsNone(self.storage.load_repo(did='did:web:user.com'))
 
         repo = Repo.create(self.storage, 'did:web:user.com', key=self.key,
                            handle='han.dull')
-        self.storage.store_repo(repo)
+        self.storage.create_repo(repo)
 
-        self.assertEqual(repo, self.storage.load_repo(handle='han.dull'))
         self.assertEqual(repo, self.storage.load_repo(did='did:web:user.com'))
+        self.assertEqual(repo, self.storage.load_repo(handle='han.dull'))
+        self.assertEqual('han.dull', self.storage.load_repo(handle='han.dull').handle)
 
-    def test_store_load_repo_no_handle(self):
+    def test_create_load_repo_no_handle(self):
         repo = Repo.create(self.storage, 'did:web:user.com', key=self.key)
-        self.storage.store_repo(repo)
+        self.storage.create_repo(repo)
         self.assertEqual([], AtpRepo.get_by_id('did:web:user.com').handles)
         self.assertIsNone(self.storage.load_repo(handle='han.dull'))
 
@@ -126,12 +127,19 @@ class DatastoreStorageTest(TestCase):
         blocks.add(objs[1])
 
         # temporary repo, just for making the commit
-        repo = Repo.create(MemoryStorage(), 'did:web:user.com', self.key)
+        repo = Repo.create(self.storage, 'did:web:user.com', self.key)
         writes = [Write(Action.CREATE, 'coll', next_tid(), obj) for obj in objs]
         commit = repo.format_commit(writes, self.key)
 
         self.storage.apply_commit(commit)
         self.assertEqual(commit.cid, self.storage.head)
+
+        repo = self.storage.load_repo(did='did:web:user.com')
+        self.assertEqual('did:web:user.com', repo.did)
+        self.assertEqual(commit.cid, repo.cid)
+
+        atp_repo = AtpRepo.get_by_id('did:web:user.com')
+        self.assertEqual(commit.cid, CID.decode(atp_repo.head))
 
         found, missing = self.storage.read_many(commit.blocks.keys())
         # found has one extra MST Data node
@@ -141,3 +149,9 @@ class DatastoreStorageTest(TestCase):
         commit_obj = dag_cbor.decode(commit.blocks[commit.cid])
         self.assertEqual(commit_obj, found[commit.cid])
         self.assertEqual([], missing)
+
+        repo = self.storage.load_repo(did='did:web:user.com')
+        self.assertEqual(commit.cid, repo.cid)
+
+        atp_repo = AtpRepo.get_by_id('did:web:user.com')
+        self.assertEqual(commit.cid, CID.decode(atp_repo.head))

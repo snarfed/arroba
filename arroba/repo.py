@@ -176,7 +176,9 @@ class Repo:
           :class:`Repo`
         """
         storage.apply_commit(commit)
-        return cls.load(storage, commit.cid, **kwargs)
+        repo = cls.load(storage, commit.cid, **kwargs)
+        storage.create_repo(repo)
+        return repo
 
     @classmethod
     def create(cls, storage, did, key, initial_writes=None, **kwargs):
@@ -190,7 +192,7 @@ class Repo:
           kwargs: passed through to :class:`Repo` constructor
 
         Returns:
-          :class:`Repo`
+          :class:`Repo`, self
         """
         commit = cls.format_init_commit(
             storage,
@@ -278,7 +280,7 @@ class Repo:
           commit_data: :class:`CommitData`
 
         Returns:
-          :class:`Repo`
+          :class:`Repo`, self
         """
         self.storage.apply_commit(commit_data)
         self.commit = dag_cbor.decode(commit_data.blocks[commit_data.cid])
@@ -293,7 +295,7 @@ class Repo:
           key: :class:`Crypto.PublicKey.ECC.EccKey`
 
         Returns:
-          :class:`Repo`
+          :class:`Repo`, self
         """
         commit = self.format_commit(writes, key)
         if self.callback:
@@ -333,7 +335,7 @@ class Repo:
     #       rebase: :class:`RebaseData`
 
     #     Returns:
-    #       :class:`Repo`
+    #       :class:`Repo`, self
     #     """
     #     self.storage.apply_rebase(rebase)
     #     return Repo.load(self.storage, rebase.commit)

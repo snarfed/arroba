@@ -116,7 +116,7 @@ class DatastoreStorage(Storage):
 
     See :class:`Storage` for method details
     """
-    def store_repo(self, repo):
+    def create_repo(self, repo):
         assert repo.did
         assert repo.cid
 
@@ -141,7 +141,8 @@ class DatastoreStorage(Storage):
 
         logger.info(f'Loading repo {repo}')
         self.head = CID.decode(repo.head)
-        return Repo.load(self, cid=self.head)
+        handle = repo.handles[0] if repo.handles else None
+        return Repo.load(self, cid=self.head, handle=handle)
 
     def read(self, cid):
         node = AtpBlock.get_by_id(cid.encode('base32'))
@@ -181,7 +182,20 @@ class DatastoreStorage(Storage):
     def write(self, node):
         return CID.decode(AtpBlock.create(node).key.id())
 
-    def apply_commit(self, commit):
+    @ndb.transactional()
+    def apply_commit(self, commit_data):
         ndb.put_multi(AtpBlock(id=cid.encode('base32'), dag_cbor=block)
-                      for cid, block in commit.blocks.items())
-        self.head = commit.cid
+                      for cid, block in commit_data.blocks.items())
+        self.head = commit_data.cid
+
+        commit = dag_cbor.decode(commit_data.blocks[commit_data.cid])
+        head_encoded = self.head.encode('base32')
+        repo = AtpRepo.get_or_insert(commit['did'], head=head_encoded)
+        if repo.head == head_encoded:
+            logger.info(f'Created new repo {repo}')
+        else:
+            # already existed in datastore
+            repo.head = head_encoded
+            logger.info(f'Updated repo {repo}')
+            repo.put()
+

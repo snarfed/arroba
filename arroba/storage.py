@@ -70,10 +70,13 @@ class Storage:
     """
     head = None
 
-    def store_repo(self, repo):
+    def create_repo(self, repo):
         """Stores a new repo's metadata in storage.
 
         Only stores the repo's DID, handle, and head commit CID, not blocks!
+
+        If the repo already exists in storage, this should update it instead of
+        failing.
 
         Args:
           repo: :class:`Repo`
@@ -152,7 +155,7 @@ class Storage:
         """
         raise NotImplementedError()
 
-    def apply_commit(self, commit):
+    def apply_commit(self, commit_data):
         """Writes a commit to storage.
 
         Args:
@@ -176,9 +179,9 @@ class MemoryStorage(Storage):
     def __init__(self):
         self.blocks = BlockMap()
 
-    def store_repo(self, repo):
+    def create_repo(self, repo):
         if repo not in self.repos:
-            repos.append(repo)
+            self.repos.append(repo)
 
     def load_repo(self, did=None, handle=None):
         assert bool(did) ^ bool(handle), f'{did} {handle}'
@@ -217,3 +220,5 @@ class MemoryStorage(Storage):
     def apply_commit(self, commit_data):
         self.blocks.update(commit_data.blocks)
         self.head = commit_data.cid
+        # the Repo will generally already be in self.repos, and it updates its
+        # own head cid, so no need to do that here manually.
