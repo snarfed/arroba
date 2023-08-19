@@ -120,7 +120,7 @@ class AtpSequence(ndb.Model):
     """A sequence number for a given event stream NSID.
 
     Sequence numbers are monotonically increasing, without gaps (which ATProto
-    deoesn't require), starting at 1. Background:
+    doesn't require), starting at 1. Background:
     https://atproto.com/specs/event-stream#sequence-numbers
 
     Key name is XRPC method NSID.
@@ -230,8 +230,9 @@ class DatastoreStorage(Storage):
 
     @ndb.transactional()
     def apply_commit(self, commit_data):
-        seq = AtpSequence.get_next(SUBSCRIBE_REPOS_NSID)
-        ndb.put_multi(AtpBlock(id=cid.encode('base32'), dag_cbor=block, seq=seq)
+        assert commit_data.seq
+        ndb.put_multi(AtpBlock(id=cid.encode('base32'), dag_cbor=block,
+                               seq=commit_data.seq)
                       for cid, block in commit_data.blocks.items())
         self.head = commit_data.cid
 
@@ -246,3 +247,6 @@ class DatastoreStorage(Storage):
             logger.info(f'Updated repo {repo}')
             repo.put()
 
+    def next_seq(self, nsid):
+        assert nsid
+        return AtpSequence.get_next(nsid)

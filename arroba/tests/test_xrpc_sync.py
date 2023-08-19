@@ -423,7 +423,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         super().setUp()
         server.repo.callback = xrpc_sync.enqueue_commit
 
-    def assertCommitMessage(self, record, prev, commit_msg):
+    def assertCommitMessage(self, record, prev, seq, commit_msg):
         blocks = commit_msg.pop('blocks')
         msg_roots, msg_blocks = read_car(blocks)
         self.assertEqual([server.repo.cid], msg_roots)
@@ -437,9 +437,9 @@ class SubscribeReposTest(testutil.XrpcTestCase):
                 'cid': b.cid
             } for b in msg_blocks],
             'time': testutil.NOW.isoformat(),
+            'seq': seq,
             # TODO
-            'prev': False,
-            'seq': None,
+            'prev': None,
             'rebase': False,
             'tooBig': False,
             'blobs': [],
@@ -492,7 +492,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         delivered_a.acquire()
 
         self.assertEqual(1, len(received_a))
-        self.assertCommitMessage({'foo': 'bar'}, prev, received_a[0])
+        self.assertCommitMessage({'foo': 'bar'}, prev, 2, received_a[0])
         # TODO
         # self.assertEqual(1, len(xrpc_sync.subscribers))
 
@@ -509,9 +509,9 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         delivered_b.acquire()
 
         self.assertEqual(2, len(received_a))
-        self.assertCommitMessage({'foo': 'baz'}, prev, received_a[1])
+        self.assertCommitMessage({'foo': 'baz'}, prev, 3, received_a[1])
         self.assertEqual(1, len(received_b))
-        self.assertCommitMessage({'foo': 'baz'}, prev, received_b[0])
+        self.assertCommitMessage({'foo': 'baz'}, prev, 3, received_b[0])
 
         subscriber_a.join()
         # TODO
@@ -525,7 +525,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         self.assertEqual(2, len(received_a))
         self.assertEqual(2, len(received_b))
-        self.assertCommitMessage({'biff': 0}, prev, received_b[1])
+        self.assertCommitMessage({'biff': 0}, prev, 4, received_b[1])
 
         subscriber_b.join()
         # TODO

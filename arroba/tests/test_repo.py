@@ -114,7 +114,7 @@ class RepoTest(TestCase):
         self.assertEqual({'co.ll': objs}, reloaded.get_contents())
 
     def test_callback(self):
-        def assertCommitIs(commit_data, obj):
+        def assertCommitIs(commit_data, obj, seq):
             commit = dag_cbor.decode(commit_data.blocks[commit_data.cid])
             mst_entry = dag_cbor.decode(commit_data.blocks[commit['data']])
             cid = dag_cbor_cid(obj)
@@ -125,6 +125,7 @@ class RepoTest(TestCase):
                 'v': cid,
             }], mst_entry['e'])
             self.assertEqual(obj, dag_cbor.decode(commit_data.blocks[cid]))
+            self.assertEqual(seq, commit_data.seq)
 
         seen = []
 
@@ -135,13 +136,13 @@ class RepoTest(TestCase):
         self.repo.apply_writes([create], self.key)
 
         self.assertEqual(1, len(seen))
-        assertCommitIs(seen[0], {'foo': 'bar'})
+        assertCommitIs(seen[0], {'foo': 'bar'}, 2)
 
         # update object
         update = Write(Action.UPDATE, 'co.ll', tid, {'foo': 'baz'})
         self.repo.apply_writes([update], self.key)
         self.assertEqual(2, len(seen))
-        assertCommitIs(seen[1], {'foo': 'baz'})
+        assertCommitIs(seen[1], {'foo': 'baz'}, 3)
 
         # unset callback, update again
         self.repo.callback = None

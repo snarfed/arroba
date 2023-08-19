@@ -14,9 +14,10 @@ SUBSCRIBE_REPOS_NSID = 'com.atproto.sync.subscribeRepos'
 
 
 CommitData = namedtuple('CommitData', [
-  'cid',     # CID
-  'blocks',  # BlockMap
-  'prev',    # CID or None
+    'cid',     # CID
+    'blocks',  # BlockMap
+    'prev',    # CID or None
+    'seq',     # positive integer, for subscribeRepos
 ])
 # commit record format is:
 # {
@@ -126,6 +127,8 @@ class Storage:
     def read_blocks(self, cids):
         """Batch read multiple blocks from storage.
 
+        TODO: merge this with read_many?
+
         Args:
           sequence of :class:`CID`
 
@@ -165,21 +168,39 @@ class Storage:
         """
         raise NotImplementedError()
 
+    def next_seq(self, nsid):
+        """Generates and returns a sequence number for the given NSID.
+
+        Sequence numbers must be monotonically increasing positive integers, per
+        NSID. They may have gaps. Background:
+        https://atproto.com/specs/event-stream#sequence-numbers
+
+        Args:
+          nsid: str, subscription XRPC method this sequence number is for
+
+        Returns:
+          integer
+        """
+        raise NotImplementedError()
+
 
 class MemoryStorage(Storage):
     """In memory storage implementation.
 
     Attributes:
-      repos: list of :class:`Repo`
+      repos: list of :class:`Repo`, class level
       blocks: :class:`BlockMap`
       head: :class:`CID`
+      sequences: dict, maps str NSID to integer next sequence number
     """
     repos = []
     blocks = None
     head = None
+    sequences = None
 
     def __init__(self):
         self.blocks = BlockMap()
+        self.sequences = {}
 
     def create_repo(self, repo):
         if repo not in self.repos:
@@ -224,3 +245,9 @@ class MemoryStorage(Storage):
         self.head = commit_data.cid
         # the Repo will generally already be in self.repos, and it updates its
         # own head cid, so no need to do that here manually.
+
+    def next_seq(self, nsid):
+        assert nsid
+        next = self.sequences.setdefault(nsid, 1)
+        self.sequences[nsid] += 1
+        return next

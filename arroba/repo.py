@@ -18,7 +18,7 @@ from multiformats import CID
 from . import util
 from .diff import Diff
 from .mst import MST
-from .storage import BlockMap, CommitData, Storage
+from .storage import BlockMap, CommitData, Storage, SUBSCRIBE_REPOS_NSID
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +161,8 @@ class Repo:
             'data': root,
         }, key)
         commit_cid = new_blocks.add(commit)
-        return CommitData(cid=commit_cid, prev=None, blocks=new_blocks)
+        return CommitData(cid=commit_cid, prev=None, blocks=new_blocks,
+                          seq=storage.next_seq(SUBSCRIBE_REPOS_NSID))
 
     @classmethod
     def create_from_commit(cls, storage, commit, **kwargs):
@@ -271,7 +272,8 @@ class Repo:
         commit_cid = commit_blocks.add(commit)
 
         self.mst = mst
-        return CommitData(cid=commit_cid, prev=self.cid, blocks=commit_blocks)
+        return CommitData(cid=commit_cid, prev=self.cid, blocks=commit_blocks,
+                          seq=self.storage.next_seq(SUBSCRIBE_REPOS_NSID))
 
     def apply_commit(self, commit_data):
         """
@@ -297,10 +299,10 @@ class Repo:
         Returns:
           :class:`Repo`, self
         """
-        commit = self.format_commit(writes, key)
+        commit_data = self.format_commit(writes, key)
         if self.callback:
-            self.callback(commit)
-        return self.apply_commit(commit)
+            self.callback(commit_data)
+        return self.apply_commit(commit_data)
 
     # def format_rebase(self, key):
     #     """TODO
