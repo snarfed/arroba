@@ -9,7 +9,7 @@ import time
 from Crypto.Hash import SHA256
 from Crypto.PublicKey import ECC
 from Crypto.Signature import DSS
-import dag_cbor.encoding
+import dag_cbor
 from multiformats import CID, multicodec, multihash
 
 logger = logging.getLogger(__name__)
@@ -46,7 +46,7 @@ def dag_cbor_cid(obj):
     Returns:
       :class:`CID`
     """
-    encoded = dag_cbor.encoding.encode(obj)
+    encoded = dag_cbor.encode(obj)
     digest = multihash.digest(encoded, 'sha2-256')
     return CID('base58btc', 1, multicodec.get('dag-cbor'), digest)
 
@@ -225,7 +225,7 @@ def verify_commit_sig(commit, key):
 
     verifier = DSS.new(key.public_key(), 'fips-186-3', randfunc=_randfunc)
     try:
-        verifier.verify(SHA256.new(dag_cbor.encoding.encode(commit)), sig)
+        verifier.verify(SHA256.new(dag_cbor.encode(commit)), sig)
         return True
     except ValueError:
         logger.debug("Couldn't verify signature", exc_info=True)

@@ -28,6 +28,71 @@ CommitData = namedtuple('CommitData', [
 # }
 
 
+class Block:
+    """An ATProto block: a record, MST entry, or commit.
+
+    Can start from either encoded bytes or decoded data, with or without CID.
+    Decodes, encodes, and generates CID lazily, on demand, on attribute access.
+
+    Based on :class:`carbox.car.Block`.
+    """
+
+    def __init__(self, *, cid=None, decoded=None, encoded=None):
+        """Constructor.
+
+        Args:
+          cid: :class:`CID`, optional
+          decoded: dict, optional
+          encoded: bytes, optional
+        """
+        assert encoded or decoded
+        self._cid = cid
+        self._encoded = encoded
+        self._decoded = decoded
+
+    @property
+    def cid(self):
+        """
+        Returns:
+          :class:`CID`
+        """
+        if self._cid is None:
+            digest = multihash.digest(self.encoded, 'sha2-256')
+            self._cid = CID('base58btc', 1, multicodec.get('dag-cbor'), digest)
+        return self._cid
+
+    @property
+    def encoded(self):
+        """
+        Returns:
+          bytes, DAG-CBOR encoded
+        """
+        if self._encoded is None:
+            self._encoded = dag_cbor.encode(self.decoded)
+        return self._encoded
+
+    @property
+    def decoded(self):
+        """
+        Returns:
+          dict, decoded object
+        """
+        if self._decoded is None:
+            self._decoded = dag_cbor.decode(self.encoded)
+        return self._decoded
+
+    def __eq__(self, other):
+        """Compares by CID only."""
+        return self.cid == other.cid
+
+    def __hash__(self):
+        return self.cid
+
+
+# STATE: need to expose seq for each block from storage?
+# and also need to be able to collect blocks with same seq into commit?
+# decode each block, identify commit, use the single commit for each seq?
+# and assert if a given seq has no commit, since there should always be one
 class BlockMap(dict):
     """dict subclass that stores blocks as CID => blocks (bytes) mappings.
 
@@ -50,14 +115,6 @@ class BlockMap(dict):
         cid = CID('base58btc', 1, multicodec.get('dag-cbor'), digest)
         self[cid] = block
         return cid
-
-    def byte_size(self):
-        """Returns the cumulative size of all blocks, in bytes.
-
-        Returns:
-          int
-        """
-        return sum(len(b) for b in self.values())
 
 
 class Storage:
@@ -182,6 +239,8 @@ class Storage:
           integer
         """
         raise NotImplementedError()
+
+    # STATE: need separate get_next_seq and allocate_seq ? so that we can check cursor against current next seq and error if cursor is past it
 
 
 class MemoryStorage(Storage):
