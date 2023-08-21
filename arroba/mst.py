@@ -54,7 +54,7 @@ import re
 import dag_cbor
 from multiformats import CID
 
-from .storage import BlockMap, Storage
+from .storage import Block, Storage
 from .util import dag_cbor_cid
 
 logger = logging.getLogger(__name__)
@@ -183,7 +183,7 @@ class MST:
             return copy.copy(self.entries)
 
         if self.pointer:
-            data = Data(**self.storage.read(self.pointer))
+            data = Data(**self.storage.read(self.pointer).decoded)
             first_leaf = layer = None
             if data.e:
                 layer = leading_zeros_on_hash(data.e[0]['k'])
@@ -271,9 +271,9 @@ class MST:
         """Return the necessary blocks to persist the MST to repo storage.
 
         Returns:
-          (:class:`CID` root, :class:`BlockMap`) tuple
+          (:class:`CID` root, dict of {:class:`CID`: :class:`Block`}) tuple
         """
-        unstored = BlockMap()
+        unstored = {}
         pointer = self.get_pointer()
 
         if self.storage.has(pointer):
@@ -281,7 +281,8 @@ class MST:
 
         entries = self.get_entries()
         data = serialize_node_data(entries)
-        unstored.add(data._asdict())
+        block = Block(decoded=data._asdict())
+        unstored[block.cid] = block
 
         for entry in entries:
             if isinstance(entry, MST):
@@ -880,16 +881,13 @@ class MST:
         to_fetch.add(pointer)
 
         while to_fetch:
-            blocks, missing = self.storage.read_blocks(to_fetch)
+            blocks = self.storage.read_many(to_fetch)
             to_fetch.clear()
-            assert not missing, f'Storage is missing node CIDs: {missing}'
 
-            for cid, encoded in blocks.items():
-                yield cid, encoded
-
-                decoded = dag_cbor.decode(encoded)
+            for cid, block in blocks.items():
+                yield cid, block.encoded
                 entries = deserialize_node_data(storage=self.storage,
-                                                data=Data(**decoded))
+                                                data=Data(**block.decoded))
 
                 for entry in entries:
                     if isinstance(entry, Leaf):
@@ -897,11 +895,9 @@ class MST:
                     else:
                         to_fetch.add(entry.get_pointer())
 
-        leaf_blocks, missing = self.storage.read_blocks(leaves)
-        assert not missing, f'Storage is missing leaf CIDs: {missing}'
-
-        for cid, encoded in leaf_blocks.items():
-            yield cid, encoded
+        leaf_blocks = self.storage.read_many(leaves)
+        for cid, block in leaf_blocks.items():
+            yield cid, block.encoded
 
 #     def cids_for_path(self, key):
 #         """Returns the CIDs in a given key path. ???

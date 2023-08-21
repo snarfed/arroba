@@ -115,8 +115,8 @@ class RepoTest(TestCase):
 
     def test_callback(self):
         def assertCommitIs(commit_data, obj, seq):
-            commit = dag_cbor.decode(commit_data.blocks[commit_data.cid])
-            mst_entry = dag_cbor.decode(commit_data.blocks[commit['data']])
+            commit = commit_data.blocks[commit_data.cid].decoded
+            mst_entry = commit_data.blocks[commit['data']].decoded
             cid = dag_cbor_cid(obj)
             self.assertEqual([{
                 'k': f'co.ll/{util._tid_last}'.encode(),
@@ -124,8 +124,10 @@ class RepoTest(TestCase):
                 't': None,
                 'v': cid,
             }], mst_entry['e'])
-            self.assertEqual(obj, dag_cbor.decode(commit_data.blocks[cid]))
-            self.assertEqual(seq, commit_data.seq)
+            self.assertEqual(obj, commit_data.blocks[cid].decoded)
+
+            for block in commit_data.blocks.values():
+                self.assertEqual(seq, block.seq)
 
         seen = []
 

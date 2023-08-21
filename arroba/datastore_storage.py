@@ -8,7 +8,7 @@ from google.cloud import ndb
 from multiformats import CID, multicodec, multihash
 
 from .repo import Repo
-from .storage import BlockMap, Storage, SUBSCRIBE_REPOS_NSID
+from .storage import Block, Storage, SUBSCRIBE_REPOS_NSID
 from .util import dag_cbor_cid
 
 logger = logging.getLogger(__name__)
@@ -69,21 +69,28 @@ class AtpBlock(ndb.Model):
     Key name is the DAG-CBOR base32 CID of the data.
 
     Properties:
-    * dag_cbor: bytes, DAG-CBOR encoded value
+    * encoded: bytes, DAG-CBOR encoded value
     * data: dict, DAG-JSON value, only used for human debugging
     * seq: int, sequence number for the subscribeRepos event stream
-
     """
-    dag_cbor = WriteOnceBlobProperty(required=True)
+    encoded = WriteOnceBlobProperty(required=True)
     seq = ndb.IntegerProperty(required=True)
 
     @ComputedJsonProperty
-    def data(self):
-        return json.loads(dag_json.encode(dag_cbor.decode(self.dag_cbor)))
+    def decoded(self):
+        return json.loads(dag_json.encode(dag_cbor.decode(self.encoded)))
+
+    @property
+    def cid(self):
+        return CID.decode(self.key.id())
 
     @staticmethod
     def create(data, seq):
         """Writes a new AtpBlock to the datastore.
+
+        If the block already exists in the datastore, leave it untouched.
+        Notably, leave its sequence number as is, since it will be lower than
+        this current sequence number.
 
         Args:
           data: dict value
@@ -97,9 +104,31 @@ class AtpBlock(ndb.Model):
         digest = multihash.digest(encoded, 'sha2-256')
         cid = CID('base58btc', 1, multicodec.get('dag-cbor'), digest)
 
-        block = AtpBlock(id=cid.encode('base32'), dag_cbor=encoded, seq=seq)
-        block.put()
-        return block
+        atp_block = AtpBlock.get_or_insert(cid.encode('base32'),
+                                           encoded=encoded, seq=seq)
+        assert atp_block.seq <= seq
+        return atp_block
+
+    def to_block(self):
+        """Converts to :class:`Block`.
+
+        Returns:
+          :class:`Block`
+        """
+        return Block(cid=self.cid, encoded=self.encoded, seq=self.seq)
+
+    @classmethod
+    def from_block(cls, block):
+        """Converts a :class:`Block` to an :class:`AtpBlock`.
+
+        Args:
+          block: :class:`Block`
+
+        Returns:
+          :class:`AtpBlock`
+        """
+        return AtpBlock(id=block.cid.encode('base32'), encoded=block.encoded,
+                        seq=block.seq)
 
 
 class AtpRepo(ndb.Model):
@@ -192,51 +221,41 @@ class DatastoreStorage(Storage):
     def read(self, cid):
         block = AtpBlock.get_by_id(cid.encode('base32'))
         if block:
-            return dag_cbor.decode(block.dag_cbor)
+            return block.to_block()
 
     def read_many(self, cids):
-        found, missing = self._read_blocks(cids)
-        found_objs = {cid: dag_cbor.decode(block.dag_cbor)
-                      for cid, block in found.items()}
-        return found_objs, missing
-
-    def read_blocks(self, cids):
-        found, missing = self._read_blocks(cids)
-        blocks = BlockMap((cid, block.dag_cbor) for cid, block in found.items())
-        return blocks, missing
-
-    def _read_blocks(self, cids):
-        """Internal helper, loads AtpBlocks for a set of cids.
+        """Loads AtpBlocks for a set of cids.
 
         Args:
           cids: sequence of :class:`CID`
 
         Returns:
-          tuple, (dict mapping found CIDs to AtpBlocks, list of CIDs not found)
+          dict mapping :class:`CID` to :class:`Block`
         """
         keys = [ndb.Key(AtpBlock, cid.encode('base32')) for cid in cids]
         got = list(zip(cids, ndb.get_multi(keys)))
-        found = {CID.decode(block.key.id()): block
-                 for _, block in got if block is not None}
-        missing = [cid for cid, block in got if block is None]
-        return found, missing
+        return {cid: block.to_block() if block else None
+                for cid, block in got}
 
     def has(self, cid):
         return self.read(cid) is not None
 
-    def write(self, block):
+    def write(self, obj):
         seq = AtpSequence.get_next(SUBSCRIBE_REPOS_NSID)
-        return CID.decode(AtpBlock.create(block, seq=seq).key.id())
+        return AtpBlock.create(obj, seq=seq).cid
 
     @ndb.transactional()
     def apply_commit(self, commit_data):
-        assert commit_data.seq
-        ndb.put_multi(AtpBlock(id=cid.encode('base32'), dag_cbor=block,
-                               seq=commit_data.seq)
-                      for cid, block in commit_data.blocks.items())
+        seq = AtpSequence.get_next(SUBSCRIBE_REPOS_NSID)
+
+        for block in commit_data.blocks.values():
+            atp_block = AtpBlock.get_or_insert(
+                block.cid.encode('base32'), encoded=block.encoded, seq=seq)
+            block.seq = atp_block.seq
+
         self.head = commit_data.cid
 
-        commit = dag_cbor.decode(commit_data.blocks[commit_data.cid])
+        commit = commit_data.blocks[commit_data.cid].decoded
         head_encoded = self.head.encode('base32')
         repo = AtpRepo.get_or_insert(commit['did'], head=head_encoded)
         if repo.head == head_encoded:

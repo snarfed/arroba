@@ -9,7 +9,7 @@ import logging
 from queue import Queue
 from threading import Lock
 
-from carbox.car import Block, write_car
+from carbox import car
 import dag_cbor
 
 from . import server
@@ -37,15 +37,14 @@ def get_checkout(input, did=None, commit=None):
     if not commit:
         commit = server.repo.cid
 
-    blocks, missing = server.storage.read_blocks([commit])
-    if commit not in blocks:
+    if not server.storage.has(commit):
         raise ValueError(f'{commit} not found in {did}')
 
     # TODO
     # mst = MST.load(storage=storage, cid=commit)
-    return write_car(
+    return car.write_car(
         [commit],
-        (Block(cid=cid, data=data) for cid, data in server.repo.mst.load_all()))
+        (car.Block(cid=cid, data=data) for cid, data in server.repo.mst.load_all()))
 
 
 @server.server.method('com.atproto.sync.getRepo')
@@ -54,10 +53,9 @@ def get_repo(input, did=None, earliest=None, latest=None):
     """
     validate(did=did)
 
-    blocks, missing = server.storage.read_blocks([server.repo.cid])
-    return write_car(
+    return car.write_car(
         [server.repo.cid],
-        (Block(cid=cid, data=data) for cid, data in server.repo.mst.load_all()))
+        (car.Block(cid=cid, data=data) for cid, data in server.repo.mst.load_all()))
 
 
 @server.server.method('com.atproto.sync.listRepos')
@@ -103,10 +101,14 @@ def subscribe_repos(cursor=None):
                              xrpc_sync.subscribe_repos)
       server.repo.set_callback(xrpc_sync.enqueue_commit)
 
+    Args:
+      cursor: integer, try to serve commits from this sequence number forward
+
     Returns:
       (dict header, dict payload)
     """
-    assert not cursor, 'cursor not implemented yet'
+    if cursor is not None:
+        assert cursor >= 0
 
     queue = Queue()
     subscribers.add(queue)
@@ -114,9 +116,10 @@ def subscribe_repos(cursor=None):
     while True:
         commit_data = queue.get()
         cid = commit_data.cid
-        commit = dag_cbor.decode(commit_data.blocks[cid])
-        car_blocks = [Block(cid=cid, data=data)
-                      for cid, data in commit_data.blocks.items()]
+        commit = commit_data.blocks[cid].decoded
+        car_blocks = [car.Block(cid=block.cid, data=block.encoded,
+                                decoded=block.decoded)
+                      for block in commit_data.blocks.values()]
 
         yield ({  # header
           'op': 1,
@@ -129,9 +132,9 @@ def subscribe_repos(cursor=None):
                 'cid': b.cid,
             } for b in car_blocks],
             'commit': cid,
-            'blocks': write_car([cid], car_blocks),
+            'blocks': car.write_car([cid], car_blocks),
             'time': util.now().isoformat(),
-            'seq': commit_data.seq,
+            'seq': commit_data.blocks[cid].seq,
             # TODO
             'prev': None,
             'rebase': False,
@@ -183,8 +186,8 @@ def get_record(input, did=None, collection=None, rkey=None, commit=None):
     if record is None:
         raise ValueError(f'{collection} {rkey} not found')
 
-    block = Block(decoded=record)
-    return write_car([block.cid], [block])
+    block = car.Block(decoded=record)
+    return car.write_car([block.cid], [block])
 
 # @server.server.method('com.atproto.sync.notifyOfUpdate')
 # def notify_of_update(input, did=None, earliest=None, latest=None):

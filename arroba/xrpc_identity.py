@@ -9,6 +9,7 @@ from . import server
 logger = logging.getLogger(__name__)
 
 
+# STATE: get rid of this, not needed
 @server.server.method('com.atproto.identity.resolveHandle')
 def resolve_handle(input, handle=None):
     """Proxies to the appview."""

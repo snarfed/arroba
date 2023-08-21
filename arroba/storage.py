@@ -14,10 +14,10 @@ SUBSCRIBE_REPOS_NSID = 'com.atproto.sync.subscribeRepos'
 
 
 CommitData = namedtuple('CommitData', [
+    # STATE: change cid to commit Block
     'cid',     # CID
-    'blocks',  # BlockMap
+    'blocks',  # dict of CID to Block
     'prev',    # CID or None
-    'seq',     # positive integer, for subscribeRepos
 ])
 # commit record format is:
 # {
@@ -31,13 +31,19 @@ CommitData = namedtuple('CommitData', [
 class Block:
     """An ATProto block: a record, MST entry, or commit.
 
-    Can start from either encoded bytes or decoded data, with or without CID.
+    Can start from either encoded bytes or decoded object, with or without CID.
     Decodes, encodes, and generates CID lazily, on demand, on attribute access.
 
     Based on :class:`carbox.car.Block`.
+
+    Attributes:
+      _cid: :class:`CID`, lazy-loaded
+      _decoded: dict, lazy-loaded
+      _encoded: bytes, lazy-loaded
+      seq: integer, com.atproto.sync.subscribeRepos sequence number
     """
 
-    def __init__(self, *, cid=None, decoded=None, encoded=None):
+    def __init__(self, *, cid=None, decoded=None, encoded=None, seq=None):
         """Constructor.
 
         Args:
@@ -49,6 +55,7 @@ class Block:
         self._cid = cid
         self._encoded = encoded
         self._decoded = decoded
+        self.seq = seq
 
     @property
     def cid(self):
@@ -86,35 +93,13 @@ class Block:
         return self.cid == other.cid
 
     def __hash__(self):
-        return self.cid
+        return hash(self.cid)
 
 
 # STATE: need to expose seq for each block from storage?
 # and also need to be able to collect blocks with same seq into commit?
 # decode each block, identify commit, use the single commit for each seq?
 # and assert if a given seq has no commit, since there should always be one
-class BlockMap(dict):
-    """dict subclass that stores blocks as CID => blocks (bytes) mappings.
-
-    A block is a DAG-CBOR encoded node, ie a record, MST entry, or commit.
-    """
-    def add(self, val):
-        """Encodes a value as a block and adds it.
-
-        TODO: remove or refactor? keep the invariant that BlockMap stores
-        blocks, Storage stores records?
-
-        Args:
-          val: dict, record
-
-        Returns:
-          :class:`CID`
-        """
-        block = dag_cbor.encode(val)
-        digest = multihash.digest(block, 'sha2-256')
-        cid = CID('base58btc', 1, multicodec.get('dag-cbor'), digest)
-        self[cid] = block
-        return cid
 
 
 class Storage:
@@ -164,34 +149,19 @@ class Storage:
           cid: :class:`CID`
 
         Returns:
-          dict, a record, commit, or serialized MST node, or None if the given
-          CID is not stored
+          :class:`Block` or None if not found
         """
         raise NotImplementedError()
 
-    def read_many(self, cids):
+    def read_many(self, cids, require_all=True):
         """Batch read multiple nodes from storage.
 
         Args:
-          sequence of :class:`CID`
+          cids: sequence of :class:`CID`
+          require_all: boolean, whether to assert that all cids are found
 
         Returns:
-          tuple: (dict {:class:`CID`: dict node},
-                  sequence of :class:`CID` that weren't found)
-        """
-        raise NotImplementedError()
-
-    def read_blocks(self, cids):
-        """Batch read multiple blocks from storage.
-
-        TODO: merge this with read_many?
-
-        Args:
-          sequence of :class:`CID`
-
-        Returns:
-          tuple: (:class:`BlockMap` with found blocks,
-                  sequence of :class:`CID` that weren't found)
+          dict: {:class:`CID`: :class:`Block` or None if not found}
         """
         raise NotImplementedError()
 
@@ -206,11 +176,13 @@ class Storage:
         """
         raise NotImplementedError()
 
-    def write(self, node):
+    def write(self, obj):
         """Writes a node to storage.
 
+        Generates new sequence number(s) as necessary for newly stored blocks.
+
         Args:
-          node: a record, commit, or serialized MST node
+          obj: dict, a record, commit, or serialized MST node
 
         Returns:
           :class:`CID`
@@ -219,6 +191,8 @@ class Storage:
 
     def apply_commit(self, commit_data):
         """Writes a commit to storage.
+
+        Generates a new sequence number and uses it for all blocks in the commit.
 
         Args:
           commit: :class:`CommitData`
@@ -247,18 +221,19 @@ class MemoryStorage(Storage):
     """In memory storage implementation.
 
     Attributes:
-      repos: list of :class:`Repo`, class level
-      blocks: :class:`BlockMap`
+      repos: list of :class:`Repo`
+      blocks: dict: {:class:`CID`: :class:`Block`}
       head: :class:`CID`
       sequences: dict, maps str NSID to integer next sequence number
     """
-    repos = []
+    repos = None
     blocks = None
     head = None
     sequences = None
 
     def __init__(self):
-        self.blocks = BlockMap()
+        self.blocks = {}
+        self.repos = []
         self.sequences = {}
 
     def create_repo(self, repo):
@@ -273,34 +248,34 @@ class MemoryStorage(Storage):
                 return repo
 
     def read(self, cid):
-        return dag_cbor.decode(self.blocks[cid])
+        return self.blocks.get(cid)
 
-    def read_many(self, cids):
-        blocks, missing = self.read_blocks(cids)
-        nodes = {cid: dag_cbor.decode(block) for cid, block in blocks.items()}
-        return nodes, missing
-
-    def read_blocks(self, cids):
-        found = {}
-        missing = []
-
-        for cid in cids:
-            block = self.blocks.get(cid)
-            if block:
-                found[cid] = block
-            else:
-                missing.append(cid)
-
-        return found, missing
+    def read_many(self, cids, require_all=True):
+        cids = list(cids)
+        found = {cid: self.blocks.get(cid) for cid in cids}
+        if require_all:
+            assert len(found) == len(cids), (len(found), len(cids))
+        return found
 
     def has(self, cid):
         return cid in self.blocks
 
-    def write(self, node):
-        self.blocks.add(node)
+    def write(self, obj):
+        block = Block(decoded=obj, seq=self.next_seq(SUBSCRIBE_REPOS_NSID))
+        if block not in self.blocks:
+            self.blocks.add(block)
+        return block.cid
 
     def apply_commit(self, commit_data):
-        self.blocks.update(commit_data.blocks)
+        seq = self.next_seq(SUBSCRIBE_REPOS_NSID)
+        for block in commit_data.blocks.values():
+            block.seq = seq
+
+        # only add new blocks so we don't wipe out any existing blocks' sequence
+        # numbers. (occasionally we see existing blocks recur, eg MST nodes.)
+        for cid, block in commit_data.blocks.items():
+            self.blocks.setdefault(cid, block)
+
         self.head = commit_data.cid
         # the Repo will generally already be in self.repos, and it updates its
         # own head cid, so no need to do that here manually.

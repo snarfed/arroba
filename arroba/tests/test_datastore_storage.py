@@ -1,4 +1,4 @@
-"""Unit tests for ndb_storage.py."""
+"""Unit tests for datastore_storage.py."""
 import os
 
 from google.cloud import ndb
@@ -15,7 +15,7 @@ from ..datastore_storage import (
     WriteOnceBlobProperty,
 )
 from ..repo import Action, Repo, Write
-from ..storage import BlockMap, CommitData, MemoryStorage
+from ..storage import Block, CommitData, MemoryStorage
 from ..util import dag_cbor_cid, next_tid
 
 from .testutil import TestCase
@@ -70,7 +70,7 @@ class DatastoreStorageTest(TestCase):
         data = {'foo': 'bar'}
         AtpBlock.create(data, seq=1)
         stored = AtpBlock.get_by_id(dag_cbor_cid(data).encode('base32'))
-        self.assertEqual(data, stored.data)
+        self.assertEqual(data, stored.decoded)
         self.assertGreater(stored.seq, 0)
 
     def test_write_once(self):
@@ -99,24 +99,20 @@ class DatastoreStorageTest(TestCase):
 
         data = {'foo': 'bar'}
         cid = self.storage.write(data)
-        self.assertEqual(data, self.storage.read(cid))
+        self.assertEqual(data, self.storage.read(cid).decoded)
         self.assertTrue(self.storage.has(cid))
 
-    def test_read_many_read_blocks(self):
-        self.assertEqual((BlockMap(), CIDS),
+    def test_read_many(self):
+        self.assertEqual({cid: None for cid in CIDS},
                          self.storage.read_many(CIDS))
 
         data = [{'foo': 'bar'}, {'baz': 'biff'}]
         stored = [self.storage.write(d) for d in data]
 
         cids = [stored[0], CIDS[0], stored[1]]
-        self.assertEqual(({dag_cbor_cid(d): d for d in data}, [CIDS[0]]),
-                         self.storage.read_many(cids))
-
-        map = BlockMap()
-        map.add(data[0])
-        map.add(data[1])
-        self.assertEqual((map, [CIDS[0]]), self.storage.read_blocks(cids))
+        self.assertEqual(
+            {dag_cbor_cid(d): Block(decoded=d) for d in data} | {CIDS[0]: None},
+            self.storage.read_many(cids))
 
     def assert_same_seq(self, cids):
         """
@@ -132,16 +128,14 @@ class DatastoreStorageTest(TestCase):
         for block in blocks[1:]:
             self.assertEqual(seq, block.seq)
 
-    def test_apply_commits(self):
+    def test_apply_commit(self):
         self.assertEqual(0, AtpBlock.query().count())
 
         objs = [
             {'foo': 'bar'},
             {'baz': 'biff'},
         ]
-        blocks = BlockMap()
-        blocks.add(objs[0])
-        blocks.add(objs[1])
+        blocks = {dag_cbor_cid(obj): Block(decoded=obj) for obj in objs}
 
         # new repo with initial commit
         repo = Repo.create(self.storage, 'did:web:user.com', self.key)
@@ -149,30 +143,30 @@ class DatastoreStorageTest(TestCase):
 
         # new commit
         writes = [Write(Action.CREATE, 'coll', next_tid(), obj) for obj in objs]
-        commit = repo.format_commit(writes, self.key)
+        commit_data = repo.format_commit(writes, self.key)
 
-        self.storage.apply_commit(commit)
-        self.assertEqual(commit.cid, self.storage.head)
-        self.assert_same_seq(k.encode('base32') for k in commit.blocks.keys())
+        self.storage.apply_commit(commit_data)
+        self.assertEqual(commit_data.cid, self.storage.head)
+        self.assert_same_seq(k.encode('base32') for k in commit_data.blocks.keys())
 
         repo = self.storage.load_repo(did='did:web:user.com')
         self.assertEqual('did:web:user.com', repo.did)
-        self.assertEqual(commit.cid, repo.cid)
+        self.assertEqual(commit_data.cid, repo.cid)
 
         atp_repo = AtpRepo.get_by_id('did:web:user.com')
-        self.assertEqual(commit.cid, CID.decode(atp_repo.head))
+        self.assertEqual(commit_data.cid, CID.decode(atp_repo.head))
 
-        found, missing = self.storage.read_many(commit.blocks.keys())
+        found = self.storage.read_many(commit_data.blocks.keys())
         # found has one extra MST Data node
         self.assertEqual(4, len(found))
-        self.assertIn(objs[0], found.values())
-        self.assertIn(objs[1], found.values())
-        commit_obj = dag_cbor.decode(commit.blocks[commit.cid])
-        self.assertEqual(commit_obj, found[commit.cid])
-        self.assertEqual([], missing)
+        decoded = [block.decoded for block in found.values()]
+        self.assertIn(objs[0], decoded)
+        self.assertIn(objs[1], decoded)
+        commit_obj = commit_data.blocks[commit_data.cid].decoded
+        self.assertEqual(commit_obj, found[commit_data.cid].decoded)
 
         repo = self.storage.load_repo(did='did:web:user.com')
-        self.assertEqual(commit.cid, repo.cid)
+        self.assertEqual(commit_data.cid, repo.cid)
 
         atp_repo = AtpRepo.get_by_id('did:web:user.com')
-        self.assertEqual(commit.cid, CID.decode(atp_repo.head))
+        self.assertEqual(commit_data.cid, CID.decode(atp_repo.head))

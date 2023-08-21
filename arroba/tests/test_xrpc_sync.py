@@ -12,6 +12,7 @@ import dag_cbor
 
 from ..repo import Action, Repo, Write
 from .. import server
+from ..storage import SUBSCRIBE_REPOS_NSID
 from .. import util
 from ..util import dag_cbor_cid, next_tid
 from .. import xrpc_sync
@@ -423,6 +424,28 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         super().setUp()
         server.repo.callback = xrpc_sync.enqueue_commit
 
+    def subscribe(self, received, delivered=None, limit=None, cursor=None):
+        """subscribeRepos websocket client. Run in a thread.
+
+        Args:
+          received: list, each received message will be appended
+          delivered: :class:`Semaphore`, optional, released once after receiving
+            each message
+          limit: integer, optional. If set, returns after receiving this many
+            messages
+          cursor: integer, passed to subscribeRepos
+        """
+        for i, (header, payload) in enumerate(xrpc_sync.subscribe_repos()):
+            self.assertEqual({
+                'op': 1,
+                't': '#commit',
+            }, header)
+            received.append(payload)
+            if delivered:
+                delivered.release()
+            if i == limit - 1:
+                return
+
     def assertCommitMessage(self, record, prev, seq, commit_msg):
         blocks = commit_msg.pop('blocks')
         msg_roots, msg_blocks = read_car(blocks)
@@ -434,7 +457,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             'ops': [{
                 'action': 'create',
                 'path': 'TODO!',
-                'cid': b.cid
+                'cid': b.cid,
             } for b in msg_blocks],
             'time': testutil.NOW.isoformat(),
             'seq': seq,
@@ -458,7 +481,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         commit_record = {
             'version': 2,
             'did': 'did:web:user.com',
-            'data': dag_cbor_cid(mst_entry),#record_cid,
+            'data': dag_cbor_cid(mst_entry),
             'prev': prev,
         }
 
@@ -468,20 +491,10 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         self.assertEqual([record, mst_entry, commit_record], msg_records)
 
     def test_subscribe_repos(self):
-        def client(received, delivered):
-            for i, (header, payload) in enumerate(xrpc_sync.subscribe_repos()):
-                self.assertEqual({
-                    'op': 1,
-                    't': '#commit',
-                }, header)
-                received.append(payload)
-                delivered.release()
-                if i == 1:  # read two commits, then quit
-                    return
-
         received_a = []
         delivered_a = Semaphore(value=0)
-        subscriber_a = Thread(target=client, args=[received_a, delivered_a])
+        subscriber_a = Thread(target=self.subscribe,
+                              args=[received_a, delivered_a, 2])
         subscriber_a.start()
 
         # create, subscriber_a
@@ -499,7 +512,8 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         # update, subscriber_a and subscriber_b
         received_b = []
         delivered_b = Semaphore(value=0)
-        subscriber_b = Thread(target=client, args=[received_b, delivered_b])
+        subscriber_b = Thread(target=self.subscribe,
+                              args=[received_b, delivered_b, 2])
         subscriber_b.start()
 
         prev = server.repo.cid
@@ -530,6 +544,23 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         subscriber_b.join()
         # TODO
         # self.assertEqual(0, len(xrpc_sync.subscribers))
+
+    # def test_subscribe_repos_cursor_zero(self):
+    #     for val in 'bar', 'baz', 'biff':
+    #         write = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': val})
+    #         server.repo.apply_writes([write], self.key)
+
+    #     self.assertEqual(5, server.storage.sequences[SUBSCRIBE_REPOS_NSID])
+
+    #     received = []
+    #     subscriber = Thread(target=self.subscribe, args=[received],
+    #                         kwargs={'limit': 4, 'cursor': 0})
+    #     subscriber.start()
+    #     subscriber.join()
+
+    #     self.assertEqual(1, received[0].seq)
+    #     for i, val in enumerate(['bar', 'baz', 'biff'], start=1):
+    #         self.assertCommitMessage({'foo': val}, i + 1, received[i])
 
     # based on atproto/packages/pds/tests/sync/subscribe-repos.test.ts
 #     def setUp(self):
