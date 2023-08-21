@@ -6,6 +6,7 @@ repo_password
 repo_token
 did:plc:*
 privkey.pem
+service_account_creds.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
