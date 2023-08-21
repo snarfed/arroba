@@ -27,7 +27,7 @@ for module in ('google.cloud', 'oauthlib', 'requests', 'requests_oauthlib',
 from arroba.repo import Repo
 from arroba import server
 from arroba.datastore_storage import DatastoreStorage
-from arroba import xrpc_identity, xrpc_repo, xrpc_server, xrpc_sync
+from arroba import xrpc_repo, xrpc_server, xrpc_sync
 
 USER_AGENT = 'Arroba PDS (https://arroba-pds.appspot.com/)'
 
@@ -99,6 +99,7 @@ def put_preferences():
 def cors_preflight(nsid_rest=None):
     return '', lexrpc.flask_server.RESPONSE_HEADERS
 
+@app.route(f'/xrpc/com.atproto.identity.resolveHandle', methods=['GET', 'POST'])
 @app.route(f'/xrpc/app.bsky.<nsid_rest>', methods=['GET', 'POST'])
 def proxy_appview(nsid_rest=None):
     logger.info(f'JWT raw: {jwt_raw}')
