@@ -24,8 +24,11 @@ class RepoTest(TestCase):
 
     def setUp(self):
         super().setUp()
-        self.storage = MemoryStorage()
+        self.storage = self.make_storage()
         self.repo = Repo.create(self.storage, 'did:web:user.com', self.key)
+
+    def make_storage(self):
+        return MemoryStorage()
 
     def test_metadata(self):
         self.assertEqual(2, self.repo.version)

@@ -13,6 +13,7 @@ from carbox import car
 import dag_cbor
 
 from . import server
+from .storage import CommitData
 from . import util
 from . import xrpc_repo
 
@@ -107,28 +108,20 @@ def subscribe_repos(cursor=None):
     Returns:
       (dict header, dict payload)
     """
-    if cursor is not None:
-        assert cursor >= 0
-
-    queue = Queue()
-    subscribers.add(queue)
-
-    while True:
-        commit_data = queue.get()
+    def header_payload(commit_data):
         cid = commit_data.cid
         commit = commit_data.blocks[cid].decoded
         car_blocks = [car.Block(cid=block.cid, data=block.encoded,
                                 decoded=block.decoded)
                       for block in commit_data.blocks.values()]
-
-        yield ({  # header
+        return ({  # header
           'op': 1,
           't': '#commit',
         }, {  # payload
             'repo': commit['did'],
             'ops': [{
                 'action': 'create',  # TODO: update, delete
-                'path': 'TODO!',
+                'path': 'STATE TODO!',
                 'cid': b.cid,
             } for b in car_blocks],
             'commit': cid,
@@ -141,6 +134,46 @@ def subscribe_repos(cursor=None):
             'tooBig': False,
             'blobs': [],
         })
+
+    if cursor is not None:
+        assert cursor >= 0
+
+    queue = Queue()
+    subscribers.add(queue)
+
+    # fetch existing blocks starting at seq, collect into commits
+    if cursor is not None:
+        logger.info(f'subscribeRepos: fetching existing commits from seq {cursor}')
+        seq = commit_block = blocks = None
+        for block in server.repo.storage.read_from_seq(cursor):
+            assert block.seq
+            if block.seq != seq:  # switching to a new commit's blocks
+                if commit_block:
+                    assert blocks
+                    commit_data = CommitData(blocks=blocks, cid=commit_block.cid,
+                                             prev=commit_block.decoded['prev'])
+                    yield header_payload(commit_data)
+                else:
+                    assert blocks is None  # only the first commit
+                seq = block.seq
+                blocks = {}  # maps CID to Block
+                commit_block = None
+
+            blocks[block.cid] = block
+            if block.decoded.keys() == set(['version', 'did', 'prev', 'data', 'sig']):
+                commit_block = block
+
+        # final commit
+        assert blocks and commit_block
+        commit_data = CommitData(blocks=blocks, cid=commit_block.cid,
+                                 prev=commit_block.decoded['prev'])
+        yield header_payload(commit_data)
+
+    # serve new commits as they happen
+    logger.info(f'subscribeRepos: serving new commits')
+    while True:
+        commit_data = queue.get()
+        yield header_payload(commit_data)
 
     # TODO: this is never reached, so we currently slowly leak queues. fix that
     subscribers.remove(queue)

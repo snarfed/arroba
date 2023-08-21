@@ -165,6 +165,17 @@ class Storage:
         """
         raise NotImplementedError()
 
+    def read_from_seq(self, seq):
+        """Batch read blocks by sequence number, in order, ascending.
+
+        Args:
+          seq: integer, sequence number to start from
+
+        Returns:
+          either iterable or generator of :class:`Block`
+        """
+        raise NotImplementedError()
+
     def has(self, cid):
         """Checks if a given :class:`CID` is currently stored.
 
@@ -256,6 +267,11 @@ class MemoryStorage(Storage):
         if require_all:
             assert len(found) == len(cids), (len(found), len(cids))
         return found
+
+    def read_from_seq(self, seq):
+        assert seq >= 0
+        return sorted((b for b in self.blocks.values() if b.seq >= seq),
+                      key=lambda b: b.seq)
 
     def has(self, cid):
         return cid in self.blocks

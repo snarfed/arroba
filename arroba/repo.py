@@ -132,6 +132,9 @@ class Repo:
     @classmethod
     def format_init_commit(cls, storage, did, key, initial_writes=None):
         """
+
+        TODO refactor to reuse format_commit?
+
         Args:
           storage: :class:`Storage`
           did: string,
@@ -141,7 +144,6 @@ class Repo:
         Returns:
           :class:`CommitData`
         """
-        # STATE refactor to use format_commit
         new_blocks = {}  # maps CID to Block
 
         mst = MST.create(storage=storage)

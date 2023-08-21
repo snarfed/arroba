@@ -435,7 +435,8 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             messages
           cursor: integer, passed to subscribeRepos
         """
-        for i, (header, payload) in enumerate(xrpc_sync.subscribe_repos()):
+        for i, (header, payload) in enumerate(
+                xrpc_sync.subscribe_repos(cursor=cursor)):
             self.assertEqual({
                 'op': 1,
                 't': '#commit',
@@ -446,17 +447,20 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             if i == limit - 1:
                 return
 
-    def assertCommitMessage(self, record, prev, seq, commit_msg):
+    def assertCommitMessage(self, commit_msg, record=None, cur=None, prev=None,
+                            seq=None):
+        cur = cur or server.repo.cid
+
         blocks = commit_msg.pop('blocks')
         msg_roots, msg_blocks = read_car(blocks)
-        self.assertEqual([server.repo.cid], msg_roots)
+        self.assertEqual([cur], msg_roots)
 
         self.assertEqual({
             'repo': 'did:web:user.com',
-            'commit': server.repo.cid,
+            'commit': cur,
             'ops': [{
                 'action': 'create',
-                'path': 'TODO!',
+                'path': 'STATE TODO!',
                 'cid': b.cid,
             } for b in msg_blocks],
             'time': testutil.NOW.isoformat(),
@@ -468,16 +472,22 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             'blobs': [],
         }, commit_msg)
 
-        record_cid = dag_cbor_cid(record)
-        mst_entry = {
-            'e': [{
-                'k': f'co.ll/{util._tid_last}'.encode(),
-                'v': record_cid,
-                'p': 0,
-                't': None,
-            }],
-            'l': None,
-        }
+        if record:
+            record_cid = dag_cbor_cid(record)
+            mst_entry = {
+                'e': [{
+                    'k': f'co.ll/{util._tid_last}'.encode(),
+                    'v': record_cid,
+                    'p': 0,
+                    't': None,
+                }],
+                'l': None,
+            }
+        else:
+            mst_entry = {
+                'e': [],
+                'l': None,
+            }
         commit_record = {
             'version': 2,
             'did': 'did:web:user.com',
@@ -487,8 +497,9 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         msg_records = [b.decoded for b in msg_blocks]
         # TODO: if I util.sign_commit(commit_record), the sig doesn't match. why?
-        del msg_records[2]['sig']
-        self.assertEqual([record, mst_entry, commit_record], msg_records)
+        del msg_records[-1]['sig']
+        self.assertEqual(([record] if record else []) + [mst_entry, commit_record],
+                         msg_records)
 
     def test_subscribe_repos(self):
         received_a = []
@@ -505,7 +516,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         delivered_a.acquire()
 
         self.assertEqual(1, len(received_a))
-        self.assertCommitMessage({'foo': 'bar'}, prev, 2, received_a[0])
+        self.assertCommitMessage(received_a[0], {'foo': 'bar'}, prev=prev, seq=2)
         # TODO
         # self.assertEqual(1, len(xrpc_sync.subscribers))
 
@@ -523,9 +534,9 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         delivered_b.acquire()
 
         self.assertEqual(2, len(received_a))
-        self.assertCommitMessage({'foo': 'baz'}, prev, 3, received_a[1])
+        self.assertCommitMessage(received_a[1], {'foo': 'baz'}, prev=prev, seq=3)
         self.assertEqual(1, len(received_b))
-        self.assertCommitMessage({'foo': 'baz'}, prev, 3, received_b[0])
+        self.assertCommitMessage(received_b[0], {'foo': 'baz'}, prev=prev, seq=3)
 
         subscriber_a.join()
         # TODO
@@ -539,28 +550,36 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         self.assertEqual(2, len(received_a))
         self.assertEqual(2, len(received_b))
-        self.assertCommitMessage({'biff': 0}, prev, 4, received_b[1])
+        self.assertCommitMessage(received_b[1], {'biff': 0}, prev=prev, seq=4)
 
         subscriber_b.join()
         # TODO
         # self.assertEqual(0, len(xrpc_sync.subscribers))
 
-    # def test_subscribe_repos_cursor_zero(self):
-    #     for val in 'bar', 'baz', 'biff':
-    #         write = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': val})
-    #         server.repo.apply_writes([write], self.key)
+    def test_subscribe_repos_cursor_zero(self):
+        commit_cids = [server.repo.cid]
+        tid = next_tid()
+        for val in 'bar', 'baz', 'biff':
+            write = Write(Action.CREATE if val == 'bar' else Action.UPDATE,
+                          'co.ll', tid, {'foo': val})
+            commit_cid = server.repo.apply_writes([write], self.key)
+            commit_cids.append(server.repo.cid)
 
-    #     self.assertEqual(5, server.storage.sequences[SUBSCRIBE_REPOS_NSID])
+        received = []
+        subscriber = Thread(target=self.subscribe, args=[received],
+                            kwargs={'limit': 4, 'cursor': 0})
+        subscriber.start()
+        subscriber.join()
 
-    #     received = []
-    #     subscriber = Thread(target=self.subscribe, args=[received],
-    #                         kwargs={'limit': 4, 'cursor': 0})
-    #     subscriber.start()
-    #     subscriber.join()
+        self.assertEqual(5, server.storage.sequences[SUBSCRIBE_REPOS_NSID])
 
-    #     self.assertEqual(1, received[0].seq)
-    #     for i, val in enumerate(['bar', 'baz', 'biff'], start=1):
-    #         self.assertCommitMessage({'foo': val}, i + 1, received[i])
+        self.assertCommitMessage(
+            received[0], record=None, cur=commit_cids[0], prev=None, seq=1)
+
+        for i, val in enumerate(['bar', 'baz', 'biff'], start=1):
+            self.assertCommitMessage(
+                received[i], {'foo': val}, cur=commit_cids[i],
+                prev=commit_cids[i - 1], seq=i + 1)
 
     # based on atproto/packages/pds/tests/sync/subscribe-repos.test.ts
 #     def setUp(self):
