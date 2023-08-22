@@ -2,10 +2,8 @@
 import os
 
 from google.cloud import ndb
-import requests
 
 import dag_cbor
-from google.auth.credentials import AnonymousCredentials
 from multiformats import CID
 
 from ..datastore_storage import (
@@ -19,35 +17,13 @@ from ..storage import Block, CommitData, MemoryStorage
 from ..util import dag_cbor_cid, next_tid
 
 from . import test_repo
-from .testutil import TestCase
-
-os.environ.setdefault('DATASTORE_EMULATOR_HOST', 'localhost:8089')
+from .testutil import DatastoreTest
 
 CIDS = [
     CID.decode('bafyreie5cvv4h45feadgeuwhbcutmh6t2ceseocckahdoe6uat64zmz454'),
     CID.decode('bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm'),
     CID.decode('bafyreibj4lsc3aqnrvphp5xmrnfoorvru4wynt6lwidqbm2623a6tatzdu'),
 ]
-
-
-class DatastoreTest(TestCase):
-    ndb_client = ndb.Client(project='app', credentials=AnonymousCredentials())
-
-    def setUp(self):
-        super().setUp()
-        self.storage = DatastoreStorage()
-
-        # clear datastore
-        requests.post(f'http://{self.ndb_client.host}/reset')
-
-        # disable in-memory cache
-        # https://github.com/googleapis/python-ndb/issues/888
-        self.ndb_context = self.ndb_client.context(cache_policy=lambda key: False)
-        self.ndb_context.__enter__()
-
-    def tearDown(self):
-        self.ndb_context.__exit__(None, None, None)
-        super().tearDown()
 
 
 class DatastoreStorageTest(DatastoreTest):
@@ -190,10 +166,3 @@ class DatastoreStorageTest(DatastoreTest):
 
         atp_repo = AtpRepo.get_by_id('did:web:user.com')
         self.assertEqual(commit_data.cid, CID.decode(atp_repo.head))
-
-
-class DatastoreRepoTest(test_repo.RepoTest, DatastoreTest):
-    """Run all of RepoTest's tests with DatastoreStorage."""
-
-    def make_storage(self):
-        return self.storage

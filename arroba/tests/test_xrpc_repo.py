@@ -10,6 +10,7 @@ import itertools
 
 from arroba import xrpc_repo
 
+from ..datastore_storage import DatastoreStorage
 from .. import util
 from . import testutil
 
@@ -659,3 +660,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
     #         collection='app.bsky.feed.repost',
     #         rkey=AtUri(reposts[2].uri).rkey,
     #     )
+
+
+class DatastoreXrpcRepoTest(XrpcRepoTest, testutil.DatastoreTest):
+    STORAGE_CLS = DatastoreStorage

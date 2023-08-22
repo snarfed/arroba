@@ -8,8 +8,12 @@ from unittest.mock import ANY, call
 from Crypto.PublicKey import ECC
 import dag_cbor.random
 from flask import Flask, request
+from google.auth.credentials import AnonymousCredentials
+from google.cloud import ndb
 from multiformats import CID
+import requests
 
+from ..datastore_storage import DatastoreStorage
 from ..repo import Repo
 from .. import server
 from ..storage import MemoryStorage
@@ -24,6 +28,8 @@ CID.__str__ = CID.__repr__ = lambda cid: '…' + cid.encode('base32')[-7:]
 # don't truncate assertion error diffs
 import unittest.util
 unittest.util._MAX_LENGTH = 999999
+
+os.environ.setdefault('DATASTORE_EMULATOR_HOST', 'localhost:8089')
 
 
 class TestCase(unittest.TestCase):
@@ -70,13 +76,34 @@ class TestCase(unittest.TestCase):
         return {next_tid(): {'foo': random.randint(1, 999999999)} for i in range(num)}
 
 
+class DatastoreTest(TestCase):
+    ndb_client = ndb.Client(project='app', credentials=AnonymousCredentials())
+
+    def setUp(self):
+        super().setUp()
+        self.storage = DatastoreStorage()
+
+        # clear datastore
+        requests.post(f'http://{self.ndb_client.host}/reset')
+
+        # disable in-memory cache
+        # https://github.com/googleapis/python-ndb/issues/888
+        self.ndb_context = self.ndb_client.context(cache_policy=lambda key: False)
+        self.ndb_context.__enter__()
+
+    def tearDown(self):
+        self.ndb_context.__exit__(None, None, None)
+        super().tearDown()
+
+
 class XrpcTestCase(TestCase):
+    STORAGE_CLS = MemoryStorage
     app = Flask(__name__, static_folder=None)
 
     def setUp(self):
         super().setUp()
 
-        server.storage = MemoryStorage()
+        server.storage = self.STORAGE_CLS()
         server.repo = Repo.create(server.storage, 'did:web:user.com', self.key)
         server.key = self.key
 
