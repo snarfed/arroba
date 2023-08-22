@@ -91,6 +91,8 @@ class AtpBlock(ndb.Model):
     seq = ndb.IntegerProperty(required=True)
     ops = ndb.StructuredProperty(CommitOp, repeated=True)
 
+    created = ndb.DateTimeProperty(auto_now_add=True)
+
     @ComputedJsonProperty
     def decoded(self):
         return json.loads(dag_json.encode(dag_cbor.decode(self.encoded)))
@@ -165,6 +167,9 @@ class AtpRepo(ndb.Model):
     handles = ndb.StringProperty(repeated=True)
     head = ndb.StringProperty(required=True)
 
+    created = ndb.DateTimeProperty(auto_now_add=True)
+    updated = ndb.DateTimeProperty(auto_now=True)
+
 
 class AtpSequence(ndb.Model):
     """A sequence number for a given event stream NSID.
@@ -180,6 +185,9 @@ class AtpSequence(ndb.Model):
     this.
     """
     next = ndb.IntegerProperty(required=True)
+
+    created = ndb.DateTimeProperty(auto_now_add=True)
+    updated = ndb.DateTimeProperty(auto_now=True)
 
     @classmethod
     @ndb.transactional()
