@@ -31,7 +31,7 @@ def validate(input, **params):
 def create_record(input):
     """
     """
-    input['rkey'] = next_tid()
+    input.setdefault('rkey', next_tid())
     return put_record(input)
 
 
