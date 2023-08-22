@@ -223,7 +223,7 @@ class Storage:
         """
         raise NotImplementedError()
 
-    def next_seq(self, nsid):
+    def allocate_seq(self, nsid):
         """Generates and returns a sequence number for the given NSID.
 
         Sequence numbers must be monotonically increasing positive integers, per
@@ -238,7 +238,16 @@ class Storage:
         """
         raise NotImplementedError()
 
-    # STATE: need separate get_next_seq and allocate_seq ? so that we can check cursor against current next seq and error if cursor is past it
+    def last_seq(self, nsid):
+        """Returns the last (highest) stored sequence number for the given NSID.
+
+        Args:
+          nsid: str, subscription XRPC method this sequence number is for
+
+        Returns:
+          integer
+        """
+        raise NotImplementedError()
 
 
 class MemoryStorage(Storage):
@@ -290,13 +299,13 @@ class MemoryStorage(Storage):
         return cid in self.blocks
 
     def write(self, obj):
-        block = Block(decoded=obj, seq=self.next_seq(SUBSCRIBE_REPOS_NSID))
+        block = Block(decoded=obj, seq=self.allocate_seq(SUBSCRIBE_REPOS_NSID))
         if block not in self.blocks:
             self.blocks.add(block)
         return block.cid
 
     def apply_commit(self, commit_data):
-        seq = self.next_seq(SUBSCRIBE_REPOS_NSID)
+        seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
         for block in commit_data.blocks.values():
             block.seq = seq
 
@@ -309,8 +318,12 @@ class MemoryStorage(Storage):
         # the Repo will generally already be in self.repos, and it updates its
         # own head cid, so no need to do that here manually.
 
-    def next_seq(self, nsid):
+    def allocate_seq(self, nsid):
         assert nsid
         next = self.sequences.setdefault(nsid, 1)
         self.sequences[nsid] += 1
         return next
+
+    def last_seq(self, nsid):
+        assert nsid
+        return self.sequences[nsid] - 1

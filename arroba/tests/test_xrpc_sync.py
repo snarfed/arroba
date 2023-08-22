@@ -9,6 +9,8 @@ from threading import Semaphore, Thread
 
 from carbox.car import Block, read_car
 import dag_cbor
+from google.cloud import ndb
+from google.cloud.ndb.exceptions import ContextError
 
 from ..datastore_storage import DatastoreStorage
 from ..repo import Repo, Write, writes_to_commit_ops
@@ -438,14 +440,14 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         """
         for i, (header, payload) in enumerate(
                 xrpc_sync.subscribe_repos(cursor=cursor)):
-            self.assertEqual({
-                'op': 1,
-                't': '#commit',
-            }, header)
+            self.assertIn(header, [
+                {'op': 1, 't': '#commit'},
+                {'op': -1},
+            ])
             received.append(payload)
             if delivered:
                 delivered.release()
-            if i == limit - 1:
+            if limit and i == limit - 1:
                 return
 
     def assertCommitMessage(self, commit_msg, record=None, write=None,
@@ -579,7 +581,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         subscriber.start()
         subscriber.join()
 
-        self.assertEqual(5, server.storage.next_seq(SUBSCRIBE_REPOS_NSID))
+        self.assertEqual(5, server.storage.allocate_seq(SUBSCRIBE_REPOS_NSID))
 
         self.assertCommitMessage(
             received[0], record=None, cur=commit_cids[0], prev=None, seq=1)
@@ -588,6 +590,14 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             self.assertCommitMessage(
                 received[i], {'foo': val}, cur=commit_cids[i], write=writes[i],
                 prev=commit_cids[i - 1], seq=i + 1)
+
+    def test_subscribe_repos_cursor_past_current_seq(self):
+        received = []
+        self.subscribe(received, cursor=999)
+        self.assertEqual([({
+            'error': 'FutureCursor',
+            'message': 'Cursor 999 is past current sequence number 1',
+        })], received)
 
     # based on atproto/packages/pds/tests/sync/subscribe-repos.test.ts
 #     def setUp(self):
@@ -941,5 +951,10 @@ class DatastoreSubscribeReposTest(SubscribeReposTest, testutil.DatastoreTest):
     STORAGE_CLS = DatastoreStorage
 
     def subscribe(self, *args, **kwargs):
-        with self.ndb_client.context():
+        try:
+            ndb.context.get_context()
             super().subscribe(*args, **kwargs)
+        except ContextError:
+            # we're in a separate thread; make a new ndb context
+            with self.ndb_client.context():
+                super().subscribe(*args, **kwargs)

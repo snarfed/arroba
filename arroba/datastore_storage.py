@@ -183,7 +183,7 @@ class AtpSequence(ndb.Model):
 
     @classmethod
     @ndb.transactional()
-    def get_next(cls, nsid):
+    def allocate(cls, nsid):
         """Returns the next sequence number for a given NSID.
 
         Creates a new :class:`AtpSequence` entity if one doesn't already exist
@@ -260,12 +260,12 @@ class DatastoreStorage(Storage):
         return self.read(cid) is not None
 
     def write(self, obj):
-        seq = AtpSequence.get_next(SUBSCRIBE_REPOS_NSID)
+        seq = AtpSequence.allocate(SUBSCRIBE_REPOS_NSID)
         return AtpBlock.create(obj, seq=seq).cid
 
     @ndb.transactional()
     def apply_commit(self, commit_data):
-        seq = AtpSequence.get_next(SUBSCRIBE_REPOS_NSID)
+        seq = AtpSequence.allocate(SUBSCRIBE_REPOS_NSID)
 
         for block in commit_data.blocks.values():
             template = AtpBlock.from_block(block)
@@ -286,6 +286,10 @@ class DatastoreStorage(Storage):
             logger.info(f'Updated repo {repo}')
             repo.put()
 
-    def next_seq(self, nsid):
+    def allocate_seq(self, nsid):
         assert nsid
-        return AtpSequence.get_next(nsid)
+        return AtpSequence.allocate(nsid)
+
+    def last_seq(self, nsid):
+        assert nsid
+        return AtpSequence.get_by_id(nsid).next - 1

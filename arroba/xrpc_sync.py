@@ -13,7 +13,7 @@ from carbox import car
 import dag_cbor
 
 from . import server
-from .storage import CommitData
+from .storage import CommitData, SUBSCRIBE_REPOS_NSID
 from . import util
 from . import xrpc_repo
 
@@ -144,6 +144,16 @@ def subscribe_repos(cursor=None):
     # fetch existing blocks starting at seq, collect into commits
     if cursor is not None:
         logger.info(f'subscribeRepos: fetching existing commits from seq {cursor}')
+        last_seq = server.repo.storage.last_seq(SUBSCRIBE_REPOS_NSID)
+        if cursor >= last_seq:
+            yield ({
+                'op': -1,
+            }, {
+                'error': 'FutureCursor',
+                'message': f'Cursor {cursor} is past current sequence number {last_seq}',
+            })
+            return
+
         seq = commit_block = blocks = None
         for block in server.repo.storage.read_from_seq(cursor):
             assert block.seq
@@ -162,7 +172,6 @@ def subscribe_repos(cursor=None):
             blocks[block.cid] = block
             if block.decoded.keys() == set(['version', 'did', 'prev', 'data', 'sig']):
                 commit_block = block
-
 
         # final commit
         assert blocks and commit_block
