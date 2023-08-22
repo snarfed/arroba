@@ -245,18 +245,16 @@ class DatastoreStorage(Storage):
             return block.to_block()
 
     def read_many(self, cids):
-        """Loads AtpBlocks for a set of cids.
-
-        Args:
-          cids: sequence of :class:`CID`
-
-        Returns:
-          dict mapping :class:`CID` to :class:`Block`
-        """
         keys = [ndb.Key(AtpBlock, cid.encode('base32')) for cid in cids]
         got = list(zip(cids, ndb.get_multi(keys)))
         return {cid: block.to_block() if block else None
                 for cid, block in got}
+
+    def read_from_seq(self, seq):
+        assert seq >= 0
+        for atp_block in AtpBlock.query(AtpBlock.seq >= seq)\
+                                 .order(AtpBlock.seq):
+            yield atp_block.to_block()
 
     def has(self, cid):
         return self.read(cid) is not None

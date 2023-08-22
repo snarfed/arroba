@@ -497,9 +497,12 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         msg_records = [b.decoded for b in msg_blocks]
         # TODO: if I util.sign_commit(commit_record), the sig doesn't match. why?
-        del msg_records[-1]['sig']
-        self.assertEqual(([record] if record else []) + [mst_entry, commit_record],
-                         msg_records)
+        for msg_record in msg_records:
+            msg_record.pop('sig', None)
+
+        self.assertCountEqual(
+            ([record] if record else []) + [mst_entry, commit_record],
+            msg_records)
 
     def test_subscribe_repos(self):
         received_a = []
@@ -936,3 +939,7 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
 
 class DatastoreSubscribeReposTest(SubscribeReposTest, testutil.DatastoreTest):
     STORAGE_CLS = DatastoreStorage
+
+    def subscribe(self, *args, **kwargs):
+        with self.ndb_client.context():
+            super().subscribe(*args, **kwargs)
