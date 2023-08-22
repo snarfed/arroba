@@ -131,7 +131,7 @@ class DatastoreStorageTest(DatastoreTest):
 
         repo = self.storage.load_repo(did='did:web:user.com')
         self.assertEqual('did:web:user.com', repo.did)
-        self.assertEqual(commit_data.commit.cid, repo.cid)
+        self.assertEqual(commit_data.commit.cid, repo.head.cid)
 
         atp_repo = AtpRepo.get_by_id('did:web:user.com')
         self.assertEqual(commit_data.commit.cid, CID.decode(atp_repo.head))
@@ -162,7 +162,7 @@ class DatastoreStorageTest(DatastoreTest):
         self.assertEqual(commit_data.commit.decoded, found[cid].decoded)
 
         repo = self.storage.load_repo(did='did:web:user.com')
-        self.assertEqual(cid, repo.cid)
+        self.assertEqual(cid, repo.head.cid)
 
         atp_repo = AtpRepo.get_by_id('did:web:user.com')
         self.assertEqual(cid, CID.decode(atp_repo.head))

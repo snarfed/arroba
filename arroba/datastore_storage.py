@@ -213,11 +213,11 @@ class DatastoreStorage(Storage):
     """
     def create_repo(self, repo):
         assert repo.did
-        assert repo.cid
+        assert repo.head
 
         handles = [repo.handle] if repo.handle else []
         atp_repo = AtpRepo(id=repo.did, handles=handles,
-                           head=repo.cid.encode('base32'))
+                           head=repo.head.cid.encode('base32'))
         atp_repo.put()
         logger.info(f'Stored repo {atp_repo}')
 

@@ -54,21 +54,17 @@ class Repo:
     Attributes:
       storage: :class:`Storage`
       mst: :class:`MST`
-      commit: dict, head commit    # TODO: replace these with CommitData?
-      cid: :class:`CID`, head CID
+      head: :class:`Block`, head commit
       handle: str
       callback: callable, (:class:`CommitData`) => None, called on new commits
         May be set directly by clients. None means no callback.
     """
     storage = None
     mst = None
-    # STATE: make this a Block?
-    commit = None
-    cid = None
+    head = None
     callback = None
 
-    def __init__(self, *, storage=None, mst=None, commit=None, cid=None,
-                 handle=None):
+    def __init__(self, *, storage=None, mst=None, head=None, handle=None):
         """Constructor.
 
         Args:
@@ -80,15 +76,14 @@ class Repo:
         assert storage
         self.storage = storage
         self.mst = mst
-        self.commit = commit
-        self.cid = cid
+        self.head = head
         self.handle = handle
 
     def __eq__(self, other):
-        return (self.commit and other.commit
+        return (self.head and other.head
                 and self.version == other.version
                 and self.did == other.did
-                and self.cid == other.cid)
+                and self.head == other.head)
 
     @property
     def did(self):
@@ -97,8 +92,8 @@ class Repo:
         Returns:
           str, DID
         """
-        if self.commit:
-            return self.commit['did']
+        if self.head:
+            return self.head.decoded['did']
 
     @property
     def version(self):
@@ -107,8 +102,8 @@ class Repo:
         Returns:
           int, AT Protocol version
         """
-        if self.commit:
-            return self.commit['version']
+        if self.head:
+            return self.head.decoded['version']
 
     def get_record(self, collection, rkey):
         """
@@ -230,10 +225,10 @@ class Repo:
         commit_cid = cid or storage.head
         assert commit_cid, 'No cid provided and none in storage'
 
-        commit = storage.read(commit_cid).decoded
-        mst = MST.load(storage=storage, cid=commit['data'])
-        logger.info(f'loaded repo for {commit["did"]} at commit {commit_cid}')
-        return Repo(storage=storage, mst=mst, commit=commit, cid=commit_cid, **kwargs)
+        commit_block = storage.read(commit_cid)
+        mst = MST.load(storage=storage, cid=commit_block.decoded['data'])
+        logger.info(f'loaded repo for {commit_block.decoded["did"]} at commit {commit_cid}')
+        return Repo(storage=storage, mst=mst, head=commit_block, **kwargs)
 
     def format_commit(self, writes, key):
         """
@@ -279,14 +274,15 @@ class Repo:
         commit = util.sign_commit({
             'did': self.did,
             'version': 2,
-            'prev': self.cid,
+            'prev': self.head.cid,
             'data': root,
         }, key)
         commit_block = Block(decoded=commit, ops=writes_to_commit_ops(writes))
         commit_blocks[commit_block.cid] = commit_block
 
         self.mst = mst
-        return CommitData(commit=commit_block, prev=self.cid, blocks=commit_blocks)
+        return CommitData(commit=commit_block, prev=self.head.cid,
+                          blocks=commit_blocks)
 
     def apply_commit(self, commit_data):
         """
@@ -298,8 +294,7 @@ class Repo:
           :class:`Repo`, self
         """
         self.storage.apply_commit(commit_data)
-        self.commit = commit_data.commit.decoded
-        self.cid = commit_data.commit.cid
+        self.head = commit_data.commit
         return self
 
     def apply_writes(self, writes, key):

@@ -61,7 +61,7 @@ class XrpcSyncTest(testutil.XrpcTestCase):
     def test_get_checkout(self):
         resp = xrpc_sync.get_checkout({}, did='did:web:user.com')
                                       # TODO
-                                      # commit=xrpc_sync.repo.cid)
+                                      # commit=xrpc_sync.repo.head.cid)
         roots, blocks = read_car(resp)
         self.assertEqual(self.data, load(blocks))
 
@@ -74,12 +74,12 @@ class XrpcSyncTest(testutil.XrpcTestCase):
         resp = xrpc_sync.list_repos({})
         self.assertEqual([{
             'did': 'did:web:user.com',
-            'head': server.repo.cid.encode('base32'),
+            'head': server.repo.head.cid.encode('base32'),
         }], resp)
 
     def test_get_head(self):
         resp = xrpc_sync.get_head({}, did='did:web:user.com')
-        self.assertEqual({'root': server.repo.cid.encode('base32')}, resp)
+        self.assertEqual({'root': server.repo.head.cid.encode('base32')}, resp)
 
     def test_get_record(self):
         path, obj = next(iter(self.data.items()))
@@ -452,7 +452,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
     def assertCommitMessage(self, commit_msg, record=None, write=None,
                             cur=None, prev=None, seq=None):
-        cur = cur or server.repo.cid
+        cur = cur or server.repo.head.cid
 
         blocks = commit_msg.pop('blocks')
         msg_roots, msg_blocks = read_car(blocks)
@@ -514,7 +514,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         subscriber_a.start()
 
         # create, subscriber_a
-        prev = server.repo.cid
+        prev = server.repo.head.cid
         tid = next_tid()
         create = Write(Action.CREATE, 'co.ll', tid, {'foo': 'bar'})
         server.repo.apply_writes([create], self.key)
@@ -533,7 +533,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
                               args=[received_b, delivered_b, 2])
         subscriber_b.start()
 
-        prev = server.repo.cid
+        prev = server.repo.head.cid
         update = Write(Action.UPDATE, 'co.ll', tid, {'foo': 'baz'})
         server.repo.apply_writes([update], self.key)
         delivered_a.acquire()
@@ -551,7 +551,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         # self.assertEqual(1, len(xrpc_sync.subscribers))
 
         # update, subscriber_b
-        prev = server.repo.cid
+        prev = server.repo.head.cid
         delete = Write(Action.DELETE, 'co.ll', tid,)
         server.repo.apply_writes([delete], self.key)
         delivered_b.acquire()
@@ -565,7 +565,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         # self.assertEqual(0, len(xrpc_sync.subscribers))
 
     def test_subscribe_repos_cursor_zero(self):
-        commit_cids = [server.repo.cid]
+        commit_cids = [server.repo.head.cid]
         writes = [None]
         tid = next_tid()
         for val in 'bar', 'baz', 'biff':
@@ -573,7 +573,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
                           'co.ll', tid, {'foo': val})
             writes.append(write)
             commit_cid = server.repo.apply_writes([write], self.key)
-            commit_cids.append(server.repo.cid)
+            commit_cids.append(server.repo.head.cid)
 
         received = []
         subscriber = Thread(target=self.subscribe, args=[received],

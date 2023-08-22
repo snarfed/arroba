@@ -36,7 +36,7 @@ def get_checkout(input, did=None, commit=None):
     validate(did=did)
 
     if not commit:
-        commit = server.repo.cid
+        commit = server.repo.head.cid
 
     if not server.storage.has(commit):
         raise ValueError(f'{commit} not found in {did}')
@@ -55,7 +55,7 @@ def get_repo(input, did=None, earliest=None, latest=None):
     validate(did=did)
 
     return car.write_car(
-        [server.repo.cid],
+        [server.repo.head.cid],
         (car.Block(cid=cid, data=data) for cid, data in server.repo.mst.load_all()))
 
 
@@ -65,7 +65,7 @@ def list_repos(input, limit=None, cursor=None):
     """
     return [{
         'did': server.repo.did,
-        'head': server.repo.cid.encode('base32'),
+        'head': server.repo.head.cid.encode('base32'),
     }]
 
 
@@ -209,7 +209,7 @@ def get_head(input, did=None):
     validate(did=did)
 
     return {
-        'root': server.repo.cid.encode('base32'),
+        'root': server.repo.head.cid.encode('base32'),
     }
 
 

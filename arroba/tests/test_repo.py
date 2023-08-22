@@ -100,7 +100,7 @@ class RepoTest(TestCase):
         self.assertEqual({}, self.repo.get_contents())
 
     def test_has_a_valid_signature_to_commit(self):
-        assert verify_commit_sig(self.repo.commit, self.key)
+        assert verify_commit_sig(self.repo.head.decoded, self.key)
 
     def test_loads_from_blockstore(self):
         objs = self.random_objects(5)
@@ -109,7 +109,7 @@ class RepoTest(TestCase):
              for tid, obj in objs.items()],
             self.key)
 
-        reloaded = Repo.load(self.storage, self.repo.cid)
+        reloaded = Repo.load(self.storage, self.repo.head.cid)
 
         self.assertEqual(2, reloaded.version)
         self.assertEqual('did:web:user.com', reloaded.did)
