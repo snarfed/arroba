@@ -117,9 +117,8 @@ class RepoTest(TestCase):
 
     def test_callback(self):
         def assertCommitIs(commit_data, write, seq):
-            commit_block = commit_data.blocks[commit_data.cid]
-
-            mst_entry = commit_data.blocks[commit_block.decoded['data']].decoded
+            mst_entry_cid = commit_data.commit.decoded['data']
+            mst_entry = commit_data.blocks[mst_entry_cid].decoded
 
             record_cid = None
             if write.record:
@@ -133,7 +132,7 @@ class RepoTest(TestCase):
                 self.assertEqual(write.record,
                                  commit_data.blocks[record_cid].decoded)
 
-            self.assertEqual(writes_to_commit_ops([write]), commit_block.ops)
+            self.assertEqual(writes_to_commit_ops([write]), commit_data.commit.ops)
 
             for block in commit_data.blocks.values():
                 self.assertEqual(seq, block.seq)

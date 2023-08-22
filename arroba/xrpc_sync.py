@@ -75,7 +75,7 @@ def enqueue_commit(commit_data):
       did: str
       commit_data: :class:`CommitData`
     """
-    logger.debug(f'New commit {commit_data.cid}')
+    logger.debug(f'New commit {commit_data.commit.cid}')
     if subscribers:
         logger.debug(f'Enqueueing for {len(subscribers)} subscribers')
 
@@ -109,9 +109,7 @@ def subscribe_repos(cursor=None):
       (dict header, dict payload)
     """
     def header_payload(commit_data):
-        cid = commit_data.cid
-        commit_block = commit_data.blocks[cid]
-        commit = commit_block.decoded
+        commit = commit_data.commit.decoded
         car_blocks = [car.Block(cid=block.cid, data=block.encoded,
                                 decoded=block.decoded)
                       for block in commit_data.blocks.values()]
@@ -124,11 +122,11 @@ def subscribe_repos(cursor=None):
                 'action': op.action.name.lower(),
                 'path': op.path,
                 'cid': op.cid,
-            } for op in (commit_block.ops or [])],
-            'commit': cid,
-            'blocks': car.write_car([cid], car_blocks),
+            } for op in (commit_data.commit.ops or [])],
+            'commit': commit_data.commit.cid,
+            'blocks': car.write_car([commit_data.commit.cid], car_blocks),
             'time': util.now().isoformat(),
-            'seq': commit_data.blocks[cid].seq,
+            'seq': commit_data.commit.seq,
             'prev': commit['prev'],
             'rebase': False,
             'tooBig': False,
@@ -160,7 +158,7 @@ def subscribe_repos(cursor=None):
             if block.seq != seq:  # switching to a new commit's blocks
                 if commit_block:
                     assert blocks
-                    commit_data = CommitData(blocks=blocks, cid=commit_block.cid,
+                    commit_data = CommitData(blocks=blocks, commit=commit_block,
                                              prev=commit_block.decoded['prev'])
                     yield header_payload(commit_data)
                 else:
@@ -175,7 +173,7 @@ def subscribe_repos(cursor=None):
 
         # final commit
         assert blocks and commit_block
-        commit_data = CommitData(blocks=blocks, cid=commit_block.cid,
+        commit_data = CommitData(blocks=blocks, commit=commit_block,
                                  prev=commit_block.decoded['prev'])
         yield header_payload(commit_data)
 

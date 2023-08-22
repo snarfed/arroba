@@ -23,9 +23,9 @@ class Action(Enum):
     UPDATE = auto()
     DELETE = auto()
 
+# TODO: Should this be a subclass of Block?
 CommitData = namedtuple('CommitData', [
-    # STATE: change cid to commit Block
-    'cid',     # CID
+    'commit',  # Block
     'blocks',  # dict of CID to Block
     'prev',    # CID or None
 ], defaults=[None])  # for ops
@@ -314,7 +314,7 @@ class MemoryStorage(Storage):
         for cid, block in commit_data.blocks.items():
             self.blocks.setdefault(cid, block)
 
-        self.head = commit_data.cid
+        self.head = commit_data.commit.cid
         # the Repo will generally already be in self.repos, and it updates its
         # own head cid, so no need to do that here manually.
 

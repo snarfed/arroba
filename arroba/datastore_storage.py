@@ -273,9 +273,9 @@ class DatastoreStorage(Storage):
                 template.key.id(), encoded=block.encoded, seq=seq, ops=template.ops)
             block.seq = seq
 
-        self.head = commit_data.cid
+        self.head = commit_data.commit.cid
 
-        commit = commit_data.blocks[commit_data.cid].decoded
+        commit = commit_data.commit.decoded
         head_encoded = self.head.encode('base32')
         repo = AtpRepo.get_or_insert(commit['did'], head=head_encoded)
         if repo.head == head_encoded:

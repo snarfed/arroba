@@ -126,15 +126,15 @@ class DatastoreStorageTest(DatastoreTest):
         commit_data = repo.format_commit(writes, self.key)
 
         self.storage.apply_commit(commit_data)
-        self.assertEqual(commit_data.cid, self.storage.head)
+        self.assertEqual(commit_data.commit.cid, self.storage.head)
         self.assert_same_seq(k.encode('base32') for k in commit_data.blocks.keys())
 
         repo = self.storage.load_repo(did='did:web:user.com')
         self.assertEqual('did:web:user.com', repo.did)
-        self.assertEqual(commit_data.cid, repo.cid)
+        self.assertEqual(commit_data.commit.cid, repo.cid)
 
         atp_repo = AtpRepo.get_by_id('did:web:user.com')
-        self.assertEqual(commit_data.cid, CID.decode(atp_repo.head))
+        self.assertEqual(commit_data.commit.cid, CID.decode(atp_repo.head))
 
         found = self.storage.read_many(commit_data.blocks.keys())
         # found has one extra MST Data node
@@ -158,11 +158,11 @@ class DatastoreStorageTest(DatastoreTest):
         decoded = [block.decoded for block in found.values()]
         self.assertIn(objs[0], decoded)
         self.assertIn(objs[1], decoded)
-        commit_obj = commit_data.blocks[commit_data.cid].decoded
-        self.assertEqual(commit_obj, found[commit_data.cid].decoded)
+        cid = commit_data.commit.cid
+        self.assertEqual(commit_data.commit.decoded, found[cid].decoded)
 
         repo = self.storage.load_repo(did='did:web:user.com')
-        self.assertEqual(commit_data.cid, repo.cid)
+        self.assertEqual(cid, repo.cid)
 
         atp_repo = AtpRepo.get_by_id('did:web:user.com')
-        self.assertEqual(commit_data.cid, CID.decode(atp_repo.head))
+        self.assertEqual(cid, CID.decode(atp_repo.head))

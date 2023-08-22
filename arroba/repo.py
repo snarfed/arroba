@@ -175,22 +175,22 @@ class Repo:
         }, key)
         commit_block = Block(decoded=commit, ops=writes_to_commit_ops(initial_writes))
         new_blocks[commit_block.cid] = commit_block
-        return CommitData(cid=commit_block.cid, prev=None, blocks=new_blocks)
+        return CommitData(commit=commit_block, prev=None, blocks=new_blocks)
 
     @classmethod
-    def create_from_commit(cls, storage, commit, **kwargs):
+    def create_from_commit(cls, storage, commit_data, **kwargs):
         """
 
         Args:
           storage: :class:`Storage`
-          commit: :class:`CommitData`
+          commit_data: :class:`CommitData`
           kwargs: passed through to :class:`Repo` constructor
 
         Returns:
           :class:`Repo`
         """
-        storage.apply_commit(commit)
-        repo = cls.load(storage, commit.cid, **kwargs)
+        storage.apply_commit(commit_data)
+        repo = cls.load(storage, commit_data.commit.cid, **kwargs)
         storage.create_repo(repo)
         return repo
 
@@ -286,7 +286,7 @@ class Repo:
         commit_blocks[commit_block.cid] = commit_block
 
         self.mst = mst
-        return CommitData(cid=commit_block.cid, prev=self.cid, blocks=commit_blocks)
+        return CommitData(commit=commit_block, prev=self.cid, blocks=commit_blocks)
 
     def apply_commit(self, commit_data):
         """
@@ -298,8 +298,8 @@ class Repo:
           :class:`Repo`, self
         """
         self.storage.apply_commit(commit_data)
-        self.commit = commit_data.blocks[commit_data.cid].decoded
-        self.cid = commit_data.cid
+        self.commit = commit_data.commit.decoded
+        self.cid = commit_data.commit.cid
         return self
 
     def apply_writes(self, writes, key):
