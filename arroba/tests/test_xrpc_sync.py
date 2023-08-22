@@ -10,9 +10,10 @@ from threading import Semaphore, Thread
 from carbox.car import Block, read_car
 import dag_cbor
 
-from ..repo import Action, Repo, Write
+from ..datastore_storage import DatastoreStorage
+from ..repo import Repo, Write, writes_to_commit_ops
 from .. import server
-from ..storage import SUBSCRIBE_REPOS_NSID
+from ..storage import Action, Storage, SUBSCRIBE_REPOS_NSID
 from .. import util
 from ..util import dag_cbor_cid, next_tid
 from .. import xrpc_sync
@@ -447,8 +448,8 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             if i == limit - 1:
                 return
 
-    def assertCommitMessage(self, commit_msg, record=None, cur=None, prev=None,
-                            seq=None):
+    def assertCommitMessage(self, commit_msg, record=None, write=None,
+                            cur=None, prev=None, seq=None):
         cur = cur or server.repo.cid
 
         blocks = commit_msg.pop('blocks')
@@ -459,14 +460,13 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             'repo': 'did:web:user.com',
             'commit': cur,
             'ops': [{
-                'action': 'create',
-                'path': 'STATE TODO!',
-                'cid': b.cid,
-            } for b in msg_blocks],
+                'action': op.action.name.lower(),
+                'path': op.path,
+                'cid': op.cid,
+            } for op in writes_to_commit_ops([write] if write else [])],
             'time': testutil.NOW.isoformat(),
             'seq': seq,
-            # TODO
-            'prev': None,
+            'prev': prev,
             'rebase': False,
             'tooBig': False,
             'blobs': [],
@@ -516,7 +516,8 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         delivered_a.acquire()
 
         self.assertEqual(1, len(received_a))
-        self.assertCommitMessage(received_a[0], {'foo': 'bar'}, prev=prev, seq=2)
+        self.assertCommitMessage(received_a[0], {'foo': 'bar'}, write=create,
+                                 prev=prev, seq=2)
         # TODO
         # self.assertEqual(1, len(xrpc_sync.subscribers))
 
@@ -534,9 +535,11 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         delivered_b.acquire()
 
         self.assertEqual(2, len(received_a))
-        self.assertCommitMessage(received_a[1], {'foo': 'baz'}, prev=prev, seq=3)
+        self.assertCommitMessage(received_a[1], {'foo': 'baz'}, write=update,
+                                 prev=prev, seq=3)
         self.assertEqual(1, len(received_b))
-        self.assertCommitMessage(received_b[0], {'foo': 'baz'}, prev=prev, seq=3)
+        self.assertCommitMessage(received_b[0], {'foo': 'baz'}, write=update,
+                                 prev=prev, seq=3)
 
         subscriber_a.join()
         # TODO
@@ -544,13 +547,13 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         # update, subscriber_b
         prev = server.repo.cid
-        update = Write(Action.UPDATE, 'co.ll', tid, {'biff': 0})
-        server.repo.apply_writes([update], self.key)
+        delete = Write(Action.DELETE, 'co.ll', tid,)
+        server.repo.apply_writes([delete], self.key)
         delivered_b.acquire()
 
         self.assertEqual(2, len(received_a))
         self.assertEqual(2, len(received_b))
-        self.assertCommitMessage(received_b[1], {'biff': 0}, prev=prev, seq=4)
+        self.assertCommitMessage(received_b[1], write=delete, prev=prev, seq=4)
 
         subscriber_b.join()
         # TODO
@@ -558,10 +561,12 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
     def test_subscribe_repos_cursor_zero(self):
         commit_cids = [server.repo.cid]
+        writes = [None]
         tid = next_tid()
         for val in 'bar', 'baz', 'biff':
             write = Write(Action.CREATE if val == 'bar' else Action.UPDATE,
                           'co.ll', tid, {'foo': val})
+            writes.append(write)
             commit_cid = server.repo.apply_writes([write], self.key)
             commit_cids.append(server.repo.cid)
 
@@ -571,14 +576,14 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         subscriber.start()
         subscriber.join()
 
-        self.assertEqual(5, server.storage.sequences[SUBSCRIBE_REPOS_NSID])
+        self.assertEqual(5, server.storage.next_seq(SUBSCRIBE_REPOS_NSID))
 
         self.assertCommitMessage(
             received[0], record=None, cur=commit_cids[0], prev=None, seq=1)
 
         for i, val in enumerate(['bar', 'baz', 'biff'], start=1):
             self.assertCommitMessage(
-                received[i], {'foo': val}, cur=commit_cids[i],
+                received[i], {'foo': val}, cur=commit_cids[i], write=writes[i],
                 prev=commit_cids[i - 1], seq=i + 1)
 
     # based on atproto/packages/pds/tests/sync/subscribe-repos.test.ts
@@ -923,3 +928,11 @@ class SubscribeReposTest(testutil.XrpcTestCase):
     #         throw Error('Expected ErrorFrame')
 
     #     self.assertEqual('FutureCursor', frames[0].body.error)
+
+
+class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
+    STORAGE_CLS = DatastoreStorage
+
+
+class DatastoreSubscribeReposTest(SubscribeReposTest, testutil.DatastoreTest):
+    STORAGE_CLS = DatastoreStorage

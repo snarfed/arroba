@@ -8,7 +8,8 @@ TODO:
 """
 import logging
 
-from .repo import Action, Repo, Write
+from .repo import Repo, Write
+from .storage import Action
 from . import server
 from .util import at_uri, dag_cbor_cid, next_tid
 

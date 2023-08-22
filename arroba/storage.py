@@ -4,6 +4,7 @@ Lightly based on:
 https://github.com/bluesky-social/atproto/blob/main/packages/repo/src/storage/repo-storage.ts
 """
 from collections import namedtuple
+from enum import auto, Enum
 
 import dag_cbor
 from multiformats import CID, multicodec, multihash
@@ -13,12 +14,28 @@ from .util import dag_cbor_cid
 SUBSCRIBE_REPOS_NSID = 'com.atproto.sync.subscribeRepos'
 
 
+class Action(Enum):
+    """Used in :meth:`Repo.format_commit`.
+
+    TODO: switch to StrEnum once we can require Python 3.11.
+    """
+    CREATE = auto()
+    UPDATE = auto()
+    DELETE = auto()
+
 CommitData = namedtuple('CommitData', [
     # STATE: change cid to commit Block
     'cid',     # CID
     'blocks',  # dict of CID to Block
     'prev',    # CID or None
+], defaults=[None])  # for ops
+
+CommitOp = namedtuple('CommitOp', [  # for subscribeRepos
+    'action',  # Action
+    'path',    # str
+    'cid',     # CID, or None for DELETE
 ])
+
 # commit record format is:
 # {
 #     'version': 2,
@@ -41,9 +58,10 @@ class Block:
       _decoded: dict, lazy-loaded
       _encoded: bytes, lazy-loaded
       seq: integer, com.atproto.sync.subscribeRepos sequence number
+      ops: list of :class:`CommitOp` if this is a commit, otherwise None
     """
-
-    def __init__(self, *, cid=None, decoded=None, encoded=None, seq=None):
+    def __init__(self, *, cid=None, decoded=None, encoded=None, seq=None,
+                 ops=None):
         """Constructor.
 
         Args:
@@ -56,6 +74,7 @@ class Block:
         self._encoded = encoded
         self._decoded = decoded
         self.seq = seq
+        self.ops = ops
 
     @property
     def cid(self):
@@ -94,12 +113,6 @@ class Block:
 
     def __hash__(self):
         return hash(self.cid)
-
-
-# STATE: need to expose seq for each block from storage?
-# and also need to be able to collect blocks with same seq into commit?
-# decode each block, identify commit, use the single commit for each seq?
-# and assert if a given seq has no commit, since there should always be one
 
 
 class Storage:

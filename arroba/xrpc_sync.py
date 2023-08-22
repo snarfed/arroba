@@ -110,7 +110,8 @@ def subscribe_repos(cursor=None):
     """
     def header_payload(commit_data):
         cid = commit_data.cid
-        commit = commit_data.blocks[cid].decoded
+        commit_block = commit_data.blocks[cid]
+        commit = commit_block.decoded
         car_blocks = [car.Block(cid=block.cid, data=block.encoded,
                                 decoded=block.decoded)
                       for block in commit_data.blocks.values()]
@@ -120,16 +121,15 @@ def subscribe_repos(cursor=None):
         }, {  # payload
             'repo': commit['did'],
             'ops': [{
-                'action': 'create',  # TODO: update, delete
-                'path': 'STATE TODO!',
-                'cid': b.cid,
-            } for b in car_blocks],
+                'action': op.action.name.lower(),
+                'path': op.path,
+                'cid': op.cid,
+            } for op in (commit_block.ops or [])],
             'commit': cid,
             'blocks': car.write_car([cid], car_blocks),
             'time': util.now().isoformat(),
             'seq': commit_data.blocks[cid].seq,
-            # TODO
-            'prev': None,
+            'prev': commit['prev'],
             'rebase': False,
             'tooBig': False,
             'blobs': [],
@@ -162,6 +162,7 @@ def subscribe_repos(cursor=None):
             blocks[block.cid] = block
             if block.decoded.keys() == set(['version', 'did', 'prev', 'data', 'sig']):
                 commit_block = block
+
 
         # final commit
         assert blocks and commit_block

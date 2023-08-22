@@ -9,7 +9,6 @@ Huge thanks to the Bluesky team for working in the public, in open source, and t
 Daniel Holmgren and Devin Ivy for this code specifically!
 """
 from collections import defaultdict, namedtuple
-from enum import auto, Enum
 import logging
 
 import dag_cbor
@@ -18,16 +17,9 @@ from multiformats import CID
 from . import util
 from .diff import Diff
 from .mst import MST
-from .storage import Block, CommitData, Storage
+from .storage import Action, Block, CommitData, CommitOp, Storage
 
 logger = logging.getLogger(__name__)
-
-
-class Action(Enum):
-    """Used in :meth:`Repo.format_commit`."""
-    CREATE = auto()
-    UPDATE = auto()
-    DELETE = auto()
 
 
 Write = namedtuple('Write', [
@@ -36,6 +28,24 @@ Write = namedtuple('Write', [
     'rkey',        # str
     'record',      # dict
 ], defaults=[None] * 4)
+
+
+def writes_to_commit_ops(writes):
+    """Converts :class:`Write`s to :class:`CommitOp`s.
+
+    Args:
+      write: iterable of :class:`Write`
+
+    Returns:
+      list of :class:`CommitOp`
+    """
+    if not writes:
+        return writes
+
+    return [CommitOp(action=write.action,
+                     path=f'{write.collection}/{write.rkey}',
+                     cid=util.dag_cbor_cid(write.record) if write.record else None)
+            for write in writes]
 
 
 class Repo:
@@ -163,7 +173,7 @@ class Repo:
             'prev': None,
             'data': root,
         }, key)
-        commit_block = Block(decoded=commit)
+        commit_block = Block(decoded=commit, ops=writes_to_commit_ops(initial_writes))
         new_blocks[commit_block.cid] = commit_block
         return CommitData(cid=commit_block.cid, prev=None, blocks=new_blocks)
 
@@ -272,7 +282,7 @@ class Repo:
             'prev': self.cid,
             'data': root,
         }, key)
-        commit_block = Block(decoded=commit)
+        commit_block = Block(decoded=commit, ops=writes_to_commit_ops(writes))
         commit_blocks[commit_block.cid] = commit_block
 
         self.mst = mst

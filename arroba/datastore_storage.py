@@ -8,7 +8,8 @@ from google.cloud import ndb
 from multiformats import CID, multicodec, multihash
 
 from .repo import Repo
-from .storage import Block, Storage, SUBSCRIBE_REPOS_NSID
+from . import storage
+from .storage import Action, Block, Storage, SUBSCRIBE_REPOS_NSID
 from .util import dag_cbor_cid
 
 logger = logging.getLogger(__name__)
@@ -63,6 +64,19 @@ class WriteOnceBlobProperty(WriteOnce, ndb.BlobProperty):
     pass
 
 
+class CommitOp(ndb.Model):
+    """Repo operations - creates, updates, deletes - included in a commit.
+
+    Used in a StructuredProperty inside AtpBlock; not stored directly in the
+    datastore.
+
+    https://googleapis.dev/python/python-ndb/latest/model.html#google.cloud.ndb.model.StructuredProperty
+    """
+    action = ndb.StringProperty(required=True, choices=['create', 'update', 'delete'])
+    path = ndb.StringProperty(required=True)
+    cid = ndb.StringProperty()  # unset for deletes
+
+
 class AtpBlock(ndb.Model):
     """A data record, MST node, or commit.
 
@@ -75,6 +89,7 @@ class AtpBlock(ndb.Model):
     """
     encoded = WriteOnceBlobProperty(required=True)
     seq = ndb.IntegerProperty(required=True)
+    ops = ndb.StructuredProperty(CommitOp, repeated=True)
 
     @ComputedJsonProperty
     def decoded(self):
@@ -115,7 +130,10 @@ class AtpBlock(ndb.Model):
         Returns:
           :class:`Block`
         """
-        return Block(cid=self.cid, encoded=self.encoded, seq=self.seq)
+        ops = [storage.CommitOp(action=Action[op.action.upper()], path=op.path,
+                                cid=CID.decode(op.cid) if op.cid else None)
+               for op in self.ops]
+        return Block(cid=self.cid, encoded=self.encoded, seq=self.seq, ops=ops)
 
     @classmethod
     def from_block(cls, block):
@@ -127,8 +145,11 @@ class AtpBlock(ndb.Model):
         Returns:
           :class:`AtpBlock`
         """
+        ops = [CommitOp(action=op.action.name.lower(), path=op.path,
+                        cid=op.cid.encode('base32') if op.cid else None)
+               for op in (block.ops or [])]
         return AtpBlock(id=block.cid.encode('base32'), encoded=block.encoded,
-                        seq=block.seq)
+                        seq=block.seq, ops=ops)
 
 
 class AtpRepo(ndb.Model):
@@ -249,9 +270,10 @@ class DatastoreStorage(Storage):
         seq = AtpSequence.get_next(SUBSCRIBE_REPOS_NSID)
 
         for block in commit_data.blocks.values():
+            template = AtpBlock.from_block(block)
             atp_block = AtpBlock.get_or_insert(
-                block.cid.encode('base32'), encoded=block.encoded, seq=seq)
-            block.seq = atp_block.seq
+                template.key.id(), encoded=block.encoded, seq=seq, ops=template.ops)
+            block.seq = seq
 
         self.head = commit_data.cid
 
