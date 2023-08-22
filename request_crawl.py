@@ -3,8 +3,9 @@ import os
 from pathlib import Path
 from datetime import datetime, timedelta
 
-import jwt_monkeypatch as jwt
 import requests
+
+from arroba import jwt_monkeypatch as jwt
 
 
 os.environ.setdefault('BGS_HOST', 'bgs.bsky-sandbox.dev')

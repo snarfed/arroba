@@ -14,7 +14,7 @@ from google.cloud import ndb
 import lexrpc.flask_server
 import requests
 
-import jwt_monkeypatch as jwt
+from arroba import jwt_monkeypatch as jwt
 
 logger = logging.getLogger(__name__)
 logging.basicConfig()
@@ -82,6 +82,10 @@ APPVIEW_HEADERS = {
       'User-Agent': USER_AGENT,
       'Authorization': f'Bearer {APPVIEW_JWT}',
 }
+
+@app.route('/xrpc/app.bsky.actor.getPreferences', methods=['OPTIONS'])
+def options_preferences():
+    return '', lexrpc.flask_server.RESPONSE_HEADERS
 
 @app.get('/xrpc/app.bsky.actor.getPreferences')
 def get_preferences():
