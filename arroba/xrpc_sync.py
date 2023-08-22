@@ -143,7 +143,7 @@ def subscribe_repos(cursor=None):
     if cursor is not None:
         logger.info(f'subscribeRepos: fetching existing commits from seq {cursor}')
         last_seq = server.repo.storage.last_seq(SUBSCRIBE_REPOS_NSID)
-        if cursor >= last_seq:
+        if cursor > last_seq:
             yield ({
                 'op': -1,
             }, {
