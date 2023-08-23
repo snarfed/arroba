@@ -143,7 +143,7 @@ class Repo:
         Args:
           storage: :class:`Storage`
           did: string,
-          key: :class:`Crypto.PublicKey.ECC.EccKey`
+          key: :class:`ec.EllipticCurvePrivateKey`
           initial_writes: sequence of :class:`Write`
 
         Returns:
@@ -196,7 +196,7 @@ class Repo:
         Args:
           storage: :class:`Storage`
           did: string
-          key: :class:`Crypto.PublicKey.ECC.EccKey`
+          key: :class:`ec.EllipticCurvePrivateKey`
           initial_writes: sequence of :class:`Write`
           kwargs: passed through to :class:`Repo` constructor
 
@@ -235,7 +235,7 @@ class Repo:
 
         Args:
           writes: :class:`Write` or sequence of :class:`Write`
-          key: :class:`Crypto.PublicKey.ECC.EccKey`
+          key: :class:`ec.EllipticCurvePrivateKey`
 
         Returns:
           :class:`CommitData`
@@ -302,7 +302,7 @@ class Repo:
 
         Args:
           writes: :class:`Write` or sequence of :class:`Write`
-          key: :class:`Crypto.PublicKey.ECC.EccKey`
+          key: :class:`ec.EllipticCurvePrivateKey`
 
         Returns:
           :class:`Repo`, self
@@ -356,7 +356,7 @@ class Repo:
     #   """
     #
     #   Args:
-    #     key: :class:`Crypto.PublicKey.ECC.EccKey`
+    #     key: :class:`ec.EllipticCurvePrivateKey`
     #   """
     #     rebase_data = self.format_rebase(key)
     #     return self.apply_rebase(rebase_data)

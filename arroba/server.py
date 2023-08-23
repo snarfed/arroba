@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 import random
 
-from Crypto.PublicKey import ECC
 from flask import request
 from lexrpc.server import Server
 

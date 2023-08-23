@@ -1,12 +1,11 @@
 """Unit tests for util.py."""
-from Crypto.PublicKey import ECC
 from multiformats import CID
 
 from ..util import (
     at_uri,
     dag_cbor_cid,
     datetime_to_tid,
-    new_p256_key,
+    new_key,
     next_tid,
     sign_commit,
     tid_to_datetime,
@@ -29,19 +28,20 @@ class UtilTest(TestCase):
         self.assertEqual(NOW, tid_to_datetime('3iom4o4g6u2l2'))
 
     def test_sign_commit_and_verify(self):
-        key = new_p256_key()
+        key = new_key()
         commit = {'foo': 'bar'}
         sign_commit(commit, key)
-        assert verify_commit_sig(commit, key)
+        assert verify_commit_sig(commit, key.public_key())
 
     def test_verify_commit_error(self):
-        key = new_p256_key()
+        key = new_key()
         with self.assertRaises(KeyError):
-            self.assertFalse(verify_commit_sig({'foo': 'bar'}, key))
+            self.assertFalse(verify_commit_sig({'foo': 'bar'}, key.public_key()))
 
     def test_verify_commit_fail(self):
-        key = new_p256_key()
-        self.assertFalse(verify_commit_sig({'foo': 'bar', 'sig': 'nope'}, key))
+        key = new_key()
+        self.assertFalse(verify_commit_sig({'foo': 'bar', 'sig': 'nope'},
+                                           key.public_key()))
 
     def test_next_tid(self):
         first = next_tid()

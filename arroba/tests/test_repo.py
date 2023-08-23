@@ -100,7 +100,7 @@ class RepoTest(TestCase):
         self.assertEqual({}, self.repo.get_contents())
 
     def test_has_a_valid_signature_to_commit(self):
-        assert verify_commit_sig(self.repo.head.decoded, self.key)
+        assert verify_commit_sig(self.repo.head.decoded, self.key.public_key())
 
     def test_loads_from_blockstore(self):
         objs = self.random_objects(5)

@@ -5,7 +5,6 @@ import os
 import unittest
 from unittest.mock import ANY, call
 
-from Crypto.PublicKey import ECC
 import dag_cbor.random
 from flask import Flask, request
 from google.auth.credentials import AnonymousCredentials
@@ -18,7 +17,7 @@ from ..repo import Repo
 from .. import server
 from ..storage import MemoryStorage
 from .. import util
-from ..util import datetime_to_tid, next_tid
+from ..util import datetime_to_tid, next_tid, new_key
 
 NOW = datetime(2022, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
 
@@ -46,11 +45,10 @@ class TestCase(unittest.TestCase):
         util._clockid = 17
         random.seed(1234567890)
         dag_cbor.random.set_options(seed=1234567890)
-        util._randfunc = random.randbytes
 
         # reuse this because it's expensive to generate
         if not TestCase.key:
-            TestCase.key = ECC.generate(curve='P-256', randfunc=random.randbytes)
+            TestCase.key = util.new_key()
 
         os.environ.setdefault('REPO_PASSWORD', 'sooper-sekret')
         os.environ.setdefault('REPO_TOKEN', 'towkin')

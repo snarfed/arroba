@@ -6,18 +6,17 @@ from numbers import Integral
 import random
 import time
 
-from Crypto.Hash import SHA256
-from Crypto.PublicKey import ECC
-from Crypto.Signature import DSS
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric.utils import (
+    decode_dss_signature,
+    encode_dss_signature,
+)
+from cryptography.hazmat.primitives import hashes
 import dag_cbor
 from multiformats import CID, multicodec, multihash
 
 logger = logging.getLogger(__name__)
-
-# used as pycryptodome's randfunc in various places. None defaults to
-# pycryptodome's internal RNG. This constant is overridden in tests to use
-# random.randbytes with a fixed seed.
-_randfunc = None
 
 # the bottom 32 clock ids can be randomized & are not guaranteed to be collision
 # resistant. we use the same clockid for all TIDs coming from this runtime.
@@ -25,6 +24,13 @@ _clockid = random.randint(0, 31)
 _tid_last = 0  # microseconds
 
 S32_CHARS = '234567abcdefghijklmnopqrstuvwxyz'
+
+# for low-S signing
+# https://atproto.com/specs/cryptography
+CURVE_ORDER = {
+    ec.SECP256R1: 0xFFFFFFFF_00000000_FFFFFFFF_FFFFFFFF_BCE6FAAD_A7179E84_F3B9CAC2_FC632551,
+    ec.SECP256K1: 0xFFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFE_BAAEDCE6_AF48A03B_BFD25E8C_D0364141
+}
 
 
 def now(tz=timezone.utc, **kwargs):
@@ -166,56 +172,67 @@ def at_uri(did, collection, rkey):
     return f'at://{did}/{collection}/{rkey}'
 
 
-def new_p256_key():
+def new_key():
     """Generates a new ECC P-256 keypair.
 
     Returns:
-      :class:`Crypto.PublicKey.ECC.EccKey`
+      :class:`ec.EllipticCurvePrivateKey`
     """
-    return ECC.generate(curve='P-256', randfunc=_randfunc)
+    return ec.generate_private_key(ec.SECP256K1())
 
 
-def sign_commit(commit, key):
+def sign_commit(commit, private_key):
     """Signs a repo commit.
 
     Adds the signature in the `sig` field.
 
-    Signing isn't yet in the atproto.com docs, this setup is taken from the TS
-    code and conversations with @why on #bluesky-dev:matrix.org.
+    https://atproto.com/specs/cryptography
 
-    * https://matrix.to/#/!vpdMrhHjzaPbBUSgOs:matrix.org/$Xaf4ugYks-iYg7Pguh3dN8hlsvVMUOuCQo3fMiYPXTY?via=matrix.org&via=minds.com&via=envs.net
-    * https://github.com/bluesky-social/atproto/blob/384e739a3b7d34f7a95d6ba6f08e7223a7398995/packages/repo/src/util.ts#L238-L248
-    * https://github.com/bluesky-social/atproto/blob/384e739a3b7d34f7a95d6ba6f08e7223a7398995/packages/crypto/src/p256/keypair.ts#L66-L73
-    * https://github.com/bluesky-social/indigo/blob/f1f2480888ab5d0ac1e03bd9b7de090a3d26cd13/repo/repo.go#L64-L70
-    * https://github.com/whyrusleeping/go-did/blob/2146016fc220aa1e08ccf26aaa762f5a11a81404/key.go#L67-L91
-
-    The signature is ECDSA around SHA-256 of the input. We currently use P-256
-    keypairs. Context:
-    * Go supports P-256, ED25519, SECP256K1 keys
-    * TS supports P-256, SECP256K1 keys
-    * this recommends ED25519, then P-256:
-      https://soatok.blog/2022/05/19/guidance-for-choosing-an-elliptic-curve-signature-algorithm-in-2022/
+    The signature is ECDSA around SHA-256 of the input, including a custom
+    second pass to enforce that it's the "low-S" variant:
+    https://atproto.com/specs/cryptography#ecdsa-signature-malleability
 
     Args:
       commit: dict, repo commit
-      key: :class:`Crypto.PublicKey.ECC.EccKey`
+      private_key: :class:`ec.EllipticCurvePrivateKey`
 
     Returns:
       dict, repo commit
     """
-    signer = DSS.new(key, 'fips-186-3', randfunc=_randfunc)
-    commit['sig'] = signer.sign(SHA256.new(dag_cbor.encoding.encode(commit)))
+    orig_sig = private_key.sign(dag_cbor.encode(commit), ec.ECDSA(hashes.SHA256()))
+    r, s = decode_dss_signature(apply_low_s_mitigation(orig_sig, private_key.curve))
+    commit['sig'] = r.to_bytes(32, 'big') + s.to_bytes(32, 'big')
     return commit
 
+    # old, using pycryptodome
+    # signer = DSS.new(private_key, 'fips-186-3', randfunc=_randfunc)
+    # commit['sig'] = signer.sign(SHA256.new(dag_cbor.encode(commit)))
+    # return commit
 
-def verify_commit_sig(commit, key):
+
+def apply_low_s_mitigation(signature: bytes, curve: ec.EllipticCurve) -> bytes:
+    """Low-S signature mitigation.
+
+    https://atproto.com/specs/cryptography#ecdsa-signature-malleability
+
+    From picopds. Thank you David!
+    https://github.com/DavidBuchanan314/picopds/blob/main/signing.py
+    """
+    r, s = decode_dss_signature(signature)
+    n = CURVE_ORDER[type(curve)]
+    if s > n // 2:
+        s = n - s
+    return encode_dss_signature(r, s)
+
+
+def verify_commit_sig(commit, public_key):
     """Returns true if the commit's signature is valid, False otherwise.
 
     See :func:`sign_commit` for more background.
 
     Args:
       commit: dict repo commit
-      key: :class:`Crypto.PublicKey.ECC.EccKey`
+      public_key: :class:`ec.EllipticCurvePublicKey`
 
     Raises:
       KeyError if the commit isn't signed, ie doesn't have a `sig` field
@@ -223,11 +240,19 @@ def verify_commit_sig(commit, key):
     commit = copy.copy(commit)
     sig = commit.pop('sig')
 
-    verifier = DSS.new(key.public_key(), 'fips-186-3', randfunc=_randfunc)
+    if len(sig) != 64:
+        logger.debug('Expected signature to be 64 bytes, got {len(sig)}')
+        return False
+
+    r = int.from_bytes(sig[:32], 'big')
+    s = int.from_bytes(sig[32:], 'big')
+    der_sig = encode_dss_signature(r, s)
+
     try:
-        verifier.verify(SHA256.new(dag_cbor.encode(commit)), sig)
+        public_key.verify(der_sig, dag_cbor.encode(commit),
+                          ec.ECDSA(hashes.SHA256()))
         return True
-    except ValueError:
+    except InvalidSignature:
         logger.debug("Couldn't verify signature", exc_info=True)
         return False
 

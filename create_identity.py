@@ -9,8 +9,7 @@ env REPO_HANDLE=arroba1.snarfed.org \
   python ./create_identity.py
 
 Notes:
-* Generates a P-256 (not SECP256K1) keypair. Writes the private key to
-  privkey.pem.
+* Generates a K-256 (SECP256K1) keypair. Writes the private key to privkey.pem.
 * Generates and writes a DID document to [did].json
 * Publishes the DID document to $PLC_HOST
 """
@@ -19,33 +18,41 @@ import json
 import os
 import sys
 
-from Crypto.Hash import SHA256
-from Crypto.PublicKey import ECC
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
+
 import dag_cbor
 from multiformats import multibase, multicodec
 import requests
 
-from arroba.util import new_p256_key, sign_commit
+from arroba.util import new_key, sign_commit
 
 
 assert os.environ['REPO_HANDLE']
 assert os.environ['PDS_HOST']
 assert os.environ['PLC_HOST']
 
-print('Generating new P-256 keypair...')
-privkey = new_p256_key()
+print('Generating new k256 keypair...')
+# https://atproto.com/specs/cryptography
+privkey = new_key()
 pubkey = privkey.public_key()
 # https://atproto.com/specs/did#public-key-encoding
-# https://www.pycryptodome.org/src/public_key/ecc#Crypto.PublicKey.ECC.EccKey.export_key
-pubkey_bytes = pubkey.export_key(format='raw', compress=True)
-pubkey_multibase = multibase.encode(multicodec.wrap('p256-pub', pubkey_bytes),
+pubkey_bytes = pubkey.public_bytes(serialization.Encoding.X962,
+                                   serialization.PublicFormat.CompressedPoint)
+pubkey_multibase = multibase.encode(multicodec.wrap('secp256k1-pub', pubkey_bytes),
                                     'base58btc')
 did_key = f'did:key:{pubkey_multibase}'
 print(f'  {did_key}')
 
 print('Writing private key to privkey.pem...')
 with open('privkey.pem', 'w') as f:
-    f.write(privkey.export_key(format='PEM'))
+    f.write(privkey.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ))
 
 # https://atproto.com/specs/did#did-documents
 print('Generating and signing DID document...')
@@ -81,12 +88,13 @@ json.dump(genesis, sys.stdout, indent=2)
 print()
 
 # https://atproto.com/specs/did#public-key-encoding
-# https://www.pycryptodome.org/src/public_key/ecc#Crypto.PublicKey.ECC.EccKey.export_key
-pubkey_bytes = pubkey.export_key(format='raw')
+# https://cryptography.io/en/latest/hazmat/primitives/asymmetric/serialization/#cryptography.hazmat.primitives.serialization.Encoding
+pubkey_bytes = pubkey.public_bytes(serialization.Encoding.Raw,  # is this right?!
+                                   serialization.PublicFormat.UncompressedPoint)
 pubkey_multibase = multibase.encode(pubkey_bytes, 'base58btc') + 'z'
 did_key_obj = {
     'id': '#atproto',
-    'type': 'p256',
+    'type': 'k256',
     'controller': did_plc,
     'publicKeyMultibase': pubkey_multibase,
 }

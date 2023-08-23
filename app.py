@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 from urllib.parse import urljoin
 
-from Crypto.PublicKey import ECC
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from flask import Flask, make_response, redirect, request
 import google.cloud.logging
@@ -69,15 +68,15 @@ app.json.compact = False
 
 # https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification
 # https://atproto.com/specs/cryptography
-privkey_bytes = server.key = load_pem_private_key(
-    os.environ['REPO_PRIVKEY'].encode(), password=None)
+privkey = server.key = load_pem_private_key(os.environ['REPO_PRIVKEY'].encode(),
+                                            password=None)
 jwt_raw = {
     'iss': os.environ['REPO_DID'],
     'aud': f'did:web:{os.environ["APPVIEW_HOST"]}',
     'alg': 'ES256',  # p256
     'exp': int((datetime.now() + timedelta(days=7)).timestamp()),  # 😎
 }
-APPVIEW_JWT = jwt.encode(jwt_raw, privkey_bytes, algorithm='ES256')
+APPVIEW_JWT = jwt.encode(jwt_raw, privkey, algorithm='ES256')
 APPVIEW_HEADERS = {
       'User-Agent': USER_AGENT,
       'Authorization': f'Bearer {APPVIEW_JWT}',
@@ -118,8 +117,6 @@ def proxy_appview(nsid_rest=None):
     }
 
 lexrpc.flask_server.init_flask(server.server, app)
-
-server.key = ECC.import_key(os.environ['REPO_PRIVKEY'])
 
 ndb_client = ndb.Client()
 
