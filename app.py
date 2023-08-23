@@ -85,6 +85,7 @@ APPVIEW_HEADERS = {
 }
 
 @app.route('/xrpc/app.bsky.actor.getPreferences', methods=['OPTIONS'])
+@app.route('/xrpc/app.bsky.actor.putPreferences', methods=['OPTIONS'])
 def options_preferences():
     return '', lexrpc.flask_server.RESPONSE_HEADERS
 
