@@ -50,11 +50,12 @@ os.environ.setdefault('REPO_HANDLE', handle)
 # https://cloud.google.com/appengine/docs/flexible/python/runtime#environment_variables
 is_prod = 'GAE_INSTANCE' in os.environ
 if is_prod:
-    # prod App Engine
+    logger.info('Running against production GAE')
     logging_client = google.cloud.logging.Client()
     logging_client.setup_logging(log_level=logging.DEBUG)
 else:
-    # local
+    logger.info('Running locally')
+    assert 'GOOGLE_APPLICATION_CREDENTIALS' not in os.environ
     os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = os.path.join(
         os.path.dirname(__file__), 'fake_user_account.json')
     os.environ.setdefault('CLOUDSDK_CORE_PROJECT', 'app')
@@ -62,6 +63,7 @@ else:
     os.environ.setdefault('GOOGLE_CLOUD_PROJECT', 'app')
     os.environ.setdefault('DATASTORE_EMULATOR_HOST', 'localhost:8089')
 
+logger.info(f'Env: {json.dumps(dict(sorted(os.environ.items())), indent=2)}')
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ['REPO_TOKEN']
 app.json.compact = False

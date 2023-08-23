@@ -22,7 +22,7 @@ os.environ.setdefault('REPO_DID', did_docs[0].name.removesuffix('.json'))
 token = jwt.encode({
     'iss': os.environ['REPO_DID'],
     'aud': f'did:web:{os.environ["BGS_HOST"]}',
-    'exp': int((datetime.now() + timedelta(days=7)).timestamp()),  # 😎
+    'exp': int((datetime.now() + timedelta(days=999)).timestamp()),  # 😎
 }, os.environ['REPO_PRIVKEY'], algorithm='ES256K')
 
 url = f'https://{os.environ["BGS_HOST"]}/xrpc/com.atproto.sync.requestCrawl'
