@@ -4,6 +4,7 @@ extremely cursed: monkeypatch pyjwt to always produce low-s secp256k1 ECDSA sign
 
 https://atproto.com/specs/cryptography#ecdsa-signature-malleability
 """
+from cryptography.hazmat.primitives.asymmetric import ec
 from jwt import *
 from jwt import algorithms
 

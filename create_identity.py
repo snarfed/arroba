@@ -3,7 +3,7 @@
 Run inside the arroba virtualenv. Requires the REPO_HANDLE, PDS_HOST, and
 PLC_HOST environment variables. Example usage:
 
-env REPO_HANDLE=arroba1.snarfed.org \
+env REPO_HANDLE=arroba3.snarfed.org \
   PDS_HOST=arroba-pds.appspot.com \
   PLC_HOST=plc.bsky-sandbox.dev \
   python ./create_identity.py
@@ -19,7 +19,7 @@ import os
 import sys
 
 from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.hashes import Hash, SHA256
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 
@@ -47,7 +47,7 @@ did_key = f'did:key:{pubkey_multibase}'
 print(f'  {did_key}')
 
 print('Writing private key to privkey.pem...')
-with open('privkey.pem', 'w') as f:
+with open('privkey.pem', 'wb') as f:
     f.write(privkey.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.PKCS8,
@@ -75,7 +75,9 @@ genesis = {
 }
 genesis = sign_commit(genesis, privkey)
 genesis['sig'] = base64.urlsafe_b64encode(genesis['sig']).decode()
-hash = SHA256.new(dag_cbor.encode(genesis)).digest()
+sha256 = Hash(SHA256())
+sha256.update(dag_cbor.encode(genesis))
+hash = sha256.finalize()
 did_plc = 'did:plc:' + base64.b32encode(hash)[:24].lower().decode()
 print('  ', did_plc)
 
@@ -89,9 +91,14 @@ print()
 
 # https://atproto.com/specs/did#public-key-encoding
 # https://cryptography.io/en/latest/hazmat/primitives/asymmetric/serialization/#cryptography.hazmat.primitives.serialization.Encoding
-pubkey_bytes = pubkey.public_bytes(serialization.Encoding.Raw,  # is this right?!
-                                   serialization.PublicFormat.UncompressedPoint)
-pubkey_multibase = multibase.encode(pubkey_bytes, 'base58btc') + 'z'
+
+# TODO: how to get uncompressed public key bytes as required by ATProto
+# for the `publicKeyMultibase` field here?
+# https://atproto.com/specs/did#public-key-encoding
+# pubkey_bytes = pubkey.public_bytes(serialization.Encoding.Raw,  # is this right?!
+#                                    serialization.PublicFormat.Raw)
+# pubkey_multibase = multibase.encode(pubkey_bytes, 'base58btc') + 'z'
+pubkey_multibase = 'TODO'
 did_key_obj = {
     'id': '#atproto',
     'type': 'k256',
