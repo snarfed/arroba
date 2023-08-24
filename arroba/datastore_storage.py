@@ -77,6 +77,23 @@ class CommitOp(ndb.Model):
     cid = ndb.StringProperty()  # unset for deletes
 
 
+class AtpRepo(ndb.Model):
+    """An ATProto repo.
+
+    Key name is DID. Only stores the repo's metadata. Blocks are stored in
+    :class:`AtpBlock`s.
+
+    Properties:
+    * handles: str, repeated, optional
+    * head: str CID
+    """
+    handles = ndb.StringProperty(repeated=True)
+    head = ndb.StringProperty(required=True)
+
+    created = ndb.DateTimeProperty(auto_now_add=True)
+    updated = ndb.DateTimeProperty(auto_now=True)
+
+
 class AtpBlock(ndb.Model):
     """A data record, MST node, or commit.
 
@@ -87,6 +104,7 @@ class AtpBlock(ndb.Model):
     * data: dict, DAG-JSON value, only used for human debugging
     * seq: int, sequence number for the subscribeRepos event stream
     """
+    repo = ndb.KeyProperty(AtpRepo, required=True)
     encoded = WriteOnceBlobProperty(required=True)
     seq = ndb.IntegerProperty(required=True)
     ops = ndb.StructuredProperty(CommitOp, repeated=True)
@@ -102,7 +120,7 @@ class AtpBlock(ndb.Model):
         return CID.decode(self.key.id())
 
     @staticmethod
-    def create(data, seq):
+    def create(*, repo_did, data, seq):
         """Writes a new AtpBlock to the datastore.
 
         If the block already exists in the datastore, leave it untouched.
@@ -110,6 +128,7 @@ class AtpBlock(ndb.Model):
         this current sequence number.
 
         Args:
+          repo_did: str
           data: dict value
           seq: integer
 
@@ -121,7 +140,8 @@ class AtpBlock(ndb.Model):
         digest = multihash.digest(encoded, 'sha2-256')
         cid = CID('base58btc', 1, multicodec.get('dag-cbor'), digest)
 
-        atp_block = AtpBlock.get_or_insert(cid.encode('base32'),
+        repo_key = ndb.Key(AtpRepo, repo_did)
+        atp_block = AtpBlock.get_or_insert(cid.encode('base32'), repo=repo_key,
                                            encoded=encoded, seq=seq)
         assert atp_block.seq <= seq
         return atp_block
@@ -138,10 +158,11 @@ class AtpBlock(ndb.Model):
         return Block(cid=self.cid, encoded=self.encoded, seq=self.seq, ops=ops)
 
     @classmethod
-    def from_block(cls, block):
+    def from_block(cls, *, repo_did, block):
         """Converts a :class:`Block` to an :class:`AtpBlock`.
 
         Args:
+          repo_did: str
           block: :class:`Block`
 
         Returns:
@@ -151,24 +172,7 @@ class AtpBlock(ndb.Model):
                         cid=op.cid.encode('base32') if op.cid else None)
                for op in (block.ops or [])]
         return AtpBlock(id=block.cid.encode('base32'), encoded=block.encoded,
-                        seq=block.seq, ops=ops)
-
-
-class AtpRepo(ndb.Model):
-    """An ATProto repo.
-
-    Key name is DID. Only stores the repo's metadata. Blocks are stored in
-    :class:`AtpBlock`s.
-
-    Properties:
-    * handles: str, repeated, optional
-    * head: str CID
-    """
-    handles = ndb.StringProperty(repeated=True)
-    head = ndb.StringProperty(required=True)
-
-    created = ndb.DateTimeProperty(auto_now_add=True)
-    updated = ndb.DateTimeProperty(auto_now=True)
+                        repo=ndb.Key(AtpRepo, repo_did), seq=block.seq, ops=ops)
 
 
 class AtpSequence(ndb.Model):
@@ -267,18 +271,20 @@ class DatastoreStorage(Storage):
     def has(self, cid):
         return self.read(cid) is not None
 
-    def write(self, obj):
+    def write(self, repo_did, obj):
         seq = AtpSequence.allocate(SUBSCRIBE_REPOS_NSID)
-        return AtpBlock.create(obj, seq=seq).cid
+        return AtpBlock.create(repo_did=repo_did, data=obj, seq=seq).cid
 
     @ndb.transactional()
     def apply_commit(self, commit_data):
         seq = AtpSequence.allocate(SUBSCRIBE_REPOS_NSID)
 
         for block in commit_data.blocks.values():
-            template = AtpBlock.from_block(block)
+            template = AtpBlock.from_block(
+                repo_did=commit_data.commit.decoded['did'], block=block)
             atp_block = AtpBlock.get_or_insert(
-                template.key.id(), encoded=block.encoded, seq=seq, ops=template.ops)
+                template.key.id(), repo=template.repo, encoded=block.encoded,
+                seq=seq, ops=template.ops)
             block.seq = seq
 
         self.head = commit_data.commit.cid

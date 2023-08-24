@@ -200,12 +200,13 @@ class Storage:
         """
         raise NotImplementedError()
 
-    def write(self, obj):
+    def write(self, repo_did, obj):
         """Writes a node to storage.
 
         Generates new sequence number(s) as necessary for newly stored blocks.
 
         Args:
+          repo_did: str
           obj: dict, a record, commit, or serialized MST node
 
         Returns:
@@ -298,7 +299,7 @@ class MemoryStorage(Storage):
     def has(self, cid):
         return cid in self.blocks
 
-    def write(self, obj):
+    def write(self, repo_did, obj):
         block = Block(decoded=obj, seq=self.allocate_seq(SUBSCRIBE_REPOS_NSID))
         if block not in self.blocks:
             self.blocks.add(block)

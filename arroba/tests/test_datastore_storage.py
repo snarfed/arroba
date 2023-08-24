@@ -48,8 +48,9 @@ class DatastoreStorageTest(DatastoreTest):
 
     def test_atp_block_create(self):
         data = {'foo': 'bar'}
-        AtpBlock.create(data, seq=1)
+        AtpBlock.create(repo_did='did:web:user.com', data=data, seq=1)
         stored = AtpBlock.get_by_id(dag_cbor_cid(data).encode('base32'))
+        self.assertEqual('did:web:user.com', stored.repo.id())
         self.assertEqual(data, stored.decoded)
         self.assertGreater(stored.seq, 0)
 
@@ -78,7 +79,7 @@ class DatastoreStorageTest(DatastoreTest):
         self.assertFalse(self.storage.has(CIDS[0]))
 
         data = {'foo': 'bar'}
-        cid = self.storage.write(data)
+        cid = self.storage.write(repo_did='did:web:user.com', obj=data)
         self.assertEqual(data, self.storage.read(cid).decoded)
         self.assertTrue(self.storage.has(cid))
 
@@ -87,7 +88,8 @@ class DatastoreStorageTest(DatastoreTest):
                          self.storage.read_many(CIDS))
 
         data = [{'foo': 'bar'}, {'baz': 'biff'}]
-        stored = [self.storage.write(d) for d in data]
+        stored = [self.storage.write(repo_did='did:web:user.com', obj=d)
+                  for d in data]
 
         cids = [stored[0], CIDS[0], stored[1]]
         self.assertEqual(
@@ -106,6 +108,7 @@ class DatastoreStorageTest(DatastoreTest):
 
         seq = blocks[0].seq
         for block in blocks[1:]:
+            self.assertEqual(ndb.Key(AtpRepo, 'did:web:user.com'), block.repo)
             self.assertEqual(seq, block.seq)
 
     def test_apply_commit(self):
