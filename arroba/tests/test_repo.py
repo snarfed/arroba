@@ -50,6 +50,9 @@ class RepoTest(TestCase):
         ), self.key)
         self.assertEqual(profile, repo.get_record('my.stuff', tid))
 
+        reloaded = Repo.load(self.storage, cid=repo.head.cid)
+        self.assertEqual(profile, reloaded.get_record('my.stuff', tid))
+
         profile['description'] = "I'm the best"
         repo = repo.apply_writes(Write(
             action=Action.UPDATE,
@@ -59,12 +62,18 @@ class RepoTest(TestCase):
         ), self.key)
         self.assertEqual(profile, repo.get_record('my.stuff', tid))
 
+        reloaded = Repo.load(self.storage, cid=repo.head.cid)
+        self.assertEqual(profile, reloaded.get_record('my.stuff', tid))
+
         repo = repo.apply_writes(Write(
             action=Action.DELETE,
             collection='my.stuff',
             rkey=tid,
         ), self.key)
         self.assertIsNone(repo.get_record('my.stuff', tid))
+
+        reloaded = Repo.load(self.storage, cid=repo.head.cid)
+        self.assertIsNone(reloaded.get_record('my.stuff', tid))
 
     def test_adds_content_collections(self):
         data = {
