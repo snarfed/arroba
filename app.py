@@ -55,9 +55,9 @@ if is_prod:
     logging_client.setup_logging(log_level=logging.DEBUG)
 else:
     logger.info('Running locally')
-    assert 'GOOGLE_APPLICATION_CREDENTIALS' not in os.environ
-    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = os.path.join(
-        os.path.dirname(__file__), 'fake_user_account.json')
+    fake_creds = os.path.join(os.path.dirname(__file__), 'fake_user_account.json')
+    assert os.environ.get('GOOGLE_APPLICATION_CREDENTIALS') in (None, fake_creds)
+    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = fake_creds
     os.environ.setdefault('CLOUDSDK_CORE_PROJECT', 'app')
     os.environ.setdefault('DATASTORE_DATASET', 'app')
     os.environ.setdefault('GOOGLE_CLOUD_PROJECT', 'app')
@@ -72,13 +72,16 @@ app.json.compact = False
 # https://atproto.com/specs/cryptography
 privkey = server.key = load_pem_private_key(os.environ['REPO_PRIVKEY'].encode(),
                                             password=None)
-jwt_raw = {
-    'iss': os.environ['REPO_DID'],
-    'aud': f'did:web:{os.environ["APPVIEW_HOST"]}',
-    'alg': 'ES256',  # p256
-    'exp': int((datetime.now() + timedelta(days=7)).timestamp()),  # 😎
-}
-APPVIEW_JWT = jwt.encode(jwt_raw, privkey, algorithm='ES256')
+def jwt_data(aud):
+    return {
+        'iss': os.environ['REPO_DID'],
+        'aud': aud,
+        'alg': 'ES256K',  # k256
+        'exp': int((datetime.now() + timedelta(days=999)).timestamp()),  # 😎
+    }
+
+APPVIEW_JWT = jwt.encode(jwt_data(f'did:web:{os.environ["APPVIEW_HOST"]}'),
+                         privkey, algorithm='ES256K')
 APPVIEW_HEADERS = {
       'User-Agent': USER_AGENT,
       'Authorization': f'Bearer {APPVIEW_JWT}',
@@ -171,3 +174,21 @@ def homepage():
 </body>
 </html>
 """
+
+
+BGS_JWT = jwt.encode(jwt_data(f'did:web:{os.environ["BGS_HOST"]}'),
+                         privkey, algorithm='ES256K')
+BGS_HEADERS = {
+      'User-Agent': USER_AGENT,
+      'Authorization': f'Bearer {BGS_JWT}',
+}
+
+# requestCrawl in prod
+if is_prod:
+    url = f'https://{os.environ["BGS_HOST"]}/xrpc/com.atproto.sync.requestCrawl'
+    logger.info(f'Fetching {url}')
+    resp = requests.get(url, params={'hostname': os.environ['PDS_HOST']},
+                        headers=BGS_HEADERS)
+    logger.info(resp.content)
+    resp.raise_for_status()
+    logger.info('OK')
