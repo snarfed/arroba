@@ -19,9 +19,9 @@ import os
 import sys
 
 from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 from cryptography.hazmat.primitives.hashes import Hash, SHA256
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 
 import dag_cbor
 from multiformats import multibase, multicodec
@@ -34,9 +34,23 @@ assert os.environ['REPO_HANDLE']
 assert os.environ['PDS_HOST']
 assert os.environ['PLC_HOST']
 
-print('Generating new k256 keypair...')
-# https://atproto.com/specs/cryptography
-privkey = new_key()
+if os.path.exists('privkey.pem'):
+    print('Loading k256 key from privkey.pem...')
+    with open('privkey.pem', 'rb') as f:
+        privkey = serialization.load_pem_private_key(f.read(), password=None)
+
+else:
+    print('Generating new k256 keypair...')
+    # https://atproto.com/specs/cryptography
+    privkey = new_key()
+    print('Writing private key to privkey.pem...')
+    with open('privkey.pem', 'wb') as f:
+        f.write(privkey.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        ))
+
 pubkey = privkey.public_key()
 # https://atproto.com/specs/did#public-key-encoding
 pubkey_bytes = pubkey.public_bytes(serialization.Encoding.X962,
@@ -45,14 +59,6 @@ pubkey_multibase = multibase.encode(multicodec.wrap('secp256k1-pub', pubkey_byte
                                     'base58btc')
 did_key = f'did:key:{pubkey_multibase}'
 print(f'  {did_key}')
-
-print('Writing private key to privkey.pem...')
-with open('privkey.pem', 'wb') as f:
-    f.write(privkey.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption(),
-    ))
 
 # https://atproto.com/specs/did#did-documents
 print('Generating and signing DID document...')
