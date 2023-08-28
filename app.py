@@ -129,9 +129,8 @@ ndb_client = ndb.Client()
 
 with ndb_client.context():
     server.storage = DatastoreStorage()
-    if is_prod:
-        server.repo = server.storage.load_repo(did=os.environ['REPO_DID'])
-    else:
+    server.repo = server.storage.load_repo(did=os.environ['REPO_DID'])
+    if server.repo is None:
         server.repo = Repo.create(server.storage, os.environ['REPO_DID'],
                                   server.key, handle=os.environ['REPO_HANDLE'])
 
