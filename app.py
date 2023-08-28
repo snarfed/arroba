@@ -74,12 +74,15 @@ app.json.compact = False
 privkey = server.key = load_pem_private_key(os.environ['REPO_PRIVKEY'].encode(),
                                             password=None)
 def jwt_data(aud):
-    return {
+    data = {
         'iss': os.environ['REPO_DID'],
         'aud': aud,
         'alg': 'ES256K',  # k256
         'exp': int((datetime.now() + timedelta(days=999)).timestamp()),  # 😎
     }
+    logger.info(f'Raw JWT data: {data}')
+    return data
+
 
 APPVIEW_JWT = jwt.encode(jwt_data(f'did:web:{os.environ["APPVIEW_HOST"]}'),
                          privkey, algorithm='ES256K')
@@ -112,7 +115,6 @@ def cors_preflight(nsid_rest=None):
 @app.route(f'/xrpc/com.atproto.identity.resolveHandle', methods=['GET', 'POST'])
 @app.route(f'/xrpc/app.bsky.<nsid_rest>', methods=['GET', 'POST'])
 def proxy_appview(nsid_rest=None):
-    logger.info(f'JWT raw: {jwt_raw}')
     url = urljoin('https://' + os.environ['APPVIEW_HOST'], request.full_path)
     logger.info(f'requests.{request.method} {url} {APPVIEW_HEADERS}')
     resp = requests.request(request.method, url, headers=APPVIEW_HEADERS)
@@ -177,18 +179,20 @@ def homepage():
 
 
 BGS_JWT = jwt.encode(jwt_data(f'did:web:{os.environ["BGS_HOST"]}'),
-                         privkey, algorithm='ES256K')
+                     privkey, algorithm='ES256K')
 BGS_HEADERS = {
       'User-Agent': USER_AGENT,
       'Authorization': f'Bearer {BGS_JWT}',
 }
 
-# requestCrawl in prod
-if is_prod:
-    url = f'https://{os.environ["BGS_HOST"]}/xrpc/com.atproto.sync.requestCrawl'
-    logger.info(f'Fetching {url}')
-    resp = requests.get(url, params={'hostname': os.environ['PDS_HOST']},
-                        headers=BGS_HEADERS)
-    logger.info(resp.content)
-    resp.raise_for_status()
-    logger.info('OK')
+# # requestCrawl in prod
+# # not working because the BGS immediately tries to connect and errors if it can't,
+# # and evidently we're not quite serving subscribeRepos here yet. not sure why not.
+# if is_prod:
+#     url = f'https://{os.environ["BGS_HOST"]}/xrpc/com.atproto.sync.requestCrawl'
+#     logger.info(f'Fetching {url}')
+#     resp = requests.get(url, params={'hostname': os.environ['PDS_HOST']},
+#                         headers=BGS_HEADERS)
+#     logger.info(resp.content)
+#     resp.raise_for_status()
+#     logger.info('OK')

@@ -7,6 +7,8 @@ repo_token
 did:plc:*
 privkey.pem
 service_account_creds.json
+bgs.json
+*.log
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
