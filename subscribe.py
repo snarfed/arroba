@@ -21,7 +21,8 @@ for filename in (Path(__file__).parent / 'arroba/lexicons').glob('**/*.json'):
 if __name__ == '__main__':
     assert len(sys.argv) <= 3
     host = sys.argv[1] if len(sys.argv) >= 2 else 'bgs.bsky-sandbox.dev'
-    client = Client(f'https://{host}', lexicons)
+    scheme = 'http' if host.split(':')[0] == 'localhost' else 'https'
+    client = Client(f'{scheme}://{host}', lexicons)
     kwargs = {'cursor': sys.argv[2]} if len(sys.argv) == 3 else {}
     for msg in client.com.atproto.sync.subscribeRepos(**kwargs):
         print(dag_json.encode(msg).decode(), file=sys.stdout)

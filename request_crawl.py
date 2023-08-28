@@ -25,7 +25,10 @@ token = jwt.encode({
     'exp': int((datetime.now() + timedelta(days=999)).timestamp()),  # 😎
 }, os.environ['REPO_PRIVKEY'], algorithm='ES256K')
 
-url = f'https://{os.environ["BGS_HOST"]}/xrpc/com.atproto.sync.requestCrawl'
+scheme = ('http' if os.environ["BGS_HOST"].startswith('localhost')
+                 or os.environ["BGS_HOST"].startswith('127.0.0.1')
+          else 'https')
+url = f'{scheme}://{os.environ["BGS_HOST"]}/xrpc/com.atproto.sync.requestCrawl'
 print(f'Fetching {url}')
 resp = requests.get(url, params={'hostname': os.environ['PDS_HOST']},
                     headers={'Authorization': f'Bearer {token}'})
