@@ -127,7 +127,9 @@ def subscribe_repos(cursor=None):
             'blocks': car.write_car([commit_data.commit.cid], car_blocks),
             'time': util.now().isoformat(),
             'seq': commit_data.commit.seq,
-            'prev': commit['prev'],
+            # omit prev for now to help BGS skip bad commits that it didn't ingest
+            # TODO: this should go away with repo v3?
+            'prev': None, #commit['prev'],
             'rebase': False,
             'tooBig': False,
             'blobs': [],
