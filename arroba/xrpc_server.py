@@ -59,3 +59,17 @@ def describe_server(input):
     """
     """
     return {'availableUserDomains': []}
+
+
+@server.server.method('com.atproto.server.getAccountInviteCodes')
+def get_account_invite_codes(input, includeUsed=None, createAvailable=None):
+    """
+    """
+    return {'codes': []}
+
+
+@server.server.method('com.atproto.server.listAppPasswords')
+def list_app_passwords(input):
+    """
+    """
+    return {'passwords': []}

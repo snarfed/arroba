@@ -47,6 +47,7 @@ class XrpcServerTest(testutil.XrpcTestCase):
             'accessJwt': 'towkin',
             'refreshJwt': 'towkin',
         }, resp)
+
     def test_create_session_fail(self):
         with self.assertRaises(ValueError):
             resp = xrpc_server.create_session({
