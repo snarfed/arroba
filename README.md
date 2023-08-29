@@ -33,10 +33,14 @@ Single-user demo PDS based on arroba, for testing with the [ATProto federation s
 
 ## Changelog
 
-### 0.3 - unreleased
+### 0.3 - 2023-08-29
+
+Big milestone: arroba is successfully federating with the [ATProto sandbox](https://atproto.com/blog/federation-developer-sandbox)! See [app.py](https://github.com/snarfed/arroba/blob/main/app.py) for the minimal demo code needed to wrap arroba in a fully functional PDS.
 
 * Add Google Cloud Datastore implementation of repo storage.
-* Implement `com.atproto` XRPC methods needed to federate with sandbox, including most of `repo` and `sync.
+* Implement `com.atproto` XRPC methods needed to federate with sandbox, including most of `repo` and `sync`.
+  * Notably, includes `subscribeRepos` server side over websocket.
+* ...and much more.
 
 ### 0.2 - 2023-05-18
 
@@ -73,7 +77,8 @@ Here's how to package, test, and ship a new release.
     cd /tmp
     python3 -m venv local
     source local/bin/activate.csh
-    pip3 uninstall arroba # make sure we force pip to use the uploaded version
+    # make sure we force pip to use the uploaded version
+    pip3 uninstall arroba
     pip3 install --upgrade pip
     pip3 install -i https://test.pypi.org/simple --extra-index-url https://pypi.org/simple arroba==$ver
     deactivate
