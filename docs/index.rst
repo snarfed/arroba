@@ -24,8 +24,47 @@ Usage
 
 TODO
 
+Single-user demo PDS based on arroba, for testing with the `ATProto
+federation
+sandbox <https://atproto.com/blog/federation-developer-sandbox>`__.
+Environment variables:
+
+-  ``APPVIEW_HOST``, default ``api.bsky-sandbox.dev``
+-  ``BGS_HOST``, default ``bgs.bsky-sandbox.dev``
+-  ``PLC_HOST``, default ``plc.bsky-sandbox.dev``
+-  ``PDS_HOST``, where you’re running your PDS
+-  ``REPO_DID``, repo user’s DID, defaults to contents of ``repo_did``
+   file
+-  ``REPO_HANDLE``, repo user’s domain handle, defaults to
+   ``did:plc:*.json`` file
+-  ``REPO_PASSWORD``, repo user’s password, defaults to contents of
+   ``repo_password`` file
+-  ``REPO_PRIVKEY``, repo user’s private key in PEM format, defaults to
+   contents of ``privkey.pem`` file
+-  ``REPO_TOKEN``, static token to use as both ``accessJwt`` and
+   ``refreshJwt``, defaults to contents of ``repo_token`` file. Not
+   required to be an actual JWT.
+
 Changelog
 ---------
+
+0.3 - 2023-08-29
+~~~~~~~~~~~~~~~~
+
+Big milestone: arroba is successfully federating with the `ATProto
+sandbox <https://atproto.com/blog/federation-developer-sandbox>`__! See
+`app.py <https://github.com/snarfed/arroba/blob/main/app.py>`__ for the
+minimal demo code needed to wrap arroba in a fully functional PDS.
+
+-  Add Google Cloud Datastore implementation of repo storage.
+-  Implement ``com.atproto`` XRPC methods needed to federate with
+   sandbox, including most of ``repo`` and ``sync``.
+
+   -  Notably, includes ``subscribeRepos`` server side over websocket.
+
+-  …and much more.
+
+.. _section-1:
 
 0.2 - 2023-05-18
 ~~~~~~~~~~~~~~~~
@@ -35,7 +74,7 @@ storage. This completes the first pass at all PDS data structures. Next
 release will include initial implementations of the
 ``com.atproto.sync.*`` XRPC methods.
 
-.. _section-1:
+.. _section-2:
 
 0.1 - 2023-04-30
 ~~~~~~~~~~~~~~~~
@@ -83,7 +122,8 @@ Here’s how to package, test, and ship a new release.
        cd /tmp
        python3 -m venv local
        source local/bin/activate.csh
-       pip3 uninstall arroba # make sure we force pip to use the uploaded version
+       # make sure we force pip to use the uploaded version
+       pip3 uninstall arroba
        pip3 install --upgrade pip
        pip3 install -i https://test.pypi.org/simple --extra-index-url https://pypi.org/simple arroba==$ver
        deactivate
@@ -118,7 +158,7 @@ Here’s how to package, test, and ship a new release.
 
     .. code:: sh
 
-       twine upload dist/arroba-$ver.tar.gz dist/arroba-$ver-py3-none-any.whl
+       twine upload dist/arroba-$ver*
 
 11. `Wait for the docs to build on Read the
     Docs <https://readthedocs.org/projects/arroba/builds/>`__, then
