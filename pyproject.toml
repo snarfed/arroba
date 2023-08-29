@@ -22,7 +22,7 @@ dependencies = [
     'cryptography',
     'dag-cbor',
     'dag-json',
-    'lexrpc',
+    'lexrpc>=0.3',
     'multiformats>=0.2.0',
     'simple-websocket',
 ]
