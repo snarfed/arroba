@@ -1,5 +1,6 @@
 """Common test utility code."""
 from datetime import datetime, timezone
+import json
 import random
 import os
 import unittest
@@ -31,6 +32,25 @@ unittest.util._MAX_LENGTH = 999999
 os.environ.setdefault('DATASTORE_EMULATOR_HOST', 'localhost:8089')
 
 
+def requests_response(body, status=200):
+    """
+    Args:
+      body: dict or list, JSON response
+
+    Returns:
+      :class:`requests.Response`
+    """
+    assert isinstance(body, (dict, list))
+
+    resp = requests.Response()
+    resp._text = json.dumps(body, indent=2)
+    resp._content = resp._text.encode()
+    resp.encoding = 'utf-8'
+    resp.status_code = status
+    resp.headers['content-type'] = 'application/json'
+    return resp
+
+
 class TestCase(unittest.TestCase):
     maxDiff = None
     key = None
@@ -50,6 +70,7 @@ class TestCase(unittest.TestCase):
         if not TestCase.key:
             TestCase.key = util.new_key()
 
+        os.environ.setdefault('PLC_HOST', 'plc.bsky-sandbox.dev')
         os.environ.setdefault('REPO_PASSWORD', 'sooper-sekret')
         os.environ.setdefault('REPO_TOKEN', 'towkin')
 

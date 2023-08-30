@@ -33,6 +33,10 @@ Single-user demo PDS based on arroba, for testing with the [ATProto federation s
 
 ## Changelog
 
+### 0.4 - unreleased
+
+* Add new `did` module with utilities to create and resolve `did:plc`s and resolve `did:web`s.
+
 ### 0.3 - 2023-08-29
 
 Big milestone: arroba is successfully federating with the [ATProto sandbox](https://atproto.com/blog/federation-developer-sandbox)! See [app.py](https://github.com/snarfed/arroba/blob/main/app.py) for the minimal demo code needed to wrap arroba in a fully functional PDS.
