@@ -39,3 +39,12 @@ class DidTest(TestCase):
         for bad in None, 1, 'foo', 'did:plc:x':
             with self.assertRaises(ValueError):
                 did.resolve_web(bad)
+
+    @patch('requests.get', return_value=requests_response({'foo': 'bar'}))
+    def test_resolve(self, mock_get):
+        self.assertEqual({'foo': 'bar'}, did.resolve('did:plc:123'))
+        mock_get.assert_called_with('https://plc.bsky-sandbox.dev/did:plc:123')
+
+        self.assertEqual({'foo': 'bar'}, did.resolve('did:web:abc.com'))
+        mock_get.assert_called_with('https://abc.com/.well-known/did.json')
+

@@ -11,6 +11,28 @@ import urllib.parse
 import requests
 
 
+def resolve(did):
+    """Resolves a did:plc or did:web.
+
+    Args:
+      did: str
+
+    Returns:
+      dict, JSON DID document
+
+    Raises:
+      ValueError, if the input did is not a did:plc or did:web str
+      requests.RequestException, if an HTTP request fails
+    """
+    if did:
+        if did.startswith('did:plc:'):
+            return resolve_plc(did)
+        elif did.startswith('did:web:'):
+            return resolve_web(did)
+
+    raise ValueError(f'{did} is not a did:plc or did:web')
+
+
 def resolve_plc(did):
     """Resolves a did:plc by fetching its DID document from a PLC registry.
 
