@@ -1,9 +1,11 @@
 """Unit tests for did.py."""
 from unittest.mock import patch
 
+from cryptography.hazmat.primitives.asymmetric import ec
 import requests
 
 from .. import did
+from .. import util
 
 from .testutil import requests_response, TestCase
 
@@ -48,3 +50,33 @@ class DidTest(TestCase):
         self.assertEqual({'foo': 'bar'}, did.resolve('did:web:abc.com'))
         mock_get.assert_called_with('https://abc.com/.well-known/did.json')
 
+    @patch('requests.post', return_value=requests_response('OK'))
+    def test_create_plc(self, mock_post):
+        did_plc = did.create_plc('han.dull')
+        mock_post.assert_called_with(f'https://plc.bsky-sandbox.dev/{did_plc.did}',
+                                     json=did_plc.doc)
+
+        self.assertTrue(did_plc.did.startswith('did:plc:'))
+        self.assertEqual(32, len(did_plc.did))
+        self.assertIsInstance(did_plc.privkey, ec.EllipticCurvePrivateKey)
+
+        self.assertTrue(did_plc.doc.pop('rotationKeys')[0].startswith('did:key:'))
+        self.assertTrue(did_plc.doc.pop('verificationMethods')['atproto']
+                        .startswith('did:key:'))
+
+        util.verify_sig(did_plc.doc, did_plc.privkey.public_key())
+        did_plc.doc.pop('sig')
+
+        self.assertEqual({
+            'type': 'plc_operation',
+            'alsoKnownAs': [
+                'at://han.dull',
+            ],
+            'services': {
+                'atproto_pds': {
+                    'type': 'AtprotoPersonalDataServer',
+                    'endpoint': 'https://localhost:8080',
+                }
+            },
+            'prev': None,
+        }, did_plc.doc)

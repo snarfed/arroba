@@ -7,9 +7,9 @@ from ..util import (
     datetime_to_tid,
     new_key,
     next_tid,
-    sign_commit,
+    sign,
     tid_to_datetime,
-    verify_commit_sig,
+    verify_sig,
 )
 from .testutil import NOW, TestCase
 
@@ -27,21 +27,21 @@ class UtilTest(TestCase):
     def test_tid_to_datetime(self):
         self.assertEqual(NOW, tid_to_datetime('3iom4o4g6u2l2'))
 
-    def test_sign_commit_and_verify(self):
+    def test_sign_and_verify(self):
         key = new_key()
         commit = {'foo': 'bar'}
-        sign_commit(commit, key)
-        assert verify_commit_sig(commit, key.public_key())
+        sign(commit, key)
+        assert verify_sig(commit, key.public_key())
 
-    def test_verify_commit_error(self):
+    def test_verify_sig_error(self):
         key = new_key()
         with self.assertRaises(KeyError):
-            self.assertFalse(verify_commit_sig({'foo': 'bar'}, key.public_key()))
+            self.assertFalse(verify_sig({'foo': 'bar'}, key.public_key()))
 
-    def test_verify_commit_fail(self):
+    def test_verify_sig_fail(self):
         key = new_key()
-        self.assertFalse(verify_commit_sig({'foo': 'bar', 'sig': 'nope'},
-                                           key.public_key()))
+        self.assertFalse(verify_sig({'foo': 'bar', 'sig': 'nope'},
+                                    key.public_key()))
 
     def test_next_tid(self):
         first = next_tid()

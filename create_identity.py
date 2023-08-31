@@ -3,7 +3,7 @@
 Run inside the arroba virtualenv. Requires the REPO_HANDLE, PDS_HOST, and
 PLC_HOST environment variables. Example usage:
 
-env REPO_HANDLE=arroba3.snarfed.org \
+env REPO_HANDLE=arroba1.snarfed.org \
   PDS_HOST=arroba-pds.appspot.com \
   PLC_HOST=plc.bsky-sandbox.dev \
   python ./create_identity.py
@@ -13,87 +13,26 @@ Notes:
 * Generates and writes a DID document to [did].json
 * Publishes the DID document to $PLC_HOST
 """
-import base64
 import json
+import logging
 import os
 import sys
 
-from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
-from cryptography.hazmat.primitives.hashes import Hash, SHA256
 from cryptography.hazmat.primitives import serialization
 
-import dag_cbor
-from multiformats import multibase, multicodec
-import requests
+from arroba.did import create_plc
+from arroba.util import new_key, sign
 
-from arroba.util import new_key, sign_commit
+logging.basicConfig()
+logging.getLogger().setLevel(logging.DEBUG)
 
-
-assert os.environ['REPO_HANDLE']
-assert os.environ['PDS_HOST']
-assert os.environ['PLC_HOST']
-
+privkey = None
 if os.path.exists('privkey.pem'):
     print('Loading k256 key from privkey.pem...')
     with open('privkey.pem', 'rb') as f:
         privkey = serialization.load_pem_private_key(f.read(), password=None)
 
-else:
-    print('Generating new k256 keypair...')
-    # https://atproto.com/specs/cryptography
-    privkey = new_key()
-    print('Writing private key to privkey.pem...')
-    with open('privkey.pem', 'wb') as f:
-        f.write(privkey.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption(),
-        ))
-
-pubkey = privkey.public_key()
-# https://atproto.com/specs/did#public-key-encoding
-pubkey_bytes = pubkey.public_bytes(serialization.Encoding.X962,
-                                   serialization.PublicFormat.CompressedPoint)
-pubkey_multibase = multibase.encode(multicodec.wrap('secp256k1-pub', pubkey_bytes),
-                                    'base58btc')
-did_key = f'did:key:{pubkey_multibase}'
-print(f'  {did_key}')
-
-# https://atproto.com/specs/did#did-documents
-print('Generating and signing DID document...')
-genesis = {
-    'type': 'plc_operation',
-    'rotationKeys': [did_key],
-    'verificationMethods': {
-        'atproto': did_key,
-    },
-    'alsoKnownAs': [
-        f'at://{os.environ["REPO_HANDLE"]}',
-    ],
-    'services': {
-        'atproto_pds': {
-            'type': 'AtprotoPersonalDataServer',
-            'endpoint': f'https://{os.environ["PDS_HOST"]}',
-        }
-    },
-    'prev': None,
-}
-genesis = sign_commit(genesis, privkey)
-genesis['sig'] = base64.urlsafe_b64encode(genesis['sig']).decode()
-sha256 = Hash(SHA256())
-sha256.update(dag_cbor.encode(genesis))
-hash = sha256.finalize()
-did_plc = 'did:plc:' + base64.b32encode(hash)[:24].lower().decode()
-print('  ', did_plc)
-
-filename = f'{did_plc}.json'
-print(f'Writing DID document to {filename}...')
-with open(filename, 'w') as f:
-    json.dump(genesis, f, indent=2)
-
-json.dump(genesis, sys.stdout, indent=2)
-print()
+did = create_plc(os.environ['REPO_HANDLE'], privkey=privkey)
 
 # https://atproto.com/specs/did#public-key-encoding
 # https://cryptography.io/en/latest/hazmat/primitives/asymmetric/serialization/#cryptography.hazmat.primitives.serialization.Encoding
@@ -108,17 +47,9 @@ pubkey_multibase = 'TODO'
 did_key_obj = {
     'id': '#atproto',
     'type': 'k256',
-    'controller': did_plc,
+    'controller': did.did,
     'publicKeyMultibase': pubkey_multibase,
 }
 print(f'did:key object:')
 json.dump(did_key_obj, sys.stdout, indent=2)
 print()
-
-plc_url = f'https://{os.environ["PLC_HOST"]}/{did_plc}'
-print(f'Publishing to {plc_url}  ...')
-resp = requests.post(plc_url, json=genesis)
-resp.raise_for_status()
-print(resp, resp.content)
-
-print(f'{did_plc} should now be live at', plc_url)

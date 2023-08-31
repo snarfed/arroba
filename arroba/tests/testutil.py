@@ -40,14 +40,17 @@ def requests_response(body, status=200):
     Returns:
       :class:`requests.Response`
     """
-    assert isinstance(body, (dict, list))
-
     resp = requests.Response()
-    resp._text = json.dumps(body, indent=2)
+
+    if isinstance(body, (dict, list)):
+        resp.headers['content-type'] = 'application/json'
+        resp._text = json.dumps(body, indent=2)
+    else:
+        resp._text = body
+
     resp._content = resp._text.encode()
     resp.encoding = 'utf-8'
     resp.status_code = status
-    resp.headers['content-type'] = 'application/json'
     return resp
 
 
@@ -70,6 +73,7 @@ class TestCase(unittest.TestCase):
         if not TestCase.key:
             TestCase.key = util.new_key()
 
+        os.environ.setdefault('PDS_HOST', 'localhost:8080')
         os.environ.setdefault('PLC_HOST', 'plc.bsky-sandbox.dev')
         os.environ.setdefault('REPO_PASSWORD', 'sooper-sekret')
         os.environ.setdefault('REPO_TOKEN', 'towkin')

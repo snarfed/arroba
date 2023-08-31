@@ -16,7 +16,7 @@ from ..datastore_storage import DatastoreStorage
 from ..repo import Repo, Write, writes_to_commit_ops
 from ..storage import Action, CommitOp, MemoryStorage
 from .. import util
-from ..util import dag_cbor_cid, next_tid, verify_commit_sig
+from ..util import dag_cbor_cid, next_tid, verify_sig
 
 from .testutil import DatastoreTest, NOW, TestCase
 
@@ -109,7 +109,7 @@ class RepoTest(TestCase):
         self.assertEqual({}, self.repo.get_contents())
 
     def test_has_a_valid_signature_to_commit(self):
-        assert verify_commit_sig(self.repo.head.decoded, self.key.public_key())
+        assert verify_sig(self.repo.head.decoded, self.key.public_key())
 
     def test_loads_from_blockstore(self):
         objs = self.random_objects(5)

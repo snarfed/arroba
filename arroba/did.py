@@ -5,10 +5,29 @@
 * https://github.com/bluesky-social/did-method-plc
 * https://w3c-ccg.github.io/did-method-web/
 """
+import base64
+from collections import namedtuple
+import json
+import logging
 import os
 import urllib.parse
 
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.hashes import Hash, SHA256
+from cryptography.hazmat.primitives import serialization
+import dag_cbor
+from multiformats import multibase, multicodec
 import requests
+
+from . import util
+
+DidPlc = namedtuple('DidPlc', [
+    'did',      # str
+    'privkey',  # ec.EllipticCurvePrivateKey
+    'doc',      # dict, DID document
+])
+
+logger = logging.getLogger(__name__)
 
 
 def resolve(did):
@@ -36,6 +55,8 @@ def resolve(did):
 def resolve_plc(did):
     """Resolves a did:plc by fetching its DID document from a PLC registry.
 
+    The PLC registry hostname is specified in the PLC_HOST environment variable.
+
     did:plc background:
     * https://atproto.com/specs/did-plc
     * https://github.com/bluesky-social/did-method-plc
@@ -56,6 +77,91 @@ def resolve_plc(did):
     resp = requests.get(f'https://{os.environ["PLC_HOST"]}/{did}')
     resp.raise_for_status()
     return resp.json()
+
+
+def create_plc(handle, privkey=None, pds_hostname=None):
+    """Creates a new did:plc in a PLC registry.
+
+    The PLC registry hostname is specified in the PLC_HOST environment variable.
+
+    did:plc background:
+    * https://atproto.com/specs/did-plc
+    * https://github.com/bluesky-social/did-method-plc
+
+    Args:
+      handle: str, domain handle to associate with this DID
+      privkey: :class:`ec.EllipticCurvePrivateKey`. The curve must be SECP256K1.
+        If omitted, a new keypair will be created.
+      pds_hostname: str, PDS hostname to associate with this DID. If omitted,
+        defaults to the PDS_HOST environment variable.
+
+    Returns:
+      :class:`DidPlc` with the newly created did:plc, keypair, and DID document
+
+    Raises:
+      ValueError, if any inputs are invalid
+      requests.RequestException, if the HTTP request to the PLC registry fails
+    """
+    assert os.environ["PLC_HOST"]
+
+    if not isinstance(handle, str) or not handle:
+        raise ValueError(f'{handle} is not a valid handle')
+
+    if privkey:
+        if not isinstance(privkey.curve, ec.SECP256K1):
+            raise ValueError(
+                f'Expected privkey to have SECP256K1 curve; got {privkey.curve}')
+    else:
+        logger.info('Generating new k256 keypair')
+        privkey = util.new_key()
+
+    if not pds_hostname:
+        pds_hostname = os.environ['PDS_HOST']
+
+    logger.info('Creating new did:plc for {handle} {pds_hostname}')
+    pubkey = privkey.public_key()
+    # https://atproto.com/specs/did#public-key-encoding
+    pubkey_bytes = pubkey.public_bytes(serialization.Encoding.X962,
+                                       serialization.PublicFormat.CompressedPoint)
+    pubkey_multibase = multibase.encode(
+        multicodec.wrap('secp256k1-pub', pubkey_bytes),
+        'base58btc')
+    did_key = f'did:key:{pubkey_multibase}'
+    logger.info(f'  {did_key}')
+
+    logger.info('Generating and signing DID document...')
+    doc = {
+        'type': 'plc_operation',
+        'rotationKeys': [did_key],
+        'verificationMethods': {
+            'atproto': did_key,
+        },
+        'alsoKnownAs': [
+            f'at://{handle}',
+        ],
+        'services': {
+            'atproto_pds': {
+                'type': 'AtprotoPersonalDataServer',
+                'endpoint': f'https://{pds_hostname}',
+            }
+        },
+        'prev': None,
+    }
+    doc = util.sign(doc, privkey)
+    doc['sig'] = base64.urlsafe_b64encode(doc['sig']).decode()
+    sha256 = Hash(SHA256())
+    sha256.update(dag_cbor.encode(doc))
+    hash = sha256.finalize()
+    did_plc = 'did:plc:' + base64.b32encode(hash)[:24].lower().decode()
+    logger.info(f'  {did_plc}')
+
+    plc_url = f'https://{os.environ["PLC_HOST"]}/{did_plc}'
+    logger.info(f'Publishing to {plc_url}  ...')
+    resp = requests.post(plc_url, json=doc)
+    resp.raise_for_status()
+    logger.info(f'{resp} {resp.content}')
+
+    return DidPlc(did=did_plc, privkey=privkey, doc=doc)
 
 
 def resolve_web(did):

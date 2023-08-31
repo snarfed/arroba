@@ -162,7 +162,7 @@ class Repo:
         root, blocks = mst.get_unstored_blocks()
         new_blocks.update(blocks)
 
-        commit = util.sign_commit({
+        commit = util.sign({
             'did': did,
             'version': 2,
             'prev': None,
@@ -271,7 +271,7 @@ class Repo:
         if missing:
             commit_blocks.update(self.storage.read_many(missing))
 
-        commit = util.sign_commit({
+        commit = util.sign({
             'did': self.did,
             'version': 2,
             'prev': self.head.cid,
@@ -324,7 +324,7 @@ class Repo:
     #     """
     #     preserved_cids = self.mst.all_cids()
     #     blocks = {}  # CID -> Block
-    #     commit = util.sign_commit({
+    #     commit = util.sign({
     #         'did': self.did,
     #         'version': 2,
     #         'prev': None,

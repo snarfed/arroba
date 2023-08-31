@@ -173,7 +173,9 @@ def at_uri(did, collection, rkey):
 
 
 def new_key():
-    """Generates a new ECC P-256 keypair.
+    """Generates a new ECC K-256 keypair.
+
+    https://atproto.com/specs/cryptography
 
     Returns:
       :class:`ec.EllipticCurvePrivateKey`
@@ -181,8 +183,8 @@ def new_key():
     return ec.generate_private_key(ec.SECP256K1())
 
 
-def sign_commit(commit, private_key):
-    """Signs a repo commit.
+def sign(obj, private_key):
+    """Signs an object, eg a repo commit or DID document.
 
     Adds the signature in the `sig` field.
 
@@ -193,16 +195,16 @@ def sign_commit(commit, private_key):
     https://atproto.com/specs/cryptography#ecdsa-signature-malleability
 
     Args:
-      commit: dict, repo commit
+      obj: dict
       private_key: :class:`ec.EllipticCurvePrivateKey`
 
     Returns:
-      dict, repo commit
+      dict, obj with new `sig` field
     """
-    orig_sig = private_key.sign(dag_cbor.encode(commit), ec.ECDSA(hashes.SHA256()))
+    orig_sig = private_key.sign(dag_cbor.encode(obj), ec.ECDSA(hashes.SHA256()))
     r, s = decode_dss_signature(apply_low_s_mitigation(orig_sig, private_key.curve))
-    commit['sig'] = r.to_bytes(32, 'big') + s.to_bytes(32, 'big')
-    return commit
+    obj['sig'] = r.to_bytes(32, 'big') + s.to_bytes(32, 'big')
+    return obj
 
     # old, using pycryptodome
     # signer = DSS.new(private_key, 'fips-186-3', randfunc=_randfunc)
@@ -225,20 +227,20 @@ def apply_low_s_mitigation(signature: bytes, curve: ec.EllipticCurve) -> bytes:
     return encode_dss_signature(r, s)
 
 
-def verify_commit_sig(commit, public_key):
-    """Returns true if the commit's signature is valid, False otherwise.
+def verify_sig(obj, public_key):
+    """Returns true if obj's signature is valid, False otherwise.
 
-    See :func:`sign_commit` for more background.
+    See :func:`sign` for more background.
 
     Args:
-      commit: dict repo commit
+      obj: dict repo commit
       public_key: :class:`ec.EllipticCurvePublicKey`
 
     Raises:
-      KeyError if the commit isn't signed, ie doesn't have a `sig` field
+      KeyError if obj isn't signed, ie doesn't have a `sig` field
     """
-    commit = copy.copy(commit)
-    sig = commit.pop('sig')
+    obj = copy.copy(obj)
+    sig = obj.pop('sig')
 
     if len(sig) != 64:
         logger.debug('Expected signature to be 64 bytes, got {len(sig)}')
@@ -249,7 +251,7 @@ def verify_commit_sig(commit, public_key):
     der_sig = encode_dss_signature(r, s)
 
     try:
-        public_key.verify(der_sig, dag_cbor.encode(commit),
+        public_key.verify(der_sig, dag_cbor.encode(obj),
                           ec.ECDSA(hashes.SHA256()))
         return True
     except InvalidSignature:

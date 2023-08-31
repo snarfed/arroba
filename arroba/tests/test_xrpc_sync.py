@@ -499,7 +499,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         }
 
         msg_records = [b.decoded for b in msg_blocks]
-        # TODO: if I util.sign_commit(commit_record), the sig doesn't match. why?
+        # TODO: if I util.sign(commit_record), the sig doesn't match. why?
         for msg_record in msg_records:
             msg_record.pop('sig', None)
 
