@@ -1,5 +1,5 @@
 """Unit tests for did.py."""
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from cryptography.hazmat.primitives.asymmetric import ec
 import requests
@@ -12,47 +12,52 @@ from .testutil import requests_response, TestCase
 
 class DidTest(TestCase):
 
-    @patch('requests.get', return_value=requests_response({'foo': 'bar'}))
-    def test_resolve_plc(self, mock_get):
-        self.assertEqual({'foo': 'bar'}, did.resolve_plc('did:plc:123'))
-        mock_get.assert_called_with('https://plc.bsky-sandbox.dev/did:plc:123')
+    def setUp(self):
+        super().setUp()
+        self.mock_get = MagicMock(return_value=requests_response({'foo': 'bar'}))
+
+    def test_resolve_plc(self):
+        doc = did.resolve_plc('did:plc:123', get_fn=self.mock_get)
+        self.assertEqual({'foo': 'bar'}, doc)
+        self.mock_get.assert_called_with('https://plc.bsky-sandbox.dev/did:plc:123')
 
     def test_resolve_plc_bad_input(self):
         for bad in None, 1, 'foo', 'did:web:x':
             with self.assertRaises(ValueError):
                 did.resolve_plc(bad)
 
-    @patch('requests.get', return_value=requests_response({'foo': 'bar'}))
-    def test_resolve_web_no_path(self, mock_get):
-        self.assertEqual({'foo': 'bar'}, did.resolve_web('did:web:abc.com'))
-        mock_get.assert_called_with('https://abc.com/.well-known/did.json')
+    def test_resolve_web_no_path(self):
+        doc = did.resolve_web('did:web:abc.com', get_fn=self.mock_get)
+        self.assertEqual({'foo': 'bar'}, doc)
+        self.mock_get.assert_called_with('https://abc.com/.well-known/did.json')
 
-    @patch('requests.get', return_value=requests_response({'foo': 'bar'}))
-    def test_resolve_web_path(self, mock_get):
-        self.assertEqual({'foo': 'bar'}, did.resolve_web('did:web:abc.com:def'))
-        mock_get.assert_called_with('https://abc.com/def/did.json')
+    def test_resolve_web_path(self):
+        doc = did.resolve_web('did:web:abc.com:def', get_fn=self.mock_get)
+        self.assertEqual({'foo': 'bar'}, doc)
+        self.mock_get.assert_called_with('https://abc.com/def/did.json')
 
-    @patch('requests.get', return_value=requests_response({'foo': 'bar'}))
-    def test_resolve_web_port(self, mock_get):
-        self.assertEqual({'foo': 'bar'}, did.resolve_web('did:web:abc.com%3A99'))
-        mock_get.assert_called_with('https://abc.com:99/.well-known/did.json')
+    def test_resolve_web_port(self):
+        doc = did.resolve_web('did:web:abc.com%3A99', get_fn=self.mock_get)
+        self.assertEqual({'foo': 'bar'}, doc)
+        self.mock_get.assert_called_with('https://abc.com:99/.well-known/did.json')
 
     def test_resolve_web_bad_input(self):
         for bad in None, 1, 'foo', 'did:plc:x':
             with self.assertRaises(ValueError):
                 did.resolve_web(bad)
 
-    @patch('requests.get', return_value=requests_response({'foo': 'bar'}))
-    def test_resolve(self, mock_get):
-        self.assertEqual({'foo': 'bar'}, did.resolve('did:plc:123'))
-        mock_get.assert_called_with('https://plc.bsky-sandbox.dev/did:plc:123')
+    def test_resolve(self):
+        doc = did.resolve('did:plc:123', get_fn=self.mock_get)
+        self.assertEqual({'foo': 'bar'}, doc)
+        self.mock_get.assert_called_with('https://plc.bsky-sandbox.dev/did:plc:123')
 
-        self.assertEqual({'foo': 'bar'}, did.resolve('did:web:abc.com'))
-        mock_get.assert_called_with('https://abc.com/.well-known/did.json')
+        doc = did.resolve('did:web:abc.com', get_fn=self.mock_get)
+        self.assertEqual({'foo': 'bar'}, doc)
+        self.mock_get.assert_called_with('https://abc.com/.well-known/did.json')
 
-    @patch('requests.post', return_value=requests_response('OK'))
-    def test_create_plc(self, mock_post):
-        did_plc = did.create_plc('han.dull')
+    def test_create_plc(self):
+        mock_post = MagicMock(return_value=requests_response('OK'))
+        did_plc = did.create_plc('han.dull', post_fn=mock_post)
         mock_post.assert_called_with(f'https://plc.bsky-sandbox.dev/{did_plc.did}',
                                      json=did_plc.doc)
 

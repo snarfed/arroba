@@ -30,11 +30,12 @@ DidPlc = namedtuple('DidPlc', [
 logger = logging.getLogger(__name__)
 
 
-def resolve(did):
+def resolve(did, **kwargs):
     """Resolves a did:plc or did:web.
 
     Args:
       did: str
+      kwargs: passed through to :meth:`resolve_plc`/:meth:`resolve_web`
 
     Returns:
       dict, JSON DID document
@@ -45,14 +46,14 @@ def resolve(did):
     """
     if did:
         if did.startswith('did:plc:'):
-            return resolve_plc(did)
+            return resolve_plc(did, **kwargs)
         elif did.startswith('did:web:'):
-            return resolve_web(did)
+            return resolve_web(did, **kwargs)
 
     raise ValueError(f'{did} is not a did:plc or did:web')
 
 
-def resolve_plc(did):
+def resolve_plc(did, get_fn=requests.get):
     """Resolves a did:plc by fetching its DID document from a PLC registry.
 
     The PLC registry hostname is specified in the PLC_HOST environment variable.
@@ -63,6 +64,7 @@ def resolve_plc(did):
 
     Args:
       did: str
+      get_fn: callable for making HTTP GET requests
 
     Returns:
       dict, JSON DID document
@@ -74,12 +76,12 @@ def resolve_plc(did):
     if not isinstance(did, str) or not did.startswith('did:plc:'):
         raise ValueError(f'{did} is not a did:plc')
 
-    resp = requests.get(f'https://{os.environ["PLC_HOST"]}/{did}')
+    resp = get_fn(f'https://{os.environ["PLC_HOST"]}/{did}')
     resp.raise_for_status()
     return resp.json()
 
 
-def create_plc(handle, privkey=None, pds_hostname=None):
+def create_plc(handle, privkey=None, pds_hostname=None, post_fn=requests.post):
     """Creates a new did:plc in a PLC registry.
 
     The PLC registry hostname is specified in the PLC_HOST environment variable.
@@ -94,13 +96,15 @@ def create_plc(handle, privkey=None, pds_hostname=None):
         If omitted, a new keypair will be created.
       pds_hostname: str, PDS hostname to associate with this DID. If omitted,
         defaults to the PDS_HOST environment variable.
+      post_fn: callable for making HTTP POST requests
 
     Returns:
       :class:`DidPlc` with the newly created did:plc, keypair, and DID document
 
     Raises:
       ValueError, if any inputs are invalid
-      requests.RequestException, if the HTTP request to the PLC registry fails
+      :class:`requests.RequestException`, if the HTTP request to the PLC
+        registry fails
     """
     assert os.environ["PLC_HOST"]
 
@@ -157,14 +161,14 @@ def create_plc(handle, privkey=None, pds_hostname=None):
 
     plc_url = f'https://{os.environ["PLC_HOST"]}/{did_plc}'
     logger.info(f'Publishing to {plc_url}  ...')
-    resp = requests.post(plc_url, json=doc)
+    resp = post_fn(plc_url, json=doc)
     resp.raise_for_status()
     logger.info(f'{resp} {resp.content}')
 
     return DidPlc(did=did_plc, privkey=privkey, doc=doc)
 
 
-def resolve_web(did):
+def resolve_web(did, get_fn=requests.get):
     """Resolves a did:web by fetching its DID document.
 
     did:web spec: https://w3c-ccg.github.io/did-method-web/
@@ -174,10 +178,11 @@ def resolve_web(did):
 
     Returns:
       dict, JSON DID document
+      get_fn: callable for making HTTP GET requests
 
     Raises:
       ValueError, if the input did is not a did:web str
-      requests.RequestException, if the HTTP request fails
+      :class:`requests.RequestException`, if the HTTP request fails
     """
     if not isinstance(did, str) or not did.startswith('did:web:'):
         raise ValueError(f'{did} is not a did:web')
@@ -188,6 +193,6 @@ def resolve_web(did):
     else:
         did += '/.well-known'
 
-    resp = requests.get(f'https://{urllib.parse.unquote(did)}/did.json')
+    resp = get_fn(f'https://{urllib.parse.unquote(did)}/did.json')
     resp.raise_for_status()
     return resp.json()
