@@ -5,6 +5,7 @@ import logging
 from numbers import Integral
 import random
 import time
+from urllib.parse import urlparse
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -158,6 +159,8 @@ def next_tid():
 def at_uri(did, collection, rkey):
     """Returns the at:// URI for a given DID, collection, and rkey.
 
+    https://atproto.com/specs/at-uri-scheme
+
     Args:
       did: str
       collection: str
@@ -170,6 +173,27 @@ def at_uri(did, collection, rkey):
     assert collection
     assert rkey
     return f'at://{did}/{collection}/{rkey}'
+
+
+def parse_at_uri(uri):
+    """Parses the repo DID, collection, and rkey out of an at:// URI.
+
+    https://atproto.com/specs/at-uri-scheme
+
+    Args:
+      uri: str
+
+    Returns:
+      tuple of str: (did, collection, rkey)
+    """
+    if not uri or not uri.startswith('at://'):
+        raise ValueError(f"{uri} isn't an at:// URI")
+
+    parsed = urlparse(uri)
+    rkey = parsed.path.strip('/').split('/', maxsplit=1)
+    if len(rkey) < 2:
+        rkey.append('')
+    return parsed.netloc, *rkey
 
 
 def new_key():

@@ -7,6 +7,7 @@ from ..util import (
     datetime_to_tid,
     new_key,
     next_tid,
+    parse_at_uri,
     sign,
     tid_to_datetime,
     verify_sig,
@@ -54,3 +55,15 @@ class UtilTest(TestCase):
 
         uri = at_uri('did:web:user.com', 'app.bsky.feed.post', 123)
         self.assertEqual('at://did:web:user.com/app.bsky.feed.post/123', uri)
+
+    def test_parse_at_uri(self):
+        for bad in None, '', 'http://foo':
+            with self.assertRaises(ValueError):
+                parse_at_uri(bad)
+
+        for uri, expected in [
+                ('at://did:foo/co.ll/123', ('did:foo', 'co.ll', '123')),
+                ('at://did:foo/co.ll/', ('did:foo', 'co.ll', '')),
+                ('at://did:foo', ('did:foo', '', '')),
+        ]:
+            self.assertEqual(expected, parse_at_uri(uri))
