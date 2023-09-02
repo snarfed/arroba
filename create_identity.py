@@ -9,7 +9,8 @@ env REPO_HANDLE=arroba1.snarfed.org \
   python ./create_identity.py
 
 Notes:
-* Generates a K-256 (SECP256K1) keypair. Writes the private key to privkey.pem.
+* Uses K-256 (SECP256K1) keypair. If privkey.pem exists, uses it as the private
+  key. Otherwise, generates a new keypair and writes it to privkey.pem.
 * Generates and writes a DID document to [did].json
 * Publishes the DID document to $PLC_HOST
 """
@@ -21,7 +22,6 @@ import sys
 from cryptography.hazmat.primitives import serialization
 
 from arroba.did import create_plc
-from arroba.util import new_key, sign
 
 logging.basicConfig()
 logging.getLogger().setLevel(logging.DEBUG)
@@ -31,6 +31,16 @@ if os.path.exists('privkey.pem'):
     print('Loading k256 key from privkey.pem...')
     with open('privkey.pem', 'rb') as f:
         privkey = serialization.load_pem_private_key(f.read(), password=None)
+else:
+    print('Generating new k256 keypair into privkey.pem...')
+    # https://atproto.com/specs/cryptography
+    privkey = new_key()
+    with open('privkey.pem', 'wb') as f:
+        f.write(privkey.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        ))
 
 did = create_plc(os.environ['REPO_HANDLE'], privkey=privkey)
 
