@@ -1,8 +1,10 @@
 """Misc AT Protocol utils. TIDs, CIDs, etc."""
 import copy
 from datetime import datetime, timezone
+import json
 import logging
 from numbers import Integral
+from pathlib import Path
 import random
 import time
 from urllib.parse import urlparse
@@ -32,6 +34,12 @@ CURVE_ORDER = {
     ec.SECP256R1: 0xFFFFFFFF_00000000_FFFFFFFF_FFFFFFFF_BCE6FAAD_A7179E84_F3B9CAC2_FC632551,
     ec.SECP256K1: 0xFFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFE_BAAEDCE6_AF48A03B_BFD25E8C_D0364141
 }
+
+
+lexicons = []
+for filename in (Path(__file__).parent / 'lexicons').glob('**/*.json'):
+    with open(filename) as f:
+        lexicons.append(json.load(f))
 
 
 def now(tz=timezone.utc, **kwargs):
