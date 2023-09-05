@@ -36,6 +36,7 @@ Single-user demo PDS based on arroba, for testing with the [ATProto federation s
 ### 0.4 - unreleased
 
 * Add new `did` module with utilities to create and resolve `did:plc`s and resolve `did:web`s.
+* Drop bundled `app.bsky`/`com.atproto` lexicons, use lexrpc's instead.
 
 ### 0.3 - 2023-08-29
 

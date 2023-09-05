@@ -8,14 +8,13 @@ from lexrpc.server import Server
 from .mst import MST
 from .repo import Repo
 from .storage import MemoryStorage
-from .util import lexicons
 
 
 # duplicates testutil
 random.seed(1234567890)
 
 # XRPC server
-server = Server(lexicons, validate=False)
+server = Server(validate=False)
 
 # these are initialized in app.py, testutil.XrpcTestCase.setUp
 key = None
