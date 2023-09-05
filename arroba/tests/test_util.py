@@ -1,6 +1,9 @@
 """Unit tests for util.py."""
+from datetime import timedelta
+
 from multiformats import CID
 
+from .. import jwt_monkeypatch as jwt
 from ..util import (
     at_uri,
     dag_cbor_cid,
@@ -8,6 +11,7 @@ from ..util import (
     new_key,
     next_tid,
     parse_at_uri,
+    service_jwt,
     sign,
     tid_to_datetime,
     verify_sig,
@@ -67,3 +71,16 @@ class UtilTest(TestCase):
                 ('at://did:foo', ('did:foo', '', '')),
         ]:
             self.assertEqual(expected, parse_at_uri(uri))
+
+    def test_service_jwt(self):
+        token = service_jwt('bgs.local', 'did:web:user.com', self.key)
+        decoded = jwt.decode(token, self.key, algorithms=['ES256K'],
+                             audience='did:web:bgs.local',
+                             leeway=timedelta(weeks=9999))
+        self.assertEqual({
+            'alg': 'ES256K',
+            'aud': 'did:web:bgs.local',
+            'exp': 1641093245,
+            'iss': 'did:web:user.com',
+        }, decoded)
+

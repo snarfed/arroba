@@ -1,17 +1,9 @@
 """Temporary!"""
 import os
-import random
 
 from flask import request
 from lexrpc.server import Server
 
-from .mst import MST
-from .repo import Repo
-from .storage import MemoryStorage
-
-
-# duplicates testutil
-random.seed(1234567890)
 
 # XRPC server
 server = Server(validate=False)

@@ -1,6 +1,6 @@
 """Misc AT Protocol utils. TIDs, CIDs, etc."""
 import copy
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 import logging
 from numbers import Integral
@@ -17,6 +17,8 @@ from cryptography.hazmat.primitives.asymmetric.utils import (
 from cryptography.hazmat.primitives import hashes
 import dag_cbor
 from multiformats import CID, multicodec, multihash
+
+from . import jwt_monkeypatch as jwt
 
 logger = logging.getLogger(__name__)
 
@@ -237,13 +239,20 @@ def sign(obj, private_key):
     # return commit
 
 
-def apply_low_s_mitigation(signature: bytes, curve: ec.EllipticCurve) -> bytes:
+def apply_low_s_mitigation(signature, curve):
     """Low-S signature mitigation.
 
     https://atproto.com/specs/cryptography#ecdsa-signature-malleability
 
     From picopds. Thank you David!
     https://github.com/DavidBuchanan314/picopds/blob/main/signing.py
+
+    Args:
+      signature: bytes
+      curve: :class:`ec.EllipticCurve`
+
+    Returns:
+      bytes
     """
     r, s = decode_dss_signature(signature)
     n = CURVE_ORDER[type(curve)]
@@ -276,10 +285,35 @@ def verify_sig(obj, public_key):
     der_sig = encode_dss_signature(r, s)
 
     try:
-        public_key.verify(der_sig, dag_cbor.encode(obj),
-                          ec.ECDSA(hashes.SHA256()))
+        public_key.verify(der_sig, dag_cbor.encode(obj), ec.ECDSA(hashes.SHA256()))
         return True
     except InvalidSignature:
         logger.debug("Couldn't verify signature", exc_info=True)
         return False
 
+
+def service_jwt(host, repo_did, privkey, expiration=timedelta(minutes=10)):
+    """Generates an inter-service JWT, eg for a BGS or AppView.
+
+    https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification
+
+    Args:
+      host: str, hostname of the service this JWT is for, eg `bgs.bsky-sandbox.dev`
+      repo_did: str, DID of the repo this JWT is for
+      privkey: :class:`ec.EllipticCurvePrivateKey`, repo's signing key
+      expiration: timedelta, length of time this JWT will be valid, defaults to 10m
+
+    Returns:
+      str, JWT
+    """
+    assert host
+    assert repo_did
+    assert expiration
+    data = {
+        'iss': repo_did,
+        'aud': f'did:web:{host}',
+        'alg': 'ES256K',  # k256
+        'exp': int((now() + expiration).timestamp()),
+    }
+    logger.info(f'Generating ATProto inter-service JWT: {data}')
+    return jwt.encode(data, privkey, algorithm='ES256K')

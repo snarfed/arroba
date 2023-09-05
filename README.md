@@ -37,6 +37,7 @@ Single-user demo PDS based on arroba, for testing with the [ATProto federation s
 
 * Add new `did` module with utilities to create and resolve `did:plc`s and resolve `did:web`s.
 * Drop bundled `app.bsky`/`com.atproto` lexicons, use lexrpc's instead.
+* Add new `util.service_jwt` function that generates [ATProto inter-service JWTs](https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification).
 
 ### 0.3 - 2023-08-29
 
