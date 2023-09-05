@@ -24,6 +24,7 @@ dependencies = [
     'dag-json',
     'lexrpc>=0.3',
     'multiformats>=0.2.0',
+    'pyjwt>=2.0.0',
     'simple-websocket',
 ]
 classifiers = [
