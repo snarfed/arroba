@@ -28,16 +28,14 @@ def validate(input, **params):
 
 @server.server.method('com.atproto.repo.createRecord')
 def create_record(input):
-    """
-    """
+    """Handler for `com.atproto.repo.createRecord` XRPC method."""
     input.setdefault('rkey', next_tid())
     return put_record(input)
 
 
 @server.server.method('com.atproto.repo.getRecord')
 def get_record(input, repo=None, collection=None, rkey=None, cid=None):
-    """
-    """
+    """Handler for `com.atproto.repo.getRecord` XRPC method."""
     # Largely duplicates xrpc_sync.get_record
     validate(input, repo=repo, collection=collection, rkey=rkey, cid=cid)
     if cid:
@@ -56,8 +54,7 @@ def get_record(input, repo=None, collection=None, rkey=None, cid=None):
 
 @server.server.method('com.atproto.repo.deleteRecord')
 def delete_record(input):
-    """
-    """
+    """Handler for `com.atproto.repo.deleteRecord` XRPC method."""
     server.auth()
     validate(input)
 
@@ -77,8 +74,7 @@ def list_records(input, repo=None, collection=None, limit=None, cursor=None,
                  reverse=None,
                  # DEPRECATED
                  rkeyStart=None, rkeyEnd=None):
-    """
-    """
+    """Handler for `com.atproto.repo.listRecords` XRPC method."""
     validate(input, repo=repo, collection=collection, limit=limit, cursor=cursor)
     if rkeyStart or rkeyEnd:
         raise ValueError(f'rkeyStart/rkeyEnd not supported')
@@ -96,8 +92,7 @@ def list_records(input, repo=None, collection=None, limit=None, cursor=None,
 
 @server.server.method('com.atproto.repo.putRecord')
 def put_record(input):
-    """
-    """
+    """Handler for `com.atproto.repo.putRecord` XRPC method."""
     server.auth()
     validate(input)
 
@@ -118,8 +113,7 @@ def put_record(input):
 
 @server.server.method('com.atproto.repo.describeRepo')
 def describe_repo(input, repo=None):
-    """
-    """
+    """Handler for `com.atproto.repo.describeRepo` XRPC method."""
     if not repo or repo not in (server.repo.did, server.repo.handle):
         raise ValueError(f'Unknown DID or handle: {repo}')
 
@@ -139,8 +133,7 @@ def describe_repo(input, repo=None):
 
 @server.server.method('com.atproto.repo.applyWrites')
 def apply_writes(input):
-    """
-    """
+    """Handler for `com.atproto.repo.applyWrites` XRPC method."""
     server.auth()
     validate(input)
     return 'Not implemented yet', 501
@@ -148,8 +141,7 @@ def apply_writes(input):
 
 # @server.server.method('com.atproto.repo.uploadBlob')
 # def upload_blob(input):
-#     """
-#     """
+#     """Handler for `com.atproto.repo.uploadBlob` XRPC method."""
 #     # input: binary
 #     server.auth()
 #     validate(input)

@@ -32,7 +32,10 @@ def validate(did=None, collection=None, rkey=None):
 
 @server.server.method('com.atproto.sync.getCheckout')
 def get_checkout(input, did=None, commit=None):
-    """Gets a checkout, either head or a specific commit."""
+    """Handler for `com.atproto.sync.getCheckout` XRPC method.
+
+    Gets a checkout, either head or a specific commit.
+    """
     validate(did=did)
 
     if not commit:
@@ -50,8 +53,7 @@ def get_checkout(input, did=None, commit=None):
 
 @server.server.method('com.atproto.sync.getRepo')
 def get_repo(input, did=None, earliest=None, latest=None):
-    """
-    """
+    """Handler for `com.atproto.sync.getRepo` XRPC method."""
     validate(did=did)
 
     return car.write_car(
@@ -61,8 +63,7 @@ def get_repo(input, did=None, earliest=None, latest=None):
 
 @server.server.method('com.atproto.sync.listRepos')
 def list_repos(input, limit=None, cursor=None):
-    """
-    """
+    """Handler for `com.atproto.sync.listRepos` XRPC method."""
     return [{
         'did': server.repo.did,
         'head': server.repo.head.cid.encode('base32'),
@@ -70,7 +71,8 @@ def list_repos(input, limit=None, cursor=None):
 
 
 def enqueue_commit(commit_data):
-    """
+    """Enqueues a commit to be emitted to `subscribeRepos` subscribers.
+
     Args:
       did: str
       commit_data: :class:`CommitData`
@@ -169,23 +171,20 @@ def subscribe_repos(cursor=None):
 
 # @server.server.method('com.atproto.sync.getBlocks')
 # def get_blocks(input, did=None, cids=None):
-#     """
-#     """
+#     """Handler for `com.atproto.sync.getBlocks` XRPC method."""
 #     # TODO
 #     return b''
 
 
 # @server.server.method('com.atproto.sync.getCommitPath')
 # def get_commit_path(input, did=None, earliest=None, latest=None):
-#     """
-#     """
+#     """Handler for `com.atproto.sync.getCommitPath` XRPC method."""
 #     # TODO
 
 
 @server.server.method('com.atproto.sync.getHead')
 def get_head(input, did=None):
-    """
-    """
+    """Handler for `com.atproto.sync.getHead` XRPC method."""
     validate(did=did)
 
     return {
@@ -195,8 +194,7 @@ def get_head(input, did=None):
 
 @server.server.method('com.atproto.sync.getRecord')
 def get_record(input, did=None, collection=None, rkey=None, commit=None):
-    """
-    """
+    """Handler for `com.atproto.sync.getRecord` XRPC method."""
     # Largely duplicates xrpc_repo.get_record
     validate(did=did, collection=collection, rkey=rkey)
 
@@ -212,28 +210,24 @@ def get_record(input, did=None, collection=None, rkey=None, commit=None):
 
 # @server.server.method('com.atproto.sync.notifyOfUpdate')
 # def notify_of_update(input, did=None, earliest=None, latest=None):
-#     """
-#     """
+#     """Handler for `com.atproto.sync.notifyOfUpdate` XRPC method."""
 #     # input: {'hostname': ...}
 #     # no output
 
 
 # @server.server.method('com.atproto.sync.requestCrawl')
 # def request_crawl(input):
-#     """
-#     """
+#     """Handler for `com.atproto.sync.requestCrawl` XRPC method."""
 #     # input: {'hostname': ...}
 #     # no output
 
 
 # @server.server.method('com.atproto.sync.getBlob')
 # def get_blob(input, did=None, cid=None):
-#     """
-#     """
+#     """Handler for `com.atproto.sync.getBlob` XRPC method."""
 #     # output: binary
 
 # @server.server.method('com.atproto.sync.listBlobs')
 # def list_blobs(input, did=None, earliest=None, latest=None):
-#     """
-#     """
+#     """Handler for `com.atproto.sync.listBlobs` XRPC method."""
 #     # output: {'cids': [CID, ...]}
