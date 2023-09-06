@@ -4,7 +4,9 @@ import os
 import dag_cbor
 from multiformats import CID
 
-from ..storage import Block
+from ..util import next_tid
+from ..repo import Repo, Write
+from ..storage import Action, Block, MemoryStorage
 
 from .testutil import TestCase
 
@@ -29,3 +31,24 @@ class StorageTest(TestCase):
 
     def test_block_hash(self):
         self.assertEqual(id(Block(decoded=DECODED)), id(Block(encoded=ENCODED)))
+
+    def test_read_commits_by_seq(self):
+        commit_cids = []
+
+        storage = MemoryStorage()
+        repo = Repo.create(storage, 'did:web:user.com', self.key)
+        commit_cids.append(repo.head.cid)
+
+        tid = next_tid()
+        create = Write(Action.CREATE, 'co.ll', tid, {'foo': 'bar'})
+        commit_cid = repo.apply_writes([create], self.key)
+        commit_cids.append(repo.head.cid)
+
+        delete = Write(Action.DELETE, 'co.ll', tid)
+        commit_cid = repo.apply_writes([delete], self.key)
+        commit_cids.append(repo.head.cid)
+
+        self.assertEqual(commit_cids, [cd.commit.cid for cd in
+                                       storage.read_commits_by_seq()])
+        self.assertEqual(commit_cids[1:], [cd.commit.cid for cd in
+                                           storage.read_commits_by_seq(start=2)])

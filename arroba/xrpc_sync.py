@@ -154,30 +154,8 @@ def subscribe_repos(cursor=None):
             })
             return
 
-        seq = commit_block = blocks = None
-        for block in server.repo.storage.read_from_seq(cursor):
-            assert block.seq
-            if block.seq != seq:  # switching to a new commit's blocks
-                if commit_block:
-                    assert blocks
-                    commit_data = CommitData(blocks=blocks, commit=commit_block,
-                                             prev=commit_block.decoded['prev'])
-                    yield header_payload(commit_data)
-                else:
-                    assert blocks is None  # only the first commit
-                seq = block.seq
-                blocks = {}  # maps CID to Block
-                commit_block = None
-
-            blocks[block.cid] = block
-            if block.decoded.keys() == set(['version', 'did', 'prev', 'data', 'sig']):
-                commit_block = block
-
-        # final commit
-        assert blocks and commit_block
-        commit_data = CommitData(blocks=blocks, commit=commit_block,
-                                 prev=commit_block.decoded['prev'])
-        yield header_payload(commit_data)
+        for commit_data in server.repo.storage.read_commits_by_seq(start=cursor):
+            yield header_payload(commit_data)
 
     # serve new commits as they happen
     logger.info(f'subscribeRepos: serving new commits')

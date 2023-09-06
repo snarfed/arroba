@@ -262,9 +262,9 @@ class DatastoreStorage(Storage):
         return {cid: block.to_block() if block else None
                 for cid, block in got}
 
-    def read_from_seq(self, seq):
-        assert seq >= 0
-        for atp_block in AtpBlock.query(AtpBlock.seq >= seq)\
+    def read_blocks_by_seq(self, start=0):
+        assert start >= 0
+        for atp_block in AtpBlock.query(AtpBlock.seq >= start)\
                                  .order(AtpBlock.seq):
             yield atp_block.to_block()
 

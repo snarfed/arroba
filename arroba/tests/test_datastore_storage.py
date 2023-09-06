@@ -9,11 +9,12 @@ from multiformats import CID
 from ..datastore_storage import (
     AtpBlock,
     AtpRepo,
+    AtpSequence,
     DatastoreStorage,
     WriteOnceBlobProperty,
 )
 from ..repo import Action, Repo, Write
-from ..storage import Block, CommitData, MemoryStorage
+from ..storage import Block, CommitData, MemoryStorage, SUBSCRIBE_REPOS_NSID
 from ..util import dag_cbor_cid, next_tid
 
 from . import test_repo
@@ -95,6 +96,21 @@ class DatastoreStorageTest(DatastoreTest):
         self.assertEqual(
             {dag_cbor_cid(d): Block(decoded=d) for d in data} | {CIDS[0]: None},
             self.storage.read_many(cids))
+
+    def test_read_blocks_by_seq(self):
+        AtpSequence.allocate(SUBSCRIBE_REPOS_NSID)
+        foo = self.storage.write(repo_did='did:plc:123', obj={'foo': 2})  # seq 2
+        AtpSequence.allocate(SUBSCRIBE_REPOS_NSID)
+        bar = self.storage.write(repo_did='did:plc:123', obj={'bar': 4})  # seq 4
+        baz = self.storage.write(repo_did='did:plc:123', obj={'baz': 5})  # seq 5
+
+        self.assertEqual([foo, bar, baz],
+                         [b.cid for b in self.storage.read_blocks_by_seq()])
+        self.assertEqual([bar, baz],
+                         [b.cid for b in self.storage.read_blocks_by_seq(start=3)])
+        self.assertEqual([bar, baz],
+                         [b.cid for b in self.storage.read_blocks_by_seq(start=4)])
+        self.assertEqual([], [b.cid for b in self.storage.read_blocks_by_seq(start=6)])
 
     def assert_same_seq(self, cids):
         """

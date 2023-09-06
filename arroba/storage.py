@@ -178,16 +178,55 @@ class Storage:
         """
         raise NotImplementedError()
 
-    def read_from_seq(self, seq):
-        """Batch read blocks by sequence number, in order, ascending.
+    def read_blocks_by_seq(self, start=0):
+        """Batch read blocks from storage by `subscribeRepos` sequence number.
 
         Args:
-          seq: integer, sequence number to start from
+          seq: integer, optional `subscribeRepos` sequence number to start from.
+            Defaults to 0.
 
         Returns:
-          either iterable or generator of :class:`Block`
+          iterable or generator of :class:`Block`, starting from `seq`,
+          inclusive, in ascending `seq` order
         """
         raise NotImplementedError()
+
+    def read_commits_by_seq(self, start=0):
+        """Batch read commits from storage by `subscribeRepos` sequence number.
+
+        Args:
+          seq: integer, optional `subscribeRepos` sequence number to start from.
+            Defaults to 0.
+
+        Returns:
+          generator of :class:`CommitData`, starting from `seq`, inclusive, in
+          ascending `seq` order
+        """
+        assert start >= 0
+
+        seq = commit_block = blocks = None
+
+        for block in self.read_blocks_by_seq(start=start):
+            assert block.seq
+            if block.seq != seq:  # switching to a new commit's blocks
+                if commit_block:
+                    assert blocks
+                    yield CommitData(blocks=blocks, commit=commit_block,
+                                     prev=commit_block.decoded.get('prev'))
+                else:
+                    assert blocks is None  # only the first commit
+                seq = block.seq
+                blocks = {}  # maps CID to Block
+                commit_block = None
+
+            blocks[block.cid] = block
+            if block.decoded.keys() == set(['version', 'did', 'prev', 'data', 'sig']):
+                commit_block = block
+
+        # final commit
+        assert blocks and commit_block
+        yield CommitData(blocks=blocks, commit=commit_block,
+                         prev=commit_block.decoded.get('prev'))
 
     def has(self, cid):
         """Checks if a given :class:`CID` is currently stored.
@@ -291,9 +330,9 @@ class MemoryStorage(Storage):
             assert len(found) == len(cids), (len(found), len(cids))
         return found
 
-    def read_from_seq(self, seq):
-        assert seq >= 0
-        return sorted((b for b in self.blocks.values() if b.seq >= seq),
+    def read_blocks_by_seq(self, start=0):
+        assert start >= 0
+        return sorted((b for b in self.blocks.values() if b.seq >= start),
                       key=lambda b: b.seq)
 
     def has(self, cid):

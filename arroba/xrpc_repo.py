@@ -4,7 +4,6 @@ TODO:
 * auth
 * cid in getRecord, listRecords output
 * apply_writes
-* rebase_repo
 """
 import logging
 
@@ -138,20 +137,13 @@ def describe_repo(input, repo=None):
     }
 
 
-@server.server.method('com.atproto.repo.rebaseRepo')
-def rebase_repo(input):
-    """
-    """
-    server.auth()
-    validate(input)
-
-
 @server.server.method('com.atproto.repo.applyWrites')
 def apply_writes(input):
     """
     """
     server.auth()
     validate(input)
+    return 'Not implemented yet', 501
 
 
 # @server.server.method('com.atproto.repo.uploadBlob')
