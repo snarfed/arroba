@@ -81,7 +81,7 @@ def resolve_plc(did, get_fn=requests.get):
     return resp.json()
 
 
-def create_plc(handle, privkey=None, pds_hostname=None, post_fn=requests.post):
+def create_plc(handle, privkey=None, pds_url=None, post_fn=requests.post):
     """Creates a new did:plc in a PLC registry.
 
     The PLC registry hostname is specified in the PLC_HOST environment variable.
@@ -94,8 +94,8 @@ def create_plc(handle, privkey=None, pds_hostname=None, post_fn=requests.post):
       handle: str, domain handle to associate with this DID
       privkey: :class:`ec.EllipticCurvePrivateKey`. The curve must be SECP256K1.
         If omitted, a new keypair will be created.
-      pds_hostname: str, PDS hostname to associate with this DID. If omitted,
-        defaults to the PDS_HOST environment variable.
+      pds_url: str, PDS base URL to associate with this DID. If omitted,
+        defaults to `https://[PDS_HOST]`
       post_fn: callable for making HTTP POST requests
 
     Returns:
@@ -119,10 +119,10 @@ def create_plc(handle, privkey=None, pds_hostname=None, post_fn=requests.post):
         logger.info('Generating new k256 keypair')
         privkey = util.new_key()
 
-    if not pds_hostname:
-        pds_hostname = os.environ['PDS_HOST']
+    if not pds_url:
+        pds_url = f'https://{os.environ["PDS_HOST"]}'
 
-    logger.info('Creating new did:plc for {handle} {pds_hostname}')
+    logger.info('Creating new did:plc for {handle} {pds_url}')
     pubkey = privkey.public_key()
     # https://atproto.com/specs/did#public-key-encoding
     pubkey_bytes = pubkey.public_bytes(serialization.Encoding.X962,
@@ -146,7 +146,7 @@ def create_plc(handle, privkey=None, pds_hostname=None, post_fn=requests.post):
         'services': {
             'atproto_pds': {
                 'type': 'AtprotoPersonalDataServer',
-                'endpoint': f'https://{pds_hostname}',
+                'endpoint': f'{pds_url}',
             }
         },
         'prev': None,
