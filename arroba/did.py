@@ -22,9 +22,10 @@ import requests
 from . import util
 
 DidPlc = namedtuple('DidPlc', [
-    'did',      # str
-    'privkey',  # ec.EllipticCurvePrivateKey
-    'doc',      # dict, DID document
+    'did',           # str
+    'signing_key',   # ec.EllipticCurvePrivateKey
+    'rotation_key',  # ec.EllipticCurvePrivateKey
+    'doc',           # dict, DID document
 ])
 
 logger = logging.getLogger(__name__)
@@ -81,7 +82,8 @@ def resolve_plc(did, get_fn=requests.get):
     return resp.json()
 
 
-def create_plc(handle, privkey=None, pds_url=None, post_fn=requests.post):
+def create_plc(handle, signing_key=None, rotation_key=None, pds_url=None,
+               post_fn=requests.post):
     """Creates a new did:plc in a PLC registry.
 
     The PLC registry hostname is specified in the PLC_HOST environment variable.
@@ -92,14 +94,16 @@ def create_plc(handle, privkey=None, pds_url=None, post_fn=requests.post):
 
     Args:
       handle: str, domain handle to associate with this DID
-      privkey: :class:`ec.EllipticCurvePrivateKey`. The curve must be SECP256K1.
+      signing_key: :class:`ec.EllipticCurvePrivateKey`. The curve must be SECP256K1.
+        If omitted, a new keypair will be created.
+      rotation_key: :class:`ec.EllipticCurvePrivateKey`. The curve must be SECP256K1.
         If omitted, a new keypair will be created.
       pds_url: str, PDS base URL to associate with this DID. If omitted,
         defaults to `https://[PDS_HOST]`
       post_fn: callable for making HTTP POST requests
 
     Returns:
-      :class:`DidPlc` with the newly created did:plc, keypair, and DID document
+      :class:`DidPlc` with the newly created did:plc, keys, and DID document
 
     Raises:
       ValueError, if any inputs are invalid
@@ -111,34 +115,18 @@ def create_plc(handle, privkey=None, pds_url=None, post_fn=requests.post):
     if not isinstance(handle, str) or not handle:
         raise ValueError(f'{handle} is not a valid handle')
 
-    if privkey:
-        if not isinstance(privkey.curve, ec.SECP256K1):
-            raise ValueError(
-                f'Expected privkey to have SECP256K1 curve; got {privkey.curve}')
-    else:
-        logger.info('Generating new k256 keypair')
-        privkey = util.new_key()
-
     if not pds_url:
         pds_url = f'https://{os.environ["PDS_HOST"]}'
 
-    logger.info('Creating new did:plc for {handle} {pds_url}')
-    pubkey = privkey.public_key()
-    # https://atproto.com/specs/did#public-key-encoding
-    pubkey_bytes = pubkey.public_bytes(serialization.Encoding.X962,
-                                       serialization.PublicFormat.CompressedPoint)
-    pubkey_multibase = multibase.encode(
-        multicodec.wrap('secp256k1-pub', pubkey_bytes),
-        'base58btc')
-    did_key = f'did:key:{pubkey_multibase}'
-    logger.info(f'  {did_key}')
+    signing_key, signing_did_key = _process_key('signing', signing_key)
+    rotation_key, rotation_did_key = _process_key('rotation', rotation_key)
 
     logger.info('Generating and signing DID document...')
     doc = {
         'type': 'plc_operation',
-        'rotationKeys': [did_key],
+        'rotationKeys': [rotation_did_key],
         'verificationMethods': {
-            'atproto': did_key,
+            'atproto': signing_did_key,
         },
         'alsoKnownAs': [
             f'at://{handle}',
@@ -151,7 +139,7 @@ def create_plc(handle, privkey=None, pds_url=None, post_fn=requests.post):
         },
         'prev': None,
     }
-    doc = util.sign(doc, privkey)
+    doc = util.sign(doc, rotation_key)
     doc['sig'] = base64.urlsafe_b64encode(doc['sig']).decode()
     sha256 = Hash(SHA256())
     sha256.update(dag_cbor.encode(doc))
@@ -165,7 +153,39 @@ def create_plc(handle, privkey=None, pds_url=None, post_fn=requests.post):
     resp.raise_for_status()
     logger.info(f'{resp} {resp.content}')
 
-    return DidPlc(did=did_plc, privkey=privkey, doc=doc)
+    return DidPlc(did=did_plc, doc=doc,
+                  signing_key=signing_key, rotation_key=rotation_key)
+
+
+def _process_key(label, key=None):
+    """Validates or creates a private key, generates and returns its did:key.
+
+    Args:
+      label: str
+      key: :class:`ec.EllipticCurvePrivateKey`, optional
+
+    Returns:
+      tuple, (:class:`ec.EllipticCurvePrivateKey` private key,
+              str encoded public multibase `did:key`)
+    """
+    if key and not isinstance(key.curve, ec.SECP256K1):
+        raise ValueError(f'Expected SECP256K1 curve {label} key; got {key.curve}')
+
+    if not key:
+        logger.info('Generating new k256 {label} key')
+        key = util.new_key()
+
+    pubkey = key.public_key()
+    # https://atproto.com/specs/did#public-key-encoding
+    pubkey_bytes = pubkey.public_bytes(serialization.Encoding.X962,
+                                       serialization.PublicFormat.CompressedPoint)
+    pubkey_multibase = multibase.encode(
+        multicodec.wrap('secp256k1-pub', pubkey_bytes),
+        'base58btc')
+    did_key = f'did:key:{pubkey_multibase}'
+    logger.info(f'  {label} key {did_key}')
+
+    return key, did_key
 
 
 def resolve_web(did, get_fn=requests.get):

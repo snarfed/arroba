@@ -63,15 +63,20 @@ class DidTest(TestCase):
 
         self.assertTrue(did_plc.did.startswith('did:plc:'))
         self.assertEqual(32, len(did_plc.did))
-        self.assertIsInstance(did_plc.privkey, ec.EllipticCurvePrivateKey)
+        self.assertIsInstance(did_plc.signing_key, ec.EllipticCurvePrivateKey)
+        self.assertIsInstance(did_plc.rotation_key, ec.EllipticCurvePrivateKey)
+        self.assertNotEqual(did_plc.rotation_key, did_plc.signing_key)
 
-        self.assertTrue(did_plc.doc.pop('rotationKeys')[0].startswith('did:key:'))
-        self.assertTrue(did_plc.doc.pop('verificationMethods')['atproto']
-                        .startswith('did:key:'))
+        rotation_did_key = did_plc.doc['rotationKeys'][0]
+        self.assertTrue(rotation_did_key.startswith('did:key:'))
+        signing_did_key = did_plc.doc['verificationMethods']['atproto']
+        self.assertTrue(signing_did_key.startswith('did:key:'))
+        self.assertNotEqual(rotation_did_key, signing_did_key)
 
-        util.verify_sig(did_plc.doc, did_plc.privkey.public_key())
-        did_plc.doc.pop('sig')
+        util.verify_sig(did_plc.doc, did_plc.rotation_key.public_key())
 
+        for field in 'sig', 'rotationKeys', 'verificationMethods':
+            del did_plc.doc[field]
         self.assertEqual({
             'type': 'plc_operation',
             'alsoKnownAs': [
