@@ -18,9 +18,6 @@ logger = logging.getLogger(__name__)
 def validate(input, **params):
     input.update(params)
 
-    if input['repo'] != server.repo.did:
-        raise ValueError(f'Unknown repo: {input["repo"]}')
-
     for field in 'swapCommit', 'swapRecord':
         if input.get(field):
             raise ValueError(f'{field} not supported yet')
@@ -37,7 +34,7 @@ def create_record(input):
 def get_record(input, repo=None, collection=None, rkey=None, cid=None):
     """Handler for `com.atproto.repo.getRecord` XRPC method."""
     # Largely duplicates xrpc_sync.get_record
-    validate(input, repo=repo, collection=collection, rkey=rkey, cid=cid)
+    validate(input, collection=collection, rkey=rkey, cid=cid)
     if cid:
         raise ValueError(f'cid not supported yet')
 
@@ -75,7 +72,7 @@ def list_records(input, repo=None, collection=None, limit=None, cursor=None,
                  # DEPRECATED
                  rkeyStart=None, rkeyEnd=None):
     """Handler for `com.atproto.repo.listRecords` XRPC method."""
-    validate(input, repo=repo, collection=collection, limit=limit, cursor=cursor)
+    validate(input, collection=collection, limit=limit, cursor=cursor)
     if rkeyStart or rkeyEnd:
         raise ValueError(f'rkeyStart/rkeyEnd not supported')
 

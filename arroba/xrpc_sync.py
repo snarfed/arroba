@@ -21,13 +21,7 @@ logger = logging.getLogger(__name__)
 
 # used by subscribe_repos and enqueue_commit
 subscribers = set()  # stores Queue, one per subscriber
-# TODO: do we need this?
-# _subscribers_lock = Lock()
-
-
-def validate(did=None, collection=None, rkey=None):
-    if did != server.repo.did:
-        raise ValueError(f'Unknown DID: {did}')
+_subscribers_lock = Lock()
 
 
 @server.server.method('com.atproto.sync.getCheckout')
@@ -36,8 +30,6 @@ def get_checkout(input, did=None, commit=None):
 
     Gets a checkout, either head or a specific commit.
     """
-    validate(did=did)
-
     if not commit:
         commit = server.repo.head.cid
 
@@ -54,8 +46,6 @@ def get_checkout(input, did=None, commit=None):
 @server.server.method('com.atproto.sync.getRepo')
 def get_repo(input, did=None, earliest=None, latest=None):
     """Handler for `com.atproto.sync.getRepo` XRPC method."""
-    validate(did=did)
-
     return car.write_car(
         [server.repo.head.cid],
         (car.Block(cid=cid, data=data) for cid, data in server.repo.mst.load_all()))
@@ -81,8 +71,9 @@ def enqueue_commit(commit_data):
     if subscribers:
         logger.debug(f'Enqueueing for {len(subscribers)} subscribers')
 
-    for subscriber in subscribers:
-        subscriber.put(commit_data)
+    with _subscribers_lock:
+        for subscriber in subscribers:
+            subscriber.put(commit_data)
 
 
 @server.server.method('com.atproto.sync.subscribeRepos')
@@ -141,12 +132,13 @@ def subscribe_repos(cursor=None):
         assert cursor >= 0
 
     queue = Queue()
-    subscribers.add(queue)
+    with _subscribers_lock:
+        subscribers.add(queue)
 
     # fetch existing blocks starting at seq, collect into commits
     if cursor is not None:
         logger.info(f'subscribeRepos: fetching existing commits from seq {cursor}')
-        last_seq = server.repo.storage.last_seq(SUBSCRIBE_REPOS_NSID)
+        last_seq = server.storage.last_seq(SUBSCRIBE_REPOS_NSID)
         if cursor > last_seq:
             yield ({
                 'op': -1,
@@ -156,7 +148,7 @@ def subscribe_repos(cursor=None):
             })
             return
 
-        for commit_data in server.repo.storage.read_commits_by_seq(start=cursor):
+        for commit_data in server.storage.read_commits_by_seq(start=cursor):
             yield header_payload(commit_data)
 
     # serve new commits as they happen
@@ -166,7 +158,8 @@ def subscribe_repos(cursor=None):
         yield header_payload(commit_data)
 
     # TODO: this is never reached, so we currently slowly leak queues. fix that
-    subscribers.remove(queue)
+    with _subscribers_lock:
+        subscribers.remove(queue)
 
 
 # @server.server.method('com.atproto.sync.getBlocks')
@@ -185,8 +178,6 @@ def subscribe_repos(cursor=None):
 @server.server.method('com.atproto.sync.getHead')
 def get_head(input, did=None):
     """Handler for `com.atproto.sync.getHead` XRPC method."""
-    validate(did=did)
-
     return {
         'root': server.repo.head.cid.encode('base32'),
     }
@@ -196,8 +187,6 @@ def get_head(input, did=None):
 def get_record(input, did=None, collection=None, rkey=None, commit=None):
     """Handler for `com.atproto.sync.getRecord` XRPC method."""
     # Largely duplicates xrpc_repo.get_record
-    validate(did=did, collection=collection, rkey=rkey)
-
     if commit:
         raise ValueError('commit not supported yet')
 
