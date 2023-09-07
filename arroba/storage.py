@@ -224,9 +224,10 @@ class Storage:
                 commit_block = block
 
         # final commit
-        assert blocks and commit_block
-        yield CommitData(blocks=blocks, commit=commit_block,
-                         prev=commit_block.decoded.get('prev'))
+        if blocks:
+            assert blocks and commit_block
+            yield CommitData(blocks=blocks, commit=commit_block,
+                             prev=commit_block.decoded.get('prev'))
 
     def has(self, cid):
         """Checks if a given :class:`CID` is currently stored.
