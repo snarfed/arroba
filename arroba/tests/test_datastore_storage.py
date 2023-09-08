@@ -3,6 +3,8 @@ import os
 
 from google.cloud import ndb
 
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec
 import dag_cbor
 from multiformats import CID
 
@@ -15,7 +17,7 @@ from ..datastore_storage import (
 )
 from ..repo import Action, Repo, Write
 from ..storage import Block, CommitData, MemoryStorage, SUBSCRIBE_REPOS_NSID
-from ..util import dag_cbor_cid, next_tid
+from ..util import dag_cbor_cid, new_key, next_tid
 
 from . import test_repo
 from .testutil import DatastoreTest
@@ -33,17 +35,31 @@ class DatastoreStorageTest(DatastoreTest):
         self.assertIsNone(self.storage.load_repo(handle='han.dull'))
         self.assertIsNone(self.storage.load_repo(did='did:web:user.com'))
 
-        repo = Repo.create(self.storage, 'did:web:user.com', key=self.key,
-                           handle='han.dull')
-        self.storage.create_repo(repo)
+        rotation_key = new_key()
+        repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key,
+                           rotation_key=rotation_key, handle='han.dull')
+        # self.storage.create_repo(repo, signing_key=self.key, rotation_key=self.key)
 
         self.assertEqual(repo, self.storage.load_repo(did='did:web:user.com'))
         self.assertEqual(repo, self.storage.load_repo(handle='han.dull'))
         self.assertEqual('han.dull', self.storage.load_repo(handle='han.dull').handle)
 
+        atp_repo = AtpRepo.get_by_id('did:web:user.com')
+        self.assertEqual(rotation_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        ), atp_repo.rotation_key_pem)
+        self.assertEqual(self.key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        ), atp_repo.signing_key_pem)
+
     def test_create_load_repo_no_handle(self):
-        repo = Repo.create(self.storage, 'did:web:user.com', key=self.key)
-        self.storage.create_repo(repo)
+        repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key,
+                           rotation_key=self.key)
+        # self.storage.create_repo(repo)
         self.assertEqual([], AtpRepo.get_by_id('did:web:user.com').handles)
         self.assertIsNone(self.storage.load_repo(handle='han.dull'))
 
@@ -137,7 +153,7 @@ class DatastoreStorageTest(DatastoreTest):
         blocks = {dag_cbor_cid(obj): Block(decoded=obj) for obj in objs}
 
         # new repo with initial commit
-        repo = Repo.create(self.storage, 'did:web:user.com', self.key)
+        repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
         self.assert_same_seq(b.key.id() for b in AtpBlock.query())
 
         # new commit

@@ -34,8 +34,8 @@ class XrpcServerTest(testutil.XrpcTestCase):
         }, resp)
 
     def test_create_session_handle(self):
-        server.repo = Repo.create(server.storage, 'did:plc:abc123', self.key,
-                                  handle='user.handle')
+        server.repo = Repo.create(server.storage, 'did:plc:abc123',
+                                  signing_key=self.key, handle='user.handle')
 
         resp = xrpc_server.create_session({
             'identifier': 'user.handle',

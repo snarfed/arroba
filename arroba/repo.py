@@ -173,7 +173,8 @@ class Repo:
         return CommitData(commit=commit_block, prev=None, blocks=new_blocks)
 
     @classmethod
-    def create_from_commit(cls, storage, commit_data, **kwargs):
+    def create_from_commit(cls, storage, commit_data, *,
+                           signing_key, rotation_key=None, **kwargs):
         """
 
         Args:
@@ -186,11 +187,12 @@ class Repo:
         """
         storage.apply_commit(commit_data)
         repo = cls.load(storage, commit_data.commit.cid, **kwargs)
-        storage.create_repo(repo)
+        storage.create_repo(repo, signing_key=signing_key, rotation_key=rotation_key)
         return repo
 
     @classmethod
-    def create(cls, storage, did, key, initial_writes=None, **kwargs):
+    def create(cls, storage, did, *, signing_key, rotation_key=None,
+               initial_writes=None, **kwargs):
         """
 
         Args:
@@ -206,10 +208,11 @@ class Repo:
         commit = cls.format_init_commit(
             storage,
             did,
-            key,
+            signing_key,
             initial_writes,
         )
-        return cls.create_from_commit(storage, commit, **kwargs)
+        return cls.create_from_commit(storage, commit, signing_key=signing_key,
+                                      rotation_key=rotation_key, **kwargs)
 
     @classmethod
     def load(cls, storage, cid=None, **kwargs):

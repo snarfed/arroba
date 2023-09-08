@@ -27,7 +27,8 @@ class RepoTest(TestCase):
     def setUp(self):
         super().setUp()
         self.storage = self.STORAGE_CLS()
-        self.repo = Repo.create(self.storage, 'did:web:user.com', self.key)
+        self.repo = Repo.create(self.storage, 'did:web:user.com',
+                                signing_key=self.key)
 
     def test_metadata(self):
         self.assertEqual(2, self.repo.version)

@@ -36,7 +36,7 @@ class StorageTest(TestCase):
         commit_cids = []
 
         storage = MemoryStorage()
-        repo = Repo.create(storage, 'did:web:user.com', self.key)
+        repo = Repo.create(storage, 'did:web:user.com', signing_key=self.key)
         commit_cids.append(repo.head.cid)
 
         tid = next_tid()

@@ -2,6 +2,8 @@
 import json
 import logging
 
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec
 import dag_cbor
 import dag_json
 from google.cloud import ndb
@@ -89,6 +91,11 @@ class AtpRepo(ndb.Model):
     """
     handles = ndb.StringProperty(repeated=True)
     head = ndb.StringProperty(required=True)
+
+    # these are both secp256k1 private keys, PEM-encoded bytes
+    # https://atproto.com/specs/cryptography
+    signing_key_pem = ndb.BlobProperty(required=True)
+    rotation_key_pem = ndb.BlobProperty()
 
     created = ndb.DateTimeProperty(auto_now_add=True)
     updated = ndb.DateTimeProperty(auto_now=True)
@@ -223,13 +230,29 @@ class DatastoreStorage(Storage):
 
     See :class:`Storage` for method details.
     """
-    def create_repo(self, repo):
+    def create_repo(self, repo, *, signing_key, rotation_key=None):
         assert repo.did
         assert repo.head
 
         handles = [repo.handle] if repo.handle else []
+
+        signing_key_pem = signing_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        rotation_key_pem = None
+        if rotation_key:
+            rotation_key_pem = rotation_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption(),
+            )
+
         atp_repo = AtpRepo(id=repo.did, handles=handles,
-                           head=repo.head.cid.encode('base32'))
+                           head=repo.head.cid.encode('base32'),
+                           signing_key_pem=signing_key_pem,
+                           rotation_key_pem=rotation_key_pem)
         atp_repo.put()
         logger.info(f'Stored repo {atp_repo}')
 
@@ -291,13 +314,11 @@ class DatastoreStorage(Storage):
 
         commit = commit_data.commit.decoded
         head_encoded = self.head.encode('base32')
-        repo = AtpRepo.get_or_insert(commit['did'], head=head_encoded)
-        if repo.head == head_encoded:
-            logger.info(f'Created new repo {repo}')
-        else:
-            # already existed in datastore
+
+        repo = AtpRepo.get_by_id(commit['did'])
+        if repo:
+            logger.info(f'Updating repo {repo}')
             repo.head = head_encoded
-            logger.info(f'Updated repo {repo}')
             repo.put()
 
     def allocate_seq(self, nsid):

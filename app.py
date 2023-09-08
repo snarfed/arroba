@@ -71,8 +71,8 @@ app.json.compact = False
 
 # https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification
 # https://atproto.com/specs/cryptography
-privkey = server.key = load_pem_private_key(os.environ['REPO_PRIVKEY'].encode(),
-                                            password=None)
+privkey = load_pem_private_key(os.environ['REPO_PRIVKEY'].encode(),
+                               password=None)
 def jwt_data(aud):
     data = {
         'iss': os.environ['REPO_DID'],
@@ -134,7 +134,8 @@ with ndb_client.context():
     server.repo = server.storage.load_repo(did=os.environ['REPO_DID'])
     if server.repo is None:
         server.repo = Repo.create(server.storage, os.environ['REPO_DID'],
-                                  server.key, handle=os.environ['REPO_HANDLE'])
+                                  rotation_key=privkey, signing_key=privkey,
+                                  handle=os.environ['REPO_HANDLE'])
 
 server.repo.callback = xrpc_sync.enqueue_commit
 if server.repo.handle != os.environ['REPO_HANDLE']:
