@@ -91,6 +91,7 @@ class AtpRepo(ndb.Model):
     """
     handles = ndb.StringProperty(repeated=True)
     head = ndb.StringProperty(required=True)
+    # TODO: add password hash?
 
     # these are both secp256k1 private keys, PEM-encoded bytes
     # https://atproto.com/specs/cryptography
@@ -256,16 +257,13 @@ class DatastoreStorage(Storage):
         atp_repo.put()
         logger.info(f'Stored repo {atp_repo}')
 
-    def load_repo(self, did=None, handle=None):
-        assert bool(did) ^ bool(handle), f'{did} {handle}'
-
-        if did:
-            atp_repo = AtpRepo.get_by_id(did)
-        else:
-            atp_repo = AtpRepo.query(AtpRepo.handles == handle).get()
+    def load_repo(self, did_or_handle):
+        assert did_or_handle
+        atp_repo = (AtpRepo.get_by_id(did_or_handle)
+                    or AtpRepo.query(AtpRepo.handles == did_or_handle).get())
 
         if not atp_repo:
-            logger.info(f"Couldn't find repo for {did} {handle}")
+            logger.info(f"Couldn't find repo for {did_or_handle}")
             return None
 
         logger.info(f'Loading repo {atp_repo.key}')

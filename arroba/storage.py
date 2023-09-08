@@ -143,17 +143,14 @@ class Storage:
         """
         raise NotImplementedError()
 
-    def load_repo(self, did=None, handle=None):
+    def load_repo(self, did_or_handle):
         """Loads a repo from storage.
 
-        Either did or handle should be provided, but not both.
-
         Args:
-          did: str, optional
-          handle: str, optional
+          did_or_handle: str, optional
 
         Returns:
-          :class:`Repo`, or None if the did or handle weren't found
+          :class:`Repo`, or None if the did or handle wasn't found
         """
         raise NotImplementedError()
 
@@ -316,11 +313,11 @@ class MemoryStorage(Storage):
         if repo not in self.repos:
             self.repos.append(repo)
 
-    def load_repo(self, did=None, handle=None):
-        assert bool(did) ^ bool(handle), f'{did} {handle}'
+    def load_repo(self, did_or_handle):
+        assert did_or_handle
 
         for repo in self.repos:
-            if (did and repo.did == did) or (handle and repo.handle == handle):
+            if did_or_handle in (repo.did, repo.handle):
                 return repo
 
     def read(self, cid):

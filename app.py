@@ -131,7 +131,7 @@ ndb_client = ndb.Client()
 
 with ndb_client.context():
     server.storage = DatastoreStorage()
-    server.repo = server.storage.load_repo(did=os.environ['REPO_DID'])
+    server.repo = server.storage.load_repo(os.environ['REPO_DID'])
     if server.repo is None:
         server.repo = Repo.create(server.storage, os.environ['REPO_DID'],
                                   rotation_key=privkey, signing_key=privkey,

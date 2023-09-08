@@ -32,17 +32,16 @@ CIDS = [
 class DatastoreStorageTest(DatastoreTest):
 
     def test_create_load_repo(self):
-        self.assertIsNone(self.storage.load_repo(handle='han.dull'))
-        self.assertIsNone(self.storage.load_repo(did='did:web:user.com'))
+        self.assertIsNone(self.storage.load_repo('han.dull'))
+        self.assertIsNone(self.storage.load_repo('did:web:user.com'))
 
         rotation_key = new_key()
         repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key,
                            rotation_key=rotation_key, handle='han.dull')
-        # self.storage.create_repo(repo, signing_key=self.key, rotation_key=self.key)
 
-        self.assertEqual(repo, self.storage.load_repo(did='did:web:user.com'))
-        self.assertEqual(repo, self.storage.load_repo(handle='han.dull'))
-        self.assertEqual('han.dull', self.storage.load_repo(handle='han.dull').handle)
+        self.assertEqual(repo, self.storage.load_repo('did:web:user.com'))
+        self.assertEqual(repo, self.storage.load_repo('han.dull'))
+        self.assertEqual('han.dull', self.storage.load_repo('han.dull').handle)
 
         atp_repo = AtpRepo.get_by_id('did:web:user.com')
         self.assertEqual(rotation_key.private_bytes(
@@ -61,7 +60,7 @@ class DatastoreStorageTest(DatastoreTest):
                            rotation_key=self.key)
         # self.storage.create_repo(repo)
         self.assertEqual([], AtpRepo.get_by_id('did:web:user.com').handles)
-        self.assertIsNone(self.storage.load_repo(handle='han.dull'))
+        self.assertIsNone(self.storage.load_repo('han.dull'))
 
     def test_atp_block_create(self):
         data = {'foo': 'bar'}
@@ -164,7 +163,7 @@ class DatastoreStorageTest(DatastoreTest):
         self.assertEqual(commit_data.commit.cid, self.storage.head)
         self.assert_same_seq(k.encode('base32') for k in commit_data.blocks.keys())
 
-        repo = self.storage.load_repo(did='did:web:user.com')
+        repo = self.storage.load_repo('did:web:user.com')
         self.assertEqual('did:web:user.com', repo.did)
         self.assertEqual(commit_data.commit.cid, repo.head.cid)
 
@@ -180,7 +179,7 @@ class DatastoreStorageTest(DatastoreTest):
         cid = commit_data.commit.cid
         self.assertEqual(commit_data.commit.decoded, found[cid].decoded)
 
-        repo = self.storage.load_repo(did='did:web:user.com')
+        repo = self.storage.load_repo('did:web:user.com')
         self.assertEqual(cid, repo.head.cid)
 
         atp_repo = AtpRepo.get_by_id('did:web:user.com')
