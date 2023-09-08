@@ -298,6 +298,8 @@ class Repo:
         """
         self.storage.apply_commit(commit_data)
         self.head = commit_data.commit
+        if self.callback:
+            self.callback(commit_data)
         return self
 
     def apply_writes(self, writes, key):
@@ -312,8 +314,6 @@ class Repo:
         """
         commit_data = self.format_commit(writes, key)
         self.apply_commit(commit_data)
-        if self.callback:
-            self.callback(commit_data)
         return self
 
     # def format_rebase(self, key):

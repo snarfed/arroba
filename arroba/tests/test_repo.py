@@ -30,6 +30,27 @@ class RepoTest(TestCase):
         self.repo = Repo.create(self.storage, 'did:web:user.com',
                                 signing_key=self.key)
 
+    def assertCommitIs(self, commit_data, write, seq):
+        mst_entry_cid = commit_data.commit.decoded['data']
+        mst_entry = commit_data.blocks[mst_entry_cid].decoded
+
+        record_cid = None
+        if write.record:
+            record_cid = dag_cbor_cid(write.record)
+            self.assertEqual([{
+                'k': f'co.ll/{util._tid_last}'.encode(),
+                'p': 0,
+                't': None,
+                'v': record_cid,
+            }], mst_entry['e'])
+            self.assertEqual(write.record,
+                             commit_data.blocks[record_cid].decoded)
+
+        self.assertEqual(writes_to_commit_ops([write]), commit_data.commit.ops)
+
+        for block in commit_data.blocks.values():
+            self.assertEqual(seq, block.seq)
+
     def test_metadata(self):
         self.assertEqual(2, self.repo.version)
         self.assertEqual('did:web:user.com', self.repo.did)
@@ -125,28 +146,7 @@ class RepoTest(TestCase):
         self.assertEqual('did:web:user.com', reloaded.did)
         self.assertEqual({'co.ll': objs}, reloaded.get_contents())
 
-    def test_callback(self):
-        def assertCommitIs(commit_data, write, seq):
-            mst_entry_cid = commit_data.commit.decoded['data']
-            mst_entry = commit_data.blocks[mst_entry_cid].decoded
-
-            record_cid = None
-            if write.record:
-                record_cid = dag_cbor_cid(write.record)
-                self.assertEqual([{
-                    'k': f'co.ll/{util._tid_last}'.encode(),
-                    'p': 0,
-                    't': None,
-                    'v': record_cid,
-                }], mst_entry['e'])
-                self.assertEqual(write.record,
-                                 commit_data.blocks[record_cid].decoded)
-
-            self.assertEqual(writes_to_commit_ops([write]), commit_data.commit.ops)
-
-            for block in commit_data.blocks.values():
-                self.assertEqual(seq, block.seq)
-
+    def test_apply_writes_callback(self):
         seen = []
 
         # create new object with callback
@@ -156,19 +156,30 @@ class RepoTest(TestCase):
         self.repo.apply_writes([create], self.key)
 
         self.assertEqual(1, len(seen))
-        assertCommitIs(seen[0], create, 2)
+        self.assertCommitIs(seen[0], create, 2)
 
         # update object
         update = Write(Action.UPDATE, 'co.ll', tid, {'foo': 'baz'})
         self.repo.apply_writes([update], self.key)
         self.assertEqual(2, len(seen))
-        assertCommitIs(seen[1], update, 3)
+        self.assertCommitIs(seen[1], update, 3)
 
         # unset callback, update again
         self.repo.callback = None
         update = Write(Action.UPDATE, 'co.ll', tid, {'biff': 0})
         self.repo.apply_writes([update], self.key)
         self.assertEqual(2, len(seen))
+
+    def test_apply_commit_callback(self):
+        seen = []
+
+        # create new object with callback
+        self.repo.callback = lambda commit: seen.append(commit)
+        create = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})
+        self.repo.apply_commit(self.repo.format_commit([create], self.key))
+
+        self.assertEqual(1, len(seen))
+        self.assertCommitIs(seen[0], create, 2)
 
 
 class DatastoreRepoTest(RepoTest, DatastoreTest):
