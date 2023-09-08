@@ -192,8 +192,10 @@ class Repo:
         Args:
           storage: :class:`Storage`
           commit_data: :class:`CommitData`
-          signing_key: :class:`ec.EllipticCurvePrivateKey`, required
-          rotation_key: :class:`ec.EllipticCurvePrivateKey`
+          signing_key: :class:`ec.EllipticCurvePrivateKey`, passed through to
+            :class:`Storage.create_repo`
+          rotation_key: :class:`ec.EllipticCurvePrivateKey`, optional, passed
+            through to :class:`Storage.create_repo`
           kwargs: passed through to :class:`Repo` constructor
 
         Returns:
@@ -214,7 +216,10 @@ class Repo:
         Args:
           storage: :class:`Storage`
           did: string
-          key: :class:`ec.EllipticCurvePrivateKey`
+          signing_key: :class:`ec.EllipticCurvePrivateKey`, passed through to
+            :class:`Storage.create_repo`
+          rotation_key: :class:`ec.EllipticCurvePrivateKey`, optional, passed
+            through to :class:`Storage.create_repo`
           initial_writes: sequence of :class:`Write`
           kwargs: passed through to :class:`Repo` constructor
 

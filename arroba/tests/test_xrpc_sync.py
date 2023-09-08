@@ -61,8 +61,6 @@ class XrpcSyncTest(testutil.XrpcTestCase):
 
     def test_get_checkout(self):
         resp = xrpc_sync.get_checkout({}, did='did:web:user.com')
-                                      # TODO
-                                      # commit=xrpc_sync.repo.head.cid)
         roots, blocks = read_car(resp)
         self.assertEqual(self.data, load(blocks))
 
