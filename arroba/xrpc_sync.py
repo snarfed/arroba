@@ -25,39 +25,45 @@ _subscribers_lock = Lock()
 
 
 @server.server.method('com.atproto.sync.getCheckout')
-def get_checkout(input, did=None, commit=None):
+def get_checkout(input, did=None):
     """Handler for `com.atproto.sync.getCheckout` XRPC method.
+
+    Deprecated! Use getRepo instead.
 
     Gets a checkout, either head or a specific commit.
     """
-    if not commit:
-        commit = server.repo.head.cid
-
-    if not server.storage.has(commit):
-        raise ValueError(f'{commit} not found in {did}')
-
-    # TODO
-    # mst = MST.load(storage=storage, cid=commit)
-    return car.write_car(
-        [commit],
-        (car.Block(cid=cid, data=data) for cid, data in server.repo.mst.load_all()))
+    return get_repo(input, did=did)
 
 
 @server.server.method('com.atproto.sync.getRepo')
-def get_repo(input, did=None, earliest=None, latest=None):
-    """Handler for `com.atproto.sync.getRepo` XRPC method."""
+def get_repo(input, did=None, since=None):
+    """Handler for `com.atproto.sync.getRepo` XRPC method.
+
+    TODO: implement since
+    """
+    if since:
+        raise ValueError('since is not implemented yet')
+
+    repo = server.load_repo(did)
     return car.write_car(
-        [server.repo.head.cid],
-        (car.Block(cid=cid, data=data) for cid, data in server.repo.mst.load_all()))
+        [repo.head.cid],
+        (car.Block(cid=cid, data=data) for cid, data in repo.mst.load_all()))
 
 
-@server.server.method('com.atproto.sync.listRepos')
-def list_repos(input, limit=None, cursor=None):
-    """Handler for `com.atproto.sync.listRepos` XRPC method."""
-    return [{
-        'did': server.repo.did,
-        'head': server.repo.head.cid.encode('base32'),
-    }]
+# @server.server.method('com.atproto.sync.listRepos')
+# def list_repos(input, limit=None, cursor=None):
+#     """Handler for `com.atproto.sync.listRepos` XRPC method.
+
+#     TODO: implement. needs new Storage.list_repos method or similar
+#     TODO: implement cursor
+#     """
+#     if cursor:
+#         raise ValueError('cursor is not implemented yet')
+
+#     return [{
+#         'did': repo.did,
+#         'head': repo.head.cid.encode('base32'),
+#     }]
 
 
 def enqueue_commit(commit_data):
@@ -177,20 +183,28 @@ def subscribe_repos(cursor=None):
 
 @server.server.method('com.atproto.sync.getHead')
 def get_head(input, did=None):
-    """Handler for `com.atproto.sync.getHead` XRPC method."""
+    """Handler for `com.atproto.sync.getHead` XRPC method.
+
+    Deprecated! Use getLatestCommit instead.
+    """
+    repo = server.load_repo(did)
     return {
-        'root': server.repo.head.cid.encode('base32'),
+        'root': repo.head.cid.encode('base32'),
     }
 
 
 @server.server.method('com.atproto.sync.getRecord')
 def get_record(input, did=None, collection=None, rkey=None, commit=None):
-    """Handler for `com.atproto.sync.getRecord` XRPC method."""
-    # Largely duplicates xrpc_repo.get_record
+    """Handler for `com.atproto.sync.getRecord` XRPC method.
+
+    TODO: implement commit
+    TODO: merge with xrpc_repo.get_record?
+    """
     if commit:
         raise ValueError('commit not supported yet')
 
-    record = server.repo.get_record(collection, rkey)
+    repo = server.load_repo(did)
+    record = repo.get_record(collection, rkey)
     if record is None:
         raise ValueError(f'{collection} {rkey} not found')
 

@@ -127,8 +127,8 @@ class XrpcTestCase(TestCase):
         super().setUp()
 
         server.storage = self.STORAGE_CLS()
-        server.repo = Repo.create(server.storage, 'did:web:user.com',
-                                  signing_key=self.key)
+        self.repo = Repo.create(server.storage, 'did:web:user.com',
+                                signing_key=self.key)
 
         self.request_context = self.app.test_request_context('/')
         self.request_context.push()

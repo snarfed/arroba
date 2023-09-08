@@ -22,6 +22,9 @@ def validate(input, **params):
         if input.get(field):
             raise ValueError(f'{field} not supported yet')
 
+    if not input.get('repo'):
+        raise ValueError('Missing repo param')
+
     server.auth()
 
 
@@ -29,7 +32,7 @@ def validate(input, **params):
 def create_record(input):
     """Handler for `com.atproto.repo.createRecord` XRPC method."""
     validate(input)
-
+    repo = server.load_repo(input['repo'])
     input.setdefault('rkey', next_tid())
     return put_record(input)
 
@@ -38,16 +41,18 @@ def create_record(input):
 def get_record(input, repo=None, collection=None, rkey=None, cid=None):
     """Handler for `com.atproto.repo.getRecord` XRPC method."""
     # Largely duplicates xrpc_sync.get_record
-    validate(input, collection=collection, rkey=rkey, cid=cid)
+    validate(input, repo=repo, collection=collection, rkey=rkey, cid=cid)
     if cid:
         raise ValueError(f'cid not supported yet')
 
-    record = server.repo.get_record(collection, rkey)
+    repo = server.load_repo(input['repo'])
+
+    record = repo.get_record(collection, rkey)
     if record is None:
         raise ValueError(f'{collection} {rkey} not found')
 
     return {
-        'uri': at_uri(repo, collection, rkey),
+        'uri': at_uri(repo.did, collection, rkey),
         'cid': dag_cbor_cid(record).encode('base32'),
         'value': record,
     }
@@ -57,12 +62,13 @@ def get_record(input, repo=None, collection=None, rkey=None, cid=None):
 def delete_record(input):
     """Handler for `com.atproto.repo.deleteRecord` XRPC method."""
     validate(input)
+    repo = server.load_repo(input['repo'])
 
-    record = server.repo.get_record(input['collection'], input['rkey'])
+    record = repo.get_record(input['collection'], input['rkey'])
     if record is None:
         return  # noop
 
-    server.repo.apply_writes([Write(
+    repo.apply_writes([Write(
         action=Action.DELETE,
         collection=input['collection'],
         rkey=input['rkey'],
@@ -75,15 +81,16 @@ def list_records(input, repo=None, collection=None, limit=None, cursor=None,
                  # DEPRECATED
                  rkeyStart=None, rkeyEnd=None):
     """Handler for `com.atproto.repo.listRecords` XRPC method."""
-    validate(input, collection=collection, limit=limit, cursor=cursor)
+    validate(input, repo=repo, collection=collection, limit=limit, cursor=cursor)
     if rkeyStart or rkeyEnd:
         raise ValueError(f'rkeyStart/rkeyEnd not supported')
+    repo = server.load_repo(input['repo'])
 
     records = [{
-        'uri': at_uri(repo, collection, rkey),
+        'uri': at_uri(repo.did, collection, rkey),
         'cid': dag_cbor_cid(record).encode('base32'),
         'value': record,
-    } for rkey, record in server.repo.get_contents()[collection].items()]
+    } for rkey, record in repo.get_contents()[collection].items()]
     if reverse:
         records.reverse()
 
@@ -94,10 +101,11 @@ def list_records(input, repo=None, collection=None, limit=None, cursor=None,
 def put_record(input):
     """Handler for `com.atproto.repo.putRecord` XRPC method."""
     validate(input)
+    repo = server.load_repo(input['repo'])
 
-    existing = server.repo.get_record(input['collection'], input['rkey'])
+    existing = repo.get_record(input['collection'], input['rkey'])
 
-    server.repo.apply_writes([Write(
+    repo.apply_writes([Write(
         action=Action.CREATE if existing is None else Action.UPDATE,
         collection=input['collection'],
         rkey=input['rkey'],
@@ -105,7 +113,7 @@ def put_record(input):
     )])
 
     return {
-        'uri': at_uri(server.repo.did, input['collection'], input['rkey']),
+        'uri': at_uri(repo.did, input['collection'], input['rkey']),
         'cid': dag_cbor_cid(input['record']).encode('base32'),
     }
 
@@ -113,13 +121,12 @@ def put_record(input):
 @server.server.method('com.atproto.repo.describeRepo')
 def describe_repo(input, repo=None):
     """Handler for `com.atproto.repo.describeRepo` XRPC method."""
-    validate(input)
-    if not repo or repo not in (server.repo.did, server.repo.handle):
-        raise ValueError(f'Unknown DID or handle: {repo}')
+    validate(input, repo=repo)
+    repo = server.load_repo(input['repo'])
 
     return {
-        'did': server.repo.did,
-        'handle': server.repo.handle,
+        'did': repo.did,
+        'handle': repo.handle,
         'didDoc': {'TODO': 'TODO'},
         # TODO
         'collections': [
@@ -138,8 +145,9 @@ def apply_writes(input):
     return 'Not implemented yet', 501
 
 
-# @server.server.method('com.atproto.repo.uploadBlob')
-# def upload_blob(input):
-#     """Handler for `com.atproto.repo.uploadBlob` XRPC method."""
-#     # input: binary
-#     validate(input)
+@server.server.method('com.atproto.repo.uploadBlob')
+def upload_blob(input):
+    """Handler for `com.atproto.repo.uploadBlob` XRPC method."""
+    # input: binary
+    validate(input)
+    return 'Not implemented yet', 501

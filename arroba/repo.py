@@ -53,6 +53,7 @@ class Repo:
     """AT Protocol data repo implementation, storage agnostic.
 
     Attributes:
+      did: str, dynamic, repo DID
       storage: :class:`Storage`
       mst: :class:`MST`
       head: :class:`Block`, head commit
@@ -63,6 +64,7 @@ class Repo:
     storage = None
     mst = None
     head = None
+    handle = None
     callback = None
     signing_key = None
     rotation_key = None

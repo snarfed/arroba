@@ -11,19 +11,18 @@ logger = logging.getLogger(__name__)
 def create_session(input):
     """Handler for `com.atproto.server.createSession` XRPC method."""
     id = input['identifier']
+    repo = server.storage.load_repo(id)
+    if not repo:
+        raise ValueError(f'Repo {id} not found')
 
-    logger.debug(f'Expecting {server.repo.handle} {server.repo.did}')
-    if (id and id in (server.repo.did, server.repo.handle)
-            and input['password'] == os.environ['REPO_PASSWORD']):
-        token = os.environ['REPO_TOKEN']
-        return {
-            'handle': server.repo.handle,
-            'did': server.repo.did,
-            'accessJwt': token,
-            'refreshJwt': token,
-        }
-
-    raise ValueError('Bad user or password')
+    # TODO: generate JWT
+    token = os.environ['REPO_TOKEN']
+    return {
+        'handle': repo.handle,
+        'did': repo.did,
+        'accessJwt': token,
+        'refreshJwt': token,
+    }
 
 
 @server.server.method('com.atproto.server.getSession')
@@ -31,9 +30,10 @@ def get_session(input):
     """Handler for `com.atproto.server.getSession` XRPC method."""
     server.auth()
 
+    # TODO: parse JWT, extract repo DID
     return {
-        'handle': server.repo.handle,
-        'did': server.repo.did,
+        'handle': 'TODO',
+        'did': 'TODO',
     }
 
 

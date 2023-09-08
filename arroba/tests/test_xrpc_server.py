@@ -12,6 +12,8 @@ class XrpcServerTest(testutil.XrpcTestCase):
     def setUp(self):
         super().setUp()
         request.headers = {}
+        # TODO: remove once we're generating and parsing tokens to load repos
+        server.repo = self.repo
 
     # based on atproto/packages/pds/tests/account.test.ts
     def test_create_session(self):
@@ -29,13 +31,13 @@ class XrpcServerTest(testutil.XrpcTestCase):
         request.headers['Authorization'] = 'Bearer towkin'
         resp = xrpc_server.get_session({})
         self.assertEqual({
-            'handle': None,
-            'did': 'did:web:user.com',
+            'handle': 'TODO',
+            'did': 'TODO',
         }, resp)
 
     def test_create_session_handle(self):
-        server.repo = Repo.create(server.storage, 'did:plc:abc123',
-                                  signing_key=self.key, handle='user.handle')
+        Repo.create(server.storage, 'did:plc:abc123', signing_key=self.key,
+                    handle='user.handle')
 
         resp = xrpc_server.create_session({
             'identifier': 'user.handle',
