@@ -56,7 +56,7 @@ class XrpcSyncTest(testutil.XrpcTestCase):
                 writes.append(Write(Action.CREATE, coll, rkey, obj))
                 self.data[f'{coll}/{rkey}'] = obj
 
-        server.repo.apply_writes(writes, self.key)
+        server.repo.apply_writes(writes)
 
     def test_get_checkout(self):
         resp = xrpc_sync.get_checkout({}, did='did:web:user.com')
@@ -518,7 +518,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         prev = server.repo.head.cid
         tid = next_tid()
         create = Write(Action.CREATE, 'co.ll', tid, {'foo': 'bar'})
-        server.repo.apply_writes([create], self.key)
+        server.repo.apply_writes([create])
         delivered_a.acquire()
 
         self.assertEqual(1, len(received_a))
@@ -536,7 +536,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         prev = server.repo.head.cid
         update = Write(Action.UPDATE, 'co.ll', tid, {'foo': 'baz'})
-        server.repo.apply_writes([update], self.key)
+        server.repo.apply_writes([update])
         delivered_a.acquire()
         delivered_b.acquire()
 
@@ -554,7 +554,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         # update, subscriber_b
         prev = server.repo.head.cid
         delete = Write(Action.DELETE, 'co.ll', tid,)
-        server.repo.apply_writes([delete], self.key)
+        server.repo.apply_writes([delete])
         delivered_b.acquire()
 
         self.assertEqual(2, len(received_a))
@@ -573,7 +573,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             write = Write(Action.CREATE if val == 'bar' else Action.UPDATE,
                           'co.ll', tid, {'foo': val})
             writes.append(write)
-            commit_cid = server.repo.apply_writes([write], self.key)
+            commit_cid = server.repo.apply_writes([write])
             commit_cids.append(server.repo.head.cid)
 
         received = []

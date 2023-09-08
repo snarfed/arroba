@@ -11,6 +11,7 @@ Daniel Holmgren and Devin Ivy for this code specifically!
 from collections import defaultdict, namedtuple
 import logging
 
+from cryptography.hazmat.primitives.asymmetric import ec
 import dag_cbor
 from multiformats import CID
 
@@ -63,21 +64,30 @@ class Repo:
     mst = None
     head = None
     callback = None
+    signing_key = None
+    rotation_key = None
 
-    def __init__(self, *, storage=None, mst=None, head=None, handle=None):
+    def __init__(self, *, storage=None, mst=None, head=None, handle=None,
+                 signing_key=None, rotation_key=None):
         """Constructor.
 
         Args:
-          storage: :class:`Storage`
+          storage: :class:`Storage`, required
           mst: :class:`MST`
           commit: dict, head commit
           cid: :class:`CID`, head CID
+          signing_key: :class:`ec.EllipticCurvePrivateKey`, required
+          rotation_key: :class:`ec.EllipticCurvePrivateKey`
         """
         assert storage
+        assert signing_key
+
         self.storage = storage
         self.mst = mst
         self.head = head
         self.handle = handle
+        self.signing_key = signing_key
+        self.rotation_key = rotation_key
 
     def __eq__(self, other):
         return (self.head and other.head
@@ -180,13 +190,17 @@ class Repo:
         Args:
           storage: :class:`Storage`
           commit_data: :class:`CommitData`
+          signing_key: :class:`ec.EllipticCurvePrivateKey`, required
+          rotation_key: :class:`ec.EllipticCurvePrivateKey`
           kwargs: passed through to :class:`Repo` constructor
 
         Returns:
           :class:`Repo`
         """
         storage.apply_commit(commit_data)
-        repo = cls.load(storage, commit_data.commit.cid, **kwargs)
+        repo = cls.load(storage, commit_data.commit.cid,
+                        signing_key=signing_key, rotation_key=rotation_key,
+                        **kwargs)
         storage.create_repo(repo, signing_key=signing_key, rotation_key=rotation_key)
         return repo
 
@@ -233,12 +247,11 @@ class Repo:
         logger.info(f'loaded repo for {commit_block.decoded["did"]} at commit {commit_cid}')
         return Repo(storage=storage, mst=mst, head=commit_block, **kwargs)
 
-    def format_commit(self, writes, key):
+    def format_commit(self, writes):
         """
 
         Args:
           writes: :class:`Write` or sequence of :class:`Write`
-          key: :class:`ec.EllipticCurvePrivateKey`
 
         Returns:
           :class:`CommitData`
@@ -279,7 +292,7 @@ class Repo:
             'version': 2,
             'prev': self.head.cid,
             'data': root,
-        }, key)
+        }, self.signing_key)
         commit_block = Block(decoded=commit, ops=writes_to_commit_ops(writes))
         commit_blocks[commit_block.cid] = commit_block
 
@@ -302,17 +315,16 @@ class Repo:
             self.callback(commit_data)
         return self
 
-    def apply_writes(self, writes, key):
+    def apply_writes(self, writes):
         """
 
         Args:
           writes: :class:`Write` or sequence of :class:`Write`
-          key: :class:`ec.EllipticCurvePrivateKey`
 
         Returns:
           :class:`Repo`, self
         """
-        commit_data = self.format_commit(writes, key)
+        commit_data = self.format_commit(writes)
         self.apply_commit(commit_data)
         return self
 

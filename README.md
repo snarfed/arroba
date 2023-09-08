@@ -38,6 +38,7 @@ Single-user demo PDS based on arroba, for testing with the [ATProto federation s
 * Add new `did` module with utilities to create and resolve `did:plc`s and resolve `did:web`s.
 * Drop bundled `app.bsky`/`com.atproto` lexicons, use lexrpc's instead.
 * Add new `util.service_jwt` function that generates [ATProto inter-service JWTs](https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification).
+* Add new `signing_key`/`rotation_key` attributes to `Repo`. Generate store, and load both in `datastore_storage`.
 * Rename `Storage.read_from_seq` => `read_blocks_by_seq` (and in `MemoryStorage` and `DatastoreStorage`), add new `Storage.read_commits_by_seq` method.
 
 ### 0.3 - 2023-08-29

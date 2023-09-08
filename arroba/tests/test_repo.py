@@ -64,37 +64,40 @@ class RepoTest(TestCase):
         }
 
         tid = next_tid()
-        repo = self.repo.apply_writes(Write(
+        self.repo.apply_writes(Write(
             action=Action.CREATE,
             collection='my.stuff',
             rkey=tid,
             record=profile,
-        ), self.key)
-        self.assertEqual(profile, repo.get_record('my.stuff', tid))
+        ))
+        self.assertEqual(profile, self.repo.get_record('my.stuff', tid))
 
-        reloaded = Repo.load(self.storage, cid=repo.head.cid)
+        reloaded = Repo.load(self.storage, cid=self.repo.head.cid,
+                             signing_key=self.key)
         self.assertEqual(profile, reloaded.get_record('my.stuff', tid))
 
         profile['description'] = "I'm the best"
-        repo = repo.apply_writes(Write(
+        self.repo.apply_writes(Write(
             action=Action.UPDATE,
             collection='my.stuff',
             rkey=tid,
             record=profile,
-        ), self.key)
-        self.assertEqual(profile, repo.get_record('my.stuff', tid))
+        ))
+        self.assertEqual(profile, self.repo.get_record('my.stuff', tid))
 
-        reloaded = Repo.load(self.storage, cid=repo.head.cid)
+        reloaded = Repo.load(self.storage, cid=self.repo.head.cid,
+                             signing_key=self.key)
         self.assertEqual(profile, reloaded.get_record('my.stuff', tid))
 
-        repo = repo.apply_writes(Write(
+        self.repo.apply_writes(Write(
             action=Action.DELETE,
             collection='my.stuff',
             rkey=tid,
-        ), self.key)
-        self.assertIsNone(repo.get_record('my.stuff', tid))
+        ))
+        self.assertIsNone(self.repo.get_record('my.stuff', tid))
 
-        reloaded = Repo.load(self.storage, cid=repo.head.cid)
+        reloaded = Repo.load(self.storage, cid=self.repo.head.cid,
+                             signing_key=self.key)
         self.assertIsNone(reloaded.get_record('my.stuff', tid))
 
     def test_adds_content_collections(self):
@@ -108,25 +111,22 @@ class RepoTest(TestCase):
             [Write(Action.CREATE, coll, tid, obj) for tid, obj in objs.items()]
             for coll, objs in data.items())))
 
-        self.repo.apply_writes(writes, self.key)
+        self.repo.apply_writes(writes)
         self.assertEqual(data, self.repo.get_contents())
 
     def test_edits_and_deletes_content(self):
         objs = list(self.random_objects(20).items())
 
-        self.repo.apply_writes(
-            [Write(Action.CREATE, 'co.ll', tid, obj) for tid, obj in objs],
-            self.key)
+        self.repo.apply_writes([Write(Action.CREATE, 'co.ll', tid, obj)
+                                for tid, obj in objs])
 
         random.shuffle(objs)
-        self.repo.apply_writes(
-            [Write(Action.UPDATE, 'co.ll', tid, {'bar': 'baz'}) for tid, _ in objs],
-            self.key)
+        self.repo.apply_writes([Write(Action.UPDATE, 'co.ll', tid, {'bar': 'baz'})
+                                for tid, _ in objs])
 
         random.shuffle(objs)
-        self.repo.apply_writes(
-            [Write(Action.DELETE, 'co.ll', tid) for tid, _ in objs],
-            self.key)
+        self.repo.apply_writes([Write(Action.DELETE, 'co.ll', tid)
+                                for tid, _ in objs])
 
         self.assertEqual({}, self.repo.get_contents())
 
@@ -135,12 +135,11 @@ class RepoTest(TestCase):
 
     def test_loads_from_blockstore(self):
         objs = self.random_objects(5)
-        self.repo.apply_writes(
-            [Write(Action.CREATE, 'co.ll', tid, obj)
-             for tid, obj in objs.items()],
-            self.key)
+        self.repo.apply_writes([Write(Action.CREATE, 'co.ll', tid, obj)
+                                for tid, obj in objs.items()])
 
-        reloaded = Repo.load(self.storage, self.repo.head.cid)
+        reloaded = Repo.load(self.storage, self.repo.head.cid,
+                             signing_key=self.key)
 
         self.assertEqual(2, reloaded.version)
         self.assertEqual('did:web:user.com', reloaded.did)
@@ -153,21 +152,21 @@ class RepoTest(TestCase):
         self.repo.callback = lambda commit: seen.append(commit)
         tid = next_tid()
         create = Write(Action.CREATE, 'co.ll', tid, {'foo': 'bar'})
-        self.repo.apply_writes([create], self.key)
+        self.repo.apply_writes([create])
 
         self.assertEqual(1, len(seen))
         self.assertCommitIs(seen[0], create, 2)
 
         # update object
         update = Write(Action.UPDATE, 'co.ll', tid, {'foo': 'baz'})
-        self.repo.apply_writes([update], self.key)
+        self.repo.apply_writes([update])
         self.assertEqual(2, len(seen))
         self.assertCommitIs(seen[1], update, 3)
 
         # unset callback, update again
         self.repo.callback = None
         update = Write(Action.UPDATE, 'co.ll', tid, {'biff': 0})
-        self.repo.apply_writes([update], self.key)
+        self.repo.apply_writes([update])
         self.assertEqual(2, len(seen))
 
     def test_apply_commit_callback(self):
@@ -176,7 +175,7 @@ class RepoTest(TestCase):
         # create new object with callback
         self.repo.callback = lambda commit: seen.append(commit)
         create = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})
-        self.repo.apply_commit(self.repo.format_commit([create], self.key))
+        self.repo.apply_commit(self.repo.format_commit([create]))
 
         self.assertEqual(1, len(seen))
         self.assertCommitIs(seen[0], create, 2)

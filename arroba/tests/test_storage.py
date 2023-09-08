@@ -41,11 +41,11 @@ class StorageTest(TestCase):
 
         tid = next_tid()
         create = Write(Action.CREATE, 'co.ll', tid, {'foo': 'bar'})
-        commit_cid = repo.apply_writes([create], self.key)
+        commit_cid = repo.apply_writes([create])
         commit_cids.append(repo.head.cid)
 
         delete = Write(Action.DELETE, 'co.ll', tid)
-        commit_cid = repo.apply_writes([delete], self.key)
+        commit_cid = repo.apply_writes([delete])
         commit_cids.append(repo.head.cid)
 
         self.assertEqual(commit_cids, [cd.commit.cid for cd in

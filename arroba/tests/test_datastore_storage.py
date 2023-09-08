@@ -158,7 +158,7 @@ class DatastoreStorageTest(DatastoreTest):
 
         # new commit
         writes = [Write(Action.CREATE, 'coll', next_tid(), obj) for obj in objs]
-        commit_data = repo.format_commit(writes, self.key)
+        commit_data = repo.format_commit(writes)
 
         self.storage.apply_commit(commit_data)
         self.assertEqual(commit_data.commit.cid, self.storage.head)
@@ -173,23 +173,7 @@ class DatastoreStorageTest(DatastoreTest):
 
         found = self.storage.read_many(commit_data.blocks.keys())
         # found has one extra MST Data node
-        # TODO: it has 5 with DatastoreStorage, 4 with MemoryStorage. why?
-        #
-        # MemoryStorage (RepoTest):
-        # (…gca4dxq, {'foo': 'bar'})
-        # (…6bdyhou, {'baz': 'biff'})
-        # (…4xykrgy, {'e': [{'k': b'coll/1641092645088', 'p': 0, 't': None, 'v': …6bdyhou}], 'l': …2pbjdti})
-        # (…2pbjdti, {'e': [{'k': b'coll/1641092645087', 'p': 0, 't': None, 'v': …gca4dxq}], 'l': None})
-        # (…yurzh4q, {'did': 'did:web:user.com', 'sig': ..., 'data': …4xykrgy, 'prev': …wv6sv24, 'version': 2})
-        #
-        # DatastoreStorage (DatastoreRepoTest):
-        # (…gca4dxq, {'foo': 'bar'})
-        # (…6bdyhou, {'baz': 'biff'})
-        # (…kdx57f4, {'e': [{'k': b'coll/1641092645000', 'p': 0, 't': None, 'v': …gca4dxq}, {'k': b'1', 'p': 17, 't': None, 'v': …6bdyhou}], 'l': None})
-        # (…wratxoe, {'did': 'did:web:user.com', 'sig': ..., 'data': …kdx57f4, 'prev': …gxqvj3u, 'version': 2})
-        #
-        # print([(f.cid, f.decoded) for f in found.values()])
-        # self.assertEqual(4, len(found))
+        self.assertEqual(4, len(found))
         decoded = [block.decoded for block in found.values()]
         self.assertIn(objs[0], decoded)
         self.assertIn(objs[1], decoded)

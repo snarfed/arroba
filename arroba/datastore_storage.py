@@ -259,20 +259,28 @@ class DatastoreStorage(Storage):
     def load_repo(self, did=None, handle=None):
         assert bool(did) ^ bool(handle), f'{did} {handle}'
 
-        repo = None
         if did:
-            repo = AtpRepo.get_by_id(did)
+            atp_repo = AtpRepo.get_by_id(did)
         else:
-            repo = AtpRepo.query(AtpRepo.handles == handle).get()
+            atp_repo = AtpRepo.query(AtpRepo.handles == handle).get()
 
-        if not repo:
+        if not atp_repo:
             logger.info(f"Couldn't find repo for {did} {handle}")
             return None
 
-        logger.info(f'Loading repo {repo}')
-        self.head = CID.decode(repo.head)
-        handle = repo.handles[0] if repo.handles else None
-        return Repo.load(self, cid=self.head, handle=handle)
+        logger.info(f'Loading repo {atp_repo.key}')
+        self.head = CID.decode(atp_repo.head)
+        handle = atp_repo.handles[0] if atp_repo.handles else None
+
+        signing_key = serialization.load_pem_private_key(
+            atp_repo.signing_key_pem, password=None)
+        rotation_key = None
+        if atp_repo.rotation_key_pem:
+            rotation_key = serialization.load_pem_private_key(
+                atp_repo.rotation_key_pem, password=None)
+
+        return Repo.load(self, cid=self.head, handle=handle,
+                         signing_key=signing_key, rotation_key=rotation_key)
 
     def read(self, cid):
         block = AtpBlock.get_by_id(cid.encode('base32'))

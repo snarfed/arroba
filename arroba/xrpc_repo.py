@@ -66,7 +66,7 @@ def delete_record(input):
         action=Action.DELETE,
         collection=input['collection'],
         rkey=input['rkey'],
-    )], server.key)
+    )])
 
 
 @server.server.method('com.atproto.repo.listRecords')
@@ -102,7 +102,7 @@ def put_record(input):
         collection=input['collection'],
         rkey=input['rkey'],
         record=input['record'],
-    )], server.key)
+    )])
 
     return {
         'uri': at_uri(server.repo.did, input['collection'], input['rkey']),
