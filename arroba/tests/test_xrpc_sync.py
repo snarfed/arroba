@@ -56,7 +56,7 @@ class XrpcSyncTest(testutil.XrpcTestCase):
                 writes.append(Write(Action.CREATE, coll, rkey, obj))
                 self.data[f'{coll}/{rkey}'] = obj
 
-        server.repo = server.repo.apply_writes(writes, server.key)
+        server.repo.apply_writes(writes, self.key)
 
     def test_get_checkout(self):
         resp = xrpc_sync.get_checkout({}, did='did:web:user.com')

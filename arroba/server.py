@@ -9,7 +9,6 @@ from lexrpc.server import Server
 server = Server(validate=False)
 
 # these are initialized in app.py, testutil.XrpcTestCase.setUp
-key = None
 storage = None
 repo = None
 
