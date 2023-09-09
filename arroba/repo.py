@@ -70,7 +70,7 @@ class Repo:
     rotation_key = None
 
     def __init__(self, *, storage=None, mst=None, head=None, handle=None,
-                 signing_key=None, rotation_key=None):
+                 callback=None, signing_key=None, rotation_key=None):
         """Constructor.
 
         Args:
@@ -78,6 +78,7 @@ class Repo:
           mst: :class:`MST`
           commit: dict, head commit
           cid: :class:`CID`, head CID
+          callback: callable, (:class:`CommitData`) => None
           signing_key: :class:`ec.EllipticCurvePrivateKey`, required
           rotation_key: :class:`ec.EllipticCurvePrivateKey`
         """
@@ -88,6 +89,7 @@ class Repo:
         self.mst = mst
         self.head = head
         self.handle = handle
+        self.callback = callback
         self.signing_key = signing_key
         self.rotation_key = rotation_key
 
@@ -206,6 +208,8 @@ class Repo:
                         signing_key=signing_key, rotation_key=rotation_key,
                         **kwargs)
         storage.create_repo(repo, signing_key=signing_key, rotation_key=rotation_key)
+        if repo.callback:
+            repo.callback(commit_data)
         return repo
 
     @classmethod
