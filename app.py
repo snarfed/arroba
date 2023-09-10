@@ -137,7 +137,7 @@ with ndb_client.context():
                                   rotation_key=privkey, signing_key=privkey,
                                   handle=os.environ['REPO_HANDLE'])
 
-server.repo.callback = xrpc_sync.enqueue_commit
+server.repo.callback = lambda commit_data: xrpc_sync.send_new_commits()
 if server.repo.handle != os.environ['REPO_HANDLE']:
     logger.warning(f"$REPO_HANDLE is {os.environ['REPO_HANDLE']} but loaded repo's handle is {server.repo.handle} !")
 

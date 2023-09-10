@@ -76,6 +76,9 @@ class Block:
         self.seq = seq
         self.ops = ops
 
+    def __str__(self):
+        return f'<Block: {self.cid}>'
+
     @property
     def cid(self):
         """
@@ -194,8 +197,8 @@ class Storage:
         """Batch read commits from storage by `subscribeRepos` sequence number.
 
         Args:
-          seq: integer, optional `subscribeRepos` sequence number to start from.
-            Defaults to 0.
+          seq: integer, optional `subscribeRepos` sequence number to start from,
+            inclusive. Defaults to 0.
 
         Returns:
           generator of :class:`CommitData`, starting from `seq`, inclusive, in

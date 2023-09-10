@@ -5,9 +5,10 @@ TODO:
 * getCommitPath?
 * blobs
 """
+from datetime import timedelta
 import logging
 from queue import Queue
-from threading import Lock
+from threading import Condition
 
 from carbox import car
 import dag_cbor
@@ -19,9 +20,9 @@ from . import xrpc_repo
 
 logger = logging.getLogger(__name__)
 
-# used by subscribe_repos and enqueue_commit
-subscribers = set()  # stores Queue, one per subscriber
-_subscribers_lock = Lock()
+# used by subscribe_repos and send_new_commits
+NEW_COMMITS_TIMEOUT = timedelta(seconds=60)
+new_commits = Condition()
 
 
 @server.server.method('com.atproto.sync.getCheckout')
@@ -66,20 +67,12 @@ def get_repo(input, did=None, since=None):
 #     }]
 
 
-def enqueue_commit(commit_data):
-    """Enqueues a commit to be emitted to `subscribeRepos` subscribers.
-
-    Args:
-      did: str
-      commit_data: :class:`CommitData`
+def send_new_commits():
+    """Triggers subscribeRepos to deliver new commits from storage to subscribers.
     """
-    logger.debug(f'New commit {commit_data.commit.cid}')
-    if subscribers:
-        logger.debug(f'Enqueueing for {len(subscribers)} subscribers')
-
-    with _subscribers_lock:
-        for subscriber in subscribers:
-            subscriber.put(commit_data)
+    logger.debug(f'Triggering subscribeRepos to look for new commits')
+    with new_commits:
+        new_commits.notify_all()
 
 
 @server.server.method('com.atproto.sync.subscribeRepos')
@@ -93,13 +86,16 @@ def subscribe_repos(cursor=None):
     choose how to register and serve it themselves, eg asyncio vs threads vs
     WSGI workers.
 
-    See :func:`enqueue_commit` for an example thread-based callback to register
-    with :class:`Repo` to deliver all new commits. Here's how to register that
-    callback and this XRPC method in a threaded context:
+    Example:
 
+    See :func:`send_new_commits` for an example thread-based callback to
+    register with :class:`Repo` to deliver all new commits to subscribers.
+    Here's how to register that callback and this XRPC method in a threaded
+    context:
+
+      server.repo.callback = lambda commit_data: xrpc_sync.send_new_commits()
       server.server.register('com.atproto.sync.subscribeRepos',
                              xrpc_sync.subscribe_repos)
-      server.repo.set_callback(xrpc_sync.enqueue_commit)
 
     Args:
       cursor: integer, try to serve commits from this sequence number forward
@@ -137,14 +133,10 @@ def subscribe_repos(cursor=None):
     if cursor is not None:
         assert cursor >= 0
 
-    queue = Queue()
-    with _subscribers_lock:
-        subscribers.add(queue)
-
-    # fetch existing blocks starting at seq, collect into commits
+    # fetch existing commits
+    last_seq = server.storage.last_seq(SUBSCRIBE_REPOS_NSID)
     if cursor is not None:
         logger.info(f'subscribeRepos: fetching existing commits from seq {cursor}')
-        last_seq = server.storage.last_seq(SUBSCRIBE_REPOS_NSID)
         if cursor > last_seq:
             yield ({
                 'op': -1,
@@ -156,16 +148,17 @@ def subscribe_repos(cursor=None):
 
         for commit_data in server.storage.read_commits_by_seq(start=cursor):
             yield header_payload(commit_data)
+            last_seq = commit_data.commit.seq
 
     # serve new commits as they happen
     logger.info(f'subscribeRepos: serving new commits')
     while True:
-        commit_data = queue.get()
-        yield header_payload(commit_data)
+        with new_commits:
+            new_commits.wait(NEW_COMMITS_TIMEOUT.total_seconds())
 
-    # TODO: this is never reached, so we currently slowly leak queues. fix that
-    with _subscribers_lock:
-        subscribers.remove(queue)
+        for commit_data in server.storage.read_commits_by_seq(start=last_seq + 1):
+            yield header_payload(commit_data)
+            last_seq = commit_data.commit.seq
 
 
 # @server.server.method('com.atproto.sync.getBlocks')

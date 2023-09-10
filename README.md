@@ -40,6 +40,8 @@ Single-user demo PDS based on arroba, for testing with the [ATProto federation s
 * Add new `util.service_jwt` function that generates [ATProto inter-service JWTs](https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification).
 * Add new `signing_key`/`rotation_key` attributes to `Repo`. Generate store, and load both in `datastore_storage`.
 * Rename `Storage.read_from_seq` => `read_blocks_by_seq` (and in `MemoryStorage` and `DatastoreStorage`), add new `Storage.read_commits_by_seq` method.
+* Make `subscribeRepos` XRPC check storage for all new commits every time it wakes up.
+  * As part of this, replace `xrpc_sync.enqueue_commit` with new `send_new_commits` function that takes no parameters.
 * Merge `Storage.load_repo` `did`/`handle` kwargs into `did_or_handle`.
 
 ### 0.3 - 2023-08-29
