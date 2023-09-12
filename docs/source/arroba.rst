@@ -5,6 +5,10 @@ Reference documentation.
 
 .. contents::
 
+did
+----
+.. automodule:: arroba.did
+
 diff
 ----
 .. automodule:: arroba.diff

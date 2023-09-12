@@ -89,8 +89,14 @@ def create_plc(handle, signing_key=None, rotation_key=None, pds_url=None,
     The PLC registry hostname is specified in the PLC_HOST environment variable.
 
     did:plc background:
+
     * https://atproto.com/specs/did-plc
     * https://github.com/bluesky-social/did-method-plc
+
+    The DID document in the returned value is the *new format* DID doc, with the
+    fully qualified `verificationMethod.id` and `Multikey` key encoding, ie
+    `did:key` without the prefix. Details:
+    https://github.com/bluesky-social/atproto/discussions/1510
 
     Args:
       handle: str, domain handle to associate with this DID
@@ -130,8 +136,11 @@ def create_plc(handle, signing_key=None, rotation_key=None, pds_url=None,
         logger.info('Generating new k256 rotation key')
         rotation_key = util.new_key()
 
-    logger.info('Generating and signing DID document...')
-    doc = {
+    logger.info('Generating and signing PLC directory genesis operation...')
+    # this is a PLC directory genesis operation for creating a new DID.
+    # it's *not* a DID document. similar but not the same!
+    # https://github.com/bluesky-social/did-method-plc#presentation-as-did-document
+    create = {
         'type': 'plc_operation',
         'rotationKeys': [encode_did_key(rotation_key.public_key())],
         'verificationMethods': {
@@ -148,21 +157,22 @@ def create_plc(handle, signing_key=None, rotation_key=None, pds_url=None,
         },
         'prev': None,
     }
-    doc = util.sign(doc, rotation_key)
-    doc['sig'] = base64.urlsafe_b64encode(doc['sig']).decode()
+    create = util.sign(create, rotation_key)
+    create['sig'] = base64.urlsafe_b64encode(create['sig']).decode()
     sha256 = Hash(SHA256())
-    sha256.update(dag_cbor.encode(doc))
+    sha256.update(dag_cbor.encode(create))
     hash = sha256.finalize()
     did_plc = 'did:plc:' + base64.b32encode(hash)[:24].lower().decode()
     logger.info(f'  {did_plc}')
 
     plc_url = f'https://{os.environ["PLC_HOST"]}/{did_plc}'
     logger.info(f'Publishing to {plc_url}  ...')
-    resp = post_fn(plc_url, json=doc)
+    resp = post_fn(plc_url, json=create)
     resp.raise_for_status()
     logger.info(f'{resp} {resp.content}')
 
-    return DidPlc(did=did_plc, doc=doc,
+    create['did'] = did_plc
+    return DidPlc(did=did_plc, doc=plc_operation_to_did_doc(create),
                   signing_key=signing_key, rotation_key=rotation_key)
 
 
@@ -177,14 +187,18 @@ def encode_did_key(pubkey):
     Returns:
       str, `did:key`
     """
+    if isinstance(pubkey.curve, ec.SECP256K1):
+        codec = 'secp256k1-pub'
+    elif isinstance(pubkey.curve, ec.SECP256R1):
+        codec = 'p256-pub'
+    else:
+        raise ValueError(f'Expected secp256k1 or secp256r1 curve, got {pubkey.curve}')
+
     pubkey_bytes = pubkey.public_bytes(serialization.Encoding.X962,
                                        serialization.PublicFormat.CompressedPoint)
-    pubkey_multibase = multibase.encode(
-        multicodec.wrap('secp256k1-pub', pubkey_bytes),
-        'base58btc')
-    did_key = f'did:key:{pubkey_multibase}'
-    logger.info(f'  generated {did_key}')
-    return did_key
+    pubkey_multibase = multibase.encode(multicodec.wrap(codec, pubkey_bytes),
+                                        'base58btc')
+    return f'did:key:{pubkey_multibase}'
 
 
 def decode_did_key(did_key):
@@ -201,8 +215,50 @@ def decode_did_key(did_key):
     assert did_key.startswith('did:key:')
     wrapped_bytes = multibase.decode(did_key.removeprefix('did:key:'))
     codec, data = multicodec.unwrap(wrapped_bytes)
-    assert codec.name == 'secp256k1-pub', codec
-    return ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256K1(), data)
+
+    if codec.name == 'secp256k1-pub':
+        curve = ec.SECP256K1()
+    elif codec.name == 'p256-pub':
+        curve = ec.SECP256R1()
+    else:
+        raise ValueError(f'Expected secp256k1 or secp256r1 curve, got {codec.name}')
+
+    return ec.EllipticCurvePublicKey.from_encoded_point(curve, data)
+
+
+def plc_operation_to_did_doc(op):
+    """Converts a PLC directory operation to a DID document.
+
+    https://github.com/bluesky-social/did-method-plc#presentation-as-did-document
+
+    The DID document in the returned value is the *new format* DID doc, with the
+    fully qualified `verificationMethod.id` and `Multikey` key encoding, ie
+    `did:key` without the prefix. Details:
+    https://github.com/bluesky-social/atproto/discussions/1510
+    """
+    assert op
+
+    signing_did_key = op['verificationMethods']['atproto']
+    return {
+        '@context': [
+            'https://www.w3.org/ns/did/v1',
+            'https://w3id.org/security/multikey/v1',
+            'https://w3id.org/security/suites/secp256k1-2019/v1',
+        ],
+        'id': op['did'],
+        'alsoKnownAs': op['alsoKnownAs'],
+        'verificationMethod': [{
+            'id': f'{op["did"]}#atproto',
+            'type': 'EcdsaSecp256r1VerificationKey2019',
+            'controller': op['did'],
+            'publicKeyMultibase': signing_did_key.removeprefix('did:key:'),
+        }],
+        'service': [{
+            'id': '#atproto_pds',
+            'type': 'AtprotoPersonalDataServer',
+            'serviceEndpoint': op['services']['atproto_pds']['endpoint'],
+        }],
+    }
 
 
 def resolve_web(did, get_fn=requests.get):
