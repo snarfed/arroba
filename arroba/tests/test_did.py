@@ -1,4 +1,5 @@
 """Unit tests for did.py."""
+import base64
 from unittest.mock import MagicMock, patch
 
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -70,14 +71,15 @@ class DidTest(TestCase):
                          mock_post.call_args.args)
 
         genesis_op = mock_post.call_args.kwargs['json']
-        util.verify_sig(genesis_op, did_plc.rotation_key.public_key())
+        self.assertEqual(did_plc.did, genesis_op.pop('did'))
+        genesis_op['sig'] = base64.urlsafe_b64decode(genesis_op['sig'])
+        assert util.verify_sig(genesis_op, did_plc.rotation_key.public_key())
         del genesis_op['sig']
 
         signing_did_key = did.encode_did_key(did_plc.signing_key.public_key())
         rotation_did_key = did.encode_did_key(did_plc.rotation_key.public_key())
         self.assertEqual({
             'type': 'plc_operation',
-            'did': did_plc.did,
             'verificationMethods': {
                 'atproto': signing_did_key,
             },

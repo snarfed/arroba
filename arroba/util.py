@@ -262,7 +262,7 @@ def apply_low_s_mitigation(signature, curve):
 
 
 def verify_sig(obj, public_key):
-    """Returns true if obj's signature is valid, False otherwise.
+    """Returns True if obj's signature is valid, False otherwise.
 
     See :func:`sign` for more background.
 
@@ -277,7 +277,7 @@ def verify_sig(obj, public_key):
     sig = obj.pop('sig')
 
     if len(sig) != 64:
-        logger.debug('Expected signature to be 64 bytes, got {len(sig)}')
+        logger.debug(f'Expected signature to be 64 bytes, got {len(sig)}')
         return False
 
     r = int.from_bytes(sig[:32], 'big')
