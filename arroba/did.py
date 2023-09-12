@@ -118,15 +118,24 @@ def create_plc(handle, signing_key=None, rotation_key=None, pds_url=None,
     if not pds_url:
         pds_url = f'https://{os.environ["PDS_HOST"]}'
 
-    signing_key, signing_did_key = _process_key('signing', signing_key)
-    rotation_key, rotation_did_key = _process_key('rotation', rotation_key)
+    for key in signing_key, rotation_key:
+        if key and not isinstance(key.curve, ec.SECP256K1):
+            raise ValueError(f'Expected SECP256K1 key; got {key.curve}')
+
+    if not signing_key:
+        logger.info('Generating new k256 signing key')
+        signing_key = util.new_key()
+
+    if not rotation_key:
+        logger.info('Generating new k256 rotation key')
+        rotation_key = util.new_key()
 
     logger.info('Generating and signing DID document...')
     doc = {
         'type': 'plc_operation',
-        'rotationKeys': [rotation_did_key],
+        'rotationKeys': [encode_did_key(rotation_key.public_key())],
         'verificationMethods': {
-            'atproto': signing_did_key,
+            'atproto': encode_did_key(signing_key.public_key()),
         },
         'alsoKnownAs': [
             f'at://{handle}',
@@ -157,41 +166,29 @@ def create_plc(handle, signing_key=None, rotation_key=None, pds_url=None,
                   signing_key=signing_key, rotation_key=rotation_key)
 
 
-def _process_key(label, key=None):
-    """Validates or creates a private key, generates and returns its did:key.
+def encode_did_key(pubkey):
+    """Encodes a :class:`ec.EllipticCurvePublicKey` into a `did:key` string.
 
     https://atproto.com/specs/did#public-key-encoding
 
     Args:
-      label: str
-      key: :class:`ec.EllipticCurvePrivateKey`, optional
+      pubkey: :class:`ec.EllipticCurvePublicKey`
 
     Returns:
-      tuple, (:class:`ec.EllipticCurvePrivateKey` private key,
-              str encoded public multibase `did:key`)
+      str, `did:key`
     """
-    if key and not isinstance(key.curve, ec.SECP256K1):
-        raise ValueError(f'Expected SECP256K1 curve {label} key; got {key.curve}')
-
-    if not key:
-        logger.info('Generating new k256 {label} key')
-        key = util.new_key()
-
-    pubkey = key.public_key()
-    # https://atproto.com/specs/did#public-key-encoding
     pubkey_bytes = pubkey.public_bytes(serialization.Encoding.X962,
                                        serialization.PublicFormat.CompressedPoint)
     pubkey_multibase = multibase.encode(
         multicodec.wrap('secp256k1-pub', pubkey_bytes),
         'base58btc')
     did_key = f'did:key:{pubkey_multibase}'
-    logger.info(f'  {label} key {did_key}')
-
-    return key, did_key
+    logger.info(f'  generated {did_key}')
+    return did_key
 
 
 def decode_did_key(did_key):
-    """Decodes a did:key string.
+    """Decodes a `did:key` string into a :class:`ec.EllipticCurvePublicKey`.
 
     https://atproto.com/specs/did#public-key-encoding
 
