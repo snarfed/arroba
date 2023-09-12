@@ -160,6 +160,8 @@ def create_plc(handle, signing_key=None, rotation_key=None, pds_url=None,
 def _process_key(label, key=None):
     """Validates or creates a private key, generates and returns its did:key.
 
+    https://atproto.com/specs/did#public-key-encoding
+
     Args:
       label: str
       key: :class:`ec.EllipticCurvePrivateKey`, optional
@@ -186,6 +188,24 @@ def _process_key(label, key=None):
     logger.info(f'  {label} key {did_key}')
 
     return key, did_key
+
+
+def decode_did_key(did_key):
+    """Decodes a did:key string.
+
+    https://atproto.com/specs/did#public-key-encoding
+
+    Args:
+      did_key: str
+
+    Returns:
+      :class:`ec.EllipticCurvePublicKey`
+    """
+    assert did_key.startswith('did:key:')
+    wrapped_bytes = multibase.decode(did_key.removeprefix('did:key:'))
+    codec, data = multicodec.unwrap(wrapped_bytes)
+    assert codec.name == 'secp256k1-pub', codec
+    return ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256K1(), data)
 
 
 def resolve_web(did, get_fn=requests.get):

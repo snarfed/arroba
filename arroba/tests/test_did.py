@@ -90,3 +90,11 @@ class DidTest(TestCase):
             },
             'prev': None,
         }, did_plc.doc)
+
+    def test_decode_did_key(self):
+        key, did_key = did._process_key('foo', self.key)
+        self.assertEqual(self.key, key)
+        self.assertTrue(did_key.startswith('did:key:'))
+
+        decoded = did.decode_did_key(did_key)
+        self.assertEqual(self.key.public_key(), decoded)
