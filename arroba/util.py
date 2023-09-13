@@ -5,6 +5,7 @@ import json
 import logging
 from numbers import Integral
 import random
+import re
 import time
 from urllib.parse import urlparse
 
@@ -21,6 +22,8 @@ from multiformats import CID, multicodec, multihash
 from . import jwt_monkeypatch as jwt
 
 logger = logging.getLogger(__name__)
+
+DOMAIN_RE = re.compile(r'^[^/:;@?!\']+\.[^/:@_?!\']+$')
 
 # the bottom 32 clock ids can be randomized & are not guaranteed to be collision
 # resistant. we use the same clockid for all TIDs coming from this runtime.

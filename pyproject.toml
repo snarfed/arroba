@@ -22,6 +22,7 @@ dependencies = [
     'cryptography',
     'dag-cbor',
     'dag-json',
+    'dnspython>=2.0.0',
     'lexrpc>=0.3',
     'multiformats>=0.2.0',
     'pyjwt>=2.0.0',

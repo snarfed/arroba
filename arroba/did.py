@@ -1,9 +1,10 @@
-"""Utilities to create and resolve did:plcs and resolve did:webs.
+"""Utilities to create and resolve did:plcs, did:webs, and handles.
 
 * https://www.w3.org/TR/did-core/
 * https://atproto.com/specs/did-plc
 * https://github.com/bluesky-social/did-method-plc
 * https://w3c-ccg.github.io/did-method-web/
+* https://atproto.com/specs/handle#handle-resolution
 """
 import base64
 from collections import namedtuple
@@ -15,6 +16,9 @@ import urllib.parse
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.hashes import Hash, SHA256
 from cryptography.hazmat.primitives import serialization
+from dns.exception import DNSException
+from dns.rdatatype import TXT
+import dns.resolver
 import dag_cbor
 from multiformats import multibase, multicodec
 import requests
@@ -268,10 +272,10 @@ def resolve_web(did, get_fn=requests.get):
 
     Args:
       did: str
+      get_fn: callable for making HTTP GET requests
 
     Returns:
       dict, JSON DID document
-      get_fn: callable for making HTTP GET requests
 
     Raises:
       ValueError, if the input did is not a did:web str
@@ -289,3 +293,48 @@ def resolve_web(did, get_fn=requests.get):
     resp = get_fn(f'https://{urllib.parse.unquote(did)}/did.json')
     resp.raise_for_status()
     return resp.json()
+
+
+def resolve_handle(handle, get_fn=requests.get):
+    """Resolves an ATProto handle to a DID.
+
+    Supports the DNS TXT record and HTTPS well-known methods.
+
+    https://atproto.com/specs/handle#handle-resolution
+
+    Args:
+      handle: str
+      get_fn: callable for making HTTP GET requests
+
+    Returns:
+      str, DID, or None if the handle can't be resolved
+
+    Raises:
+      ValueError, if handle is not a domain
+    """
+    if not handle or not isinstance(handle, str) or not util.DOMAIN_RE.match(handle):
+        raise ValueError(f"{handle} doesn't look like a domain")
+
+    logger.info(f'Resolving handle {handle}')
+
+    # DNS method
+    name = f'_atproto.{handle}.'
+    try:
+        logger.info(f'Querying DNS TXT for {name}')
+        answer = dns.resolver.resolve(name, TXT)
+        logger.info(f'Got: {answer.response}')
+        if answer.canonical_name.to_text() == name:
+            for rdata in answer:
+                if rdata.rdtype == TXT:
+                    text = rdata.to_text()
+                    if text.startswith('"did=did:'):
+                        return text.strip('"').removeprefix('did=')
+    except DNSException as e:
+        logger.info(repr(e))
+
+    # HTTPS well-known method
+    resp = get_fn(f'https://{handle}/.well-known/atproto-did')
+    if resp.ok and resp.headers.get('Content-Type') == 'text/plain':
+        return resp.text.strip()
+
+    return None
