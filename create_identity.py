@@ -42,7 +42,12 @@ else:
             encryption_algorithm=serialization.NoEncryption(),
         ))
 
-did = create_plc(os.environ['REPO_HANDLE'], privkey=privkey)
+did = create_plc(os.environ['REPO_HANDLE'], signing_key=privkey, rotation_key=privkey)
+
+filename = f'{did.did}.json'
+print(f'Writing DID document to {filename}...')
+with open(filename, 'w') as f:
+    json.dump(did.doc, f, indent=2)
 
 # https://atproto.com/specs/did#public-key-encoding
 # https://cryptography.io/en/latest/hazmat/primitives/asymmetric/serialization/#cryptography.hazmat.primitives.serialization.Encoding
