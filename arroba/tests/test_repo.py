@@ -175,7 +175,7 @@ class RepoTest(TestCase):
         # create new object with callback
         self.repo.callback = lambda commit: seen.append(commit)
         create = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})
-        self.repo.apply_commit(self.repo.format_commit([create]))
+        self.repo.apply_commit(Repo.format_commit(repo=self.repo, writes=[create]))
 
         self.assertEqual(1, len(seen))
         self.assertCommitIs(seen[0], create, 2)

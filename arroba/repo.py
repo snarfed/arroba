@@ -149,44 +149,6 @@ class Repo:
         return contents
 
     @classmethod
-    def format_init_commit(cls, storage, did, key, initial_writes=None):
-        """
-
-        TODO refactor to reuse format_commit?
-
-        Args:
-          storage: :class:`Storage`
-          did: string,
-          key: :class:`ec.EllipticCurvePrivateKey`
-          initial_writes: sequence of :class:`Write`
-
-        Returns:
-          :class:`CommitData`
-        """
-        new_blocks = {}  # maps CID to Block
-
-        mst = MST.create(storage=storage)
-        if initial_writes:
-            for record in initial_writes:
-                block = Block(decoded=record.record)
-                new_block[block.cid] = block
-                data_key = util.format_data_key(record.collection, record.rkey)
-                mst = mst.add(data_key, block.cid)
-
-        root, blocks = mst.get_unstored_blocks()
-        new_blocks.update(blocks)
-
-        commit = util.sign({
-            'did': did,
-            'version': 2,
-            'prev': None,
-            'data': root,
-        }, key)
-        commit_block = Block(decoded=commit, ops=writes_to_commit_ops(initial_writes))
-        new_blocks[commit_block.cid] = commit_block
-        return CommitData(commit=commit_block, prev=None, blocks=new_blocks)
-
-    @classmethod
     def create_from_commit(cls, storage, commit_data, *,
                            signing_key, rotation_key=None, **kwargs):
         """
@@ -230,12 +192,10 @@ class Repo:
         Returns:
           :class:`Repo`, self
         """
-        commit = cls.format_init_commit(
-            storage,
-            did,
-            signing_key,
-            initial_writes,
-        )
+        # initial commit
+        commit = cls.format_commit(storage=storage, repo_did=did,
+                                   signing_key=signing_key,
+                                   writes=initial_writes)
         return cls.create_from_commit(storage, commit, signing_key=signing_key,
                                       rotation_key=rotation_key, **kwargs)
 
@@ -258,20 +218,47 @@ class Repo:
         logger.info(f'loaded repo for {commit_block.decoded["did"]} at commit {commit_cid}')
         return Repo(storage=storage, mst=mst, head=commit_block, **kwargs)
 
-    def format_commit(self, writes):
-        """
+    @classmethod
+    def format_commit(cls, *, repo=None, storage=None, repo_did=None,
+                      signing_key=None, mst=None, cur_head=None, writes=None):
+        """Creates, but does not store, a new commit.
+
+        If `repo` is provided, all other kwargs should be omitted except
+        (optionally) `writes`. Otherwise, `storage`, `repo_did`, and
+        `signing_key` are required.
+
+        If `repo` is provided, its `mst` attribute is set to the new
+        :class:`MST` resulting from applying this commit.
 
         Args:
-          writes: :class:`Write` or sequence of :class:`Write`
+          repo: :class:`Repo`, optional
+          storage: :class:`Storage`, optional
+          repo_did: str, optional
+          signing_key: :class:`ec.EllipticCurvePrivateKey`, optional
+          mst: :class:`MST`, optional
+          cur_head: :class:`CID`, optional
+          writes: sequence of :class:`Write`, optional
 
         Returns:
           :class:`CommitData`
         """
-        commit_blocks = {}  # maps CID to Block
-        if isinstance(writes, Write):
-            writes = [writes]
+        if repo:
+            assert (not storage and not repo_did and not signing_key and not mst
+                    and not cur_head)
+            storage = repo.storage
+            repo_did = repo.did
+            signing_key = repo.signing_key
+            mst = repo.mst
+            cur_head = repo.head.cid
 
-        mst = self.mst
+        if not mst:
+            mst = MST.create(storage=storage)
+
+        commit_blocks = {}  # maps CID to Block
+        if writes is None:
+            writes = []
+        orig_mst = mst
+
         for write in writes:
             assert isinstance(write, Write), type(write)
             data_key = f'{write.collection}/{write.rkey}'
@@ -293,23 +280,24 @@ class Repo:
 
         # ensure we're not missing any blocks that were removed and then
         # re-added in this commit
-        diff = Diff.of(mst, self.mst)
+        diff = Diff.of(mst, orig_mst)
         missing = diff.new_cids - commit_blocks.keys()
         if missing:
-            commit_blocks.update(self.storage.read_many(missing))
+            commit_blocks.update(storage.read_many(missing))
 
         commit = util.sign({
-            'did': self.did,
+            'did': repo_did,
             'version': 2,
-            'prev': self.head.cid,
+            'prev': cur_head,
             'data': root,
-        }, self.signing_key)
+        }, signing_key)
         commit_block = Block(decoded=commit, ops=writes_to_commit_ops(writes))
         commit_blocks[commit_block.cid] = commit_block
 
-        self.mst = mst
-        return CommitData(commit=commit_block, prev=self.head.cid,
-                          blocks=commit_blocks)
+        if repo:
+            repo.mst = mst
+
+        return CommitData(commit=commit_block, prev=cur_head, blocks=commit_blocks)
 
     def apply_commit(self, commit_data):
         """
@@ -335,7 +323,10 @@ class Repo:
         Returns:
           :class:`Repo`, self
         """
-        commit_data = self.format_commit(writes)
+        if isinstance(writes, Write):
+            writes = [writes]
+
+        commit_data = Repo.format_commit(repo=self, writes=writes)
         self.apply_commit(commit_data)
         return self
 

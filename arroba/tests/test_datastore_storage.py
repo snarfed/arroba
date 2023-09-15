@@ -157,7 +157,7 @@ class DatastoreStorageTest(DatastoreTest):
 
         # new commit
         writes = [Write(Action.CREATE, 'coll', next_tid(), obj) for obj in objs]
-        commit_data = repo.format_commit(writes)
+        commit_data = Repo.format_commit(repo=repo, writes=writes)
 
         self.storage.apply_commit(commit_data)
         self.assertEqual(commit_data.commit.cid, self.storage.head)
