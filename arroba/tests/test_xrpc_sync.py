@@ -496,9 +496,10 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             }
 
         commit_record = {
-            'version': 2,
+            'version': 3,
             'did': 'did:web:user.com',
             'data': dag_cbor_cid(mst_entry),
+            'rev': seq,
             'prev': prev,
         }
 
@@ -867,44 +868,6 @@ class SubscribeReposTest(testutil.XrpcTestCase):
     #     verifyTombstoneEvent(tombstoneEvts[0], baddie1)
     #     verifyTombstoneEvent(tombstoneEvts[1], baddie2)
 
-    # def test_sync_rebases(self):
-    #     prev_head = xrpc_sync.get_head({}, did=alice)
-
-    #     xrpc_repo.rebaseRepo(
-    #         { 'repo': alice },
-    #         { 'encoding': 'application/json', 'headers': sc.getHeaders(alice) },
-    #     )
-
-    #     curr_head = xrpc_sync.get_head({}, did=alice)
-
-    #     ws = WebSocket(
-    #         f'ws://{serverHost}/xrpc/com.atproto.sync.subscribeRepos?cursor={-1}',
-    #     )
-
-    #     gen = byFrame(ws)
-    #     frames = readTillCaughtUp(gen)
-    #     ws.terminate()
-
-    #     aliceEvts = getCommitEvents(alice, frames)
-    #     self.assertEqual(1, aliceEvts.length)
-
-    #     evt = aliceEvts[0]
-    #     self.assertEqual(true, evt.rebase)
-    #     self.assertEqual(false, evt.tooBig)
-    #     self.assertEqual(curr_head.root, evt.commit)
-    #     self.assertEqual(prev_head.root, evt.prev)
-    #     self.assertEqual([], evt.ops)
-    #     self.assertEqual([], evt.blobs)
-
-    #     car = readCar(evt.blocks)
-    #     self.assertEqual(1, car.blocks.size)
-    #     self.assertEqual(1, car.roots.length)
-    #     self.assertEqual(curr_head.root, car.roots[0])
-
-    #     # did not affect other users
-    #     bobEvts = getCommitEvents(bob, frames)
-    #     self.assertGreater(10, bobEvts.length)
-
     # def test_sync_info_on_out_of_date_cursor(self):
     #     # we rewrite the sequenceAt time for existing seqs to be past the
     #     # backfill cutoff, then we create some posts
@@ -957,3 +920,4 @@ class DatastoreSubscribeReposTest(SubscribeReposTest, testutil.DatastoreTest):
             # we're in a separate thread; make a new ndb context
             with self.ndb_client.context():
                 super().subscribe(*args, **kwargs)
+

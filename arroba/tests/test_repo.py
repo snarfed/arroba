@@ -52,7 +52,7 @@ class RepoTest(TestCase):
             self.assertEqual(seq, block.seq)
 
     def test_metadata(self):
-        self.assertEqual(2, self.repo.version)
+        self.assertEqual(3, self.repo.version)
         self.assertEqual('did:web:user.com', self.repo.did)
 
     def test_does_basic_operations(self):
@@ -141,7 +141,7 @@ class RepoTest(TestCase):
         reloaded = Repo.load(self.storage, self.repo.head.cid,
                              signing_key=self.key)
 
-        self.assertEqual(2, reloaded.version)
+        self.assertEqual(3, reloaded.version)
         self.assertEqual('did:web:user.com', reloaded.did)
         self.assertEqual({'co.ll': objs}, reloaded.get_contents())
 

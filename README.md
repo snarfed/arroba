@@ -35,6 +35,7 @@ Single-user demo PDS based on arroba, for testing with the [ATProto federation s
 
 ### 0.4 - unreleased
 
+* Migrate to [ATProto repo v3](https://atproto.com/blog/repo-sync-update). Specifically, the existing `subscribeRepos` sequence number is reused as the new `rev` field in commits. ([Discussion.](https://github.com/bluesky-social/atproto/discussions/1607)).
 * Add new `did` module with utilities to create and resolve `did:plc`s and resolve `did:web`s.
 * Add new `util.service_jwt` function that generates [ATProto inter-service JWTs](https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification).
 * `Repo`:

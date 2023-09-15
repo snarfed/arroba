@@ -301,16 +301,19 @@ class DatastoreStorage(Storage):
         return self.read(cid) is not None
 
     def write(self, repo_did, obj):
-        seq = AtpSequence.allocate(SUBSCRIBE_REPOS_NSID)
+        seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
         return AtpBlock.create(repo_did=repo_did, data=obj, seq=seq).cid
 
     @ndb.transactional()
     def apply_commit(self, commit_data):
-        seq = AtpSequence.allocate(SUBSCRIBE_REPOS_NSID)
+        seq = commit_data.commit.decoded['rev']
+        assert seq
 
         for block in commit_data.blocks.values():
             template = AtpBlock.from_block(
                 repo_did=commit_data.commit.decoded['did'], block=block)
+            # get_or_insert so we don't wipe out any existing blocks' sequence
+            # numbers. (occasionally we see existing blocks recur, eg MST nodes.)
             atp_block = AtpBlock.get_or_insert(
                 template.key.id(), repo=template.repo, encoded=block.encoded,
                 seq=seq, ops=template.ops)

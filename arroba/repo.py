@@ -18,7 +18,14 @@ from multiformats import CID
 from . import util
 from .diff import Diff
 from .mst import MST
-from .storage import Action, Block, CommitData, CommitOp, Storage
+from .storage import (
+    Action,
+    Block,
+    CommitData,
+    CommitOp,
+    Storage,
+    SUBSCRIBE_REPOS_NSID,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -193,10 +200,10 @@ class Repo:
           :class:`Repo`, self
         """
         # initial commit
-        commit = cls.format_commit(storage=storage, repo_did=did,
-                                   signing_key=signing_key,
-                                   writes=initial_writes)
-        return cls.create_from_commit(storage, commit, signing_key=signing_key,
+        commit_data = cls.format_commit(storage=storage, repo_did=did,
+                                        signing_key=signing_key,
+                                        writes=initial_writes)
+        return cls.create_from_commit(storage, commit_data, signing_key=signing_key,
                                       rotation_key=rotation_key, **kwargs)
 
     @classmethod
@@ -287,7 +294,10 @@ class Repo:
 
         commit = util.sign({
             'did': repo_did,
-            'version': 2,
+            'version': 3,
+            # reuse subscribeRepos sequence number as rev
+            # https://github.com/bluesky-social/atproto/discussions/1607
+            'rev': storage.allocate_seq(SUBSCRIBE_REPOS_NSID),
             'prev': cur_head,
             'data': root,
         }, signing_key)
@@ -329,51 +339,3 @@ class Repo:
         commit_data = Repo.format_commit(repo=self, writes=writes)
         self.apply_commit(commit_data)
         return self
-
-    # def format_rebase(self, key):
-    #     """TODO
-
-    #     Args:
-    #       key?
-
-    #     Returns:
-    #       rebase: :class:`RebaseData`
-    #     """
-    #     preserved_cids = self.mst.all_cids()
-    #     blocks = {}  # CID -> Block
-    #     commit = util.sign({
-    #         'did': self.did,
-    #         'version': 2,
-    #         'prev': None,
-    #         'data': self.commit.mst,
-    #     }, key)
-
-    #     block = Block(decoded=commit)
-    #     blocks[block.cid] = block
-    #     return {
-    #         'commit': block.cid,
-    #         'rebased': self.cid,
-    #         'blocks': blocks,
-    #         'preserved_cids': preserved_cids.to_list(),
-    #     }
-
-    # def apply_rebase(self, rebase):
-    #     """TODO
-
-    #     Args:
-    #       rebase: :class:`RebaseData`
-
-    #     Returns:
-    #       :class:`Repo`, self
-    #     """
-    #     self.storage.apply_rebase(rebase)
-    #     return Repo.load(self.storage, rebase.commit)
-
-    # def rebase(self, key):
-    #   """
-    #
-    #   Args:
-    #     key: :class:`ec.EllipticCurvePrivateKey`
-    #   """
-    #     rebase_data = self.format_rebase(key)
-    #     return self.apply_rebase(rebase_data)

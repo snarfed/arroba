@@ -37,11 +37,15 @@ CommitOp = namedtuple('CommitOp', [  # for subscribeRepos
 ])
 
 # commit record format is:
+# https://atproto.com/specs/repository#commit-objects
+#
 # {
-#     'version': 2,
+#     'version': 3,
 #     'did': [repo],
-#     'prev': [CID],
+#     'rev': [integer],
 #     'data': [CID],
+#     'prev': [CID],  # optional
+#     'sig': [bytes],
 # }
 
 
@@ -222,7 +226,8 @@ class Storage:
                 commit_block = None
 
             blocks[block.cid] = block
-            if block.decoded.keys() == set(['version', 'did', 'prev', 'data', 'sig']):
+            commit_fields = ['version', 'did', 'rev', 'prev', 'data', 'sig']
+            if block.decoded.keys() == set(commit_fields):
                 commit_block = block
 
         # final commit
@@ -246,6 +251,8 @@ class Storage:
         """Writes a node to storage.
 
         Generates new sequence number(s) as necessary for newly stored blocks.
+
+        TODO: remove? This seems unused.
 
         Args:
           repo_did: str
@@ -348,7 +355,9 @@ class MemoryStorage(Storage):
         return block.cid
 
     def apply_commit(self, commit_data):
-        seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
+        seq = commit_data.commit.decoded['rev']
+        assert seq
+
         for block in commit_data.blocks.values():
             block.seq = seq
 
