@@ -25,6 +25,10 @@ storage
 -------
 .. automodule:: arroba.storage
 
+datastore_storage
+-----------------
+.. automodule:: arroba.datastore_storage
+
 util
 ----
 .. automodule:: arroba.util
