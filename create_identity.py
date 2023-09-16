@@ -49,22 +49,4 @@ print(f'Writing DID document to {filename}...')
 with open(filename, 'w') as f:
     json.dump(did.doc, f, indent=2)
 
-# https://atproto.com/specs/did#public-key-encoding
-# https://cryptography.io/en/latest/hazmat/primitives/asymmetric/serialization/#cryptography.hazmat.primitives.serialization.Encoding
-
-# TODO: how to get uncompressed public key bytes as required by ATProto
-# for the `publicKeyMultibase` field here?
-# https://atproto.com/specs/did#public-key-encoding
-# pubkey_bytes = pubkey.public_bytes(serialization.Encoding.Raw,  # is this right?!
-#                                    serialization.PublicFormat.Raw)
-# pubkey_multibase = multibase.encode(pubkey_bytes, 'base58btc') + 'z'
-pubkey_multibase = 'TODO'
-did_key_obj = {
-    'id': '#atproto',
-    'type': 'k256',
-    'controller': did.did,
-    'publicKeyMultibase': pubkey_multibase,
-}
-print(f'did:key object:')
-json.dump(did_key_obj, sys.stdout, indent=2)
-print()
+print('Done.')
