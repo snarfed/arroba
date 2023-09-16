@@ -460,8 +460,9 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             } for op in writes_to_commit_ops([write] if write else [])],
             'time': testutil.NOW.isoformat(),
             'seq': seq,
+            'rev': int_to_tid(seq),
             # TODO
-            'prev': None, # prev,
+            'since': None,
             'rebase': False,
             'tooBig': False,
             'blobs': [],
