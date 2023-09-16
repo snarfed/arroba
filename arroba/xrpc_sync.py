@@ -168,12 +168,6 @@ def subscribe_repos(cursor=None):
 #     return b''
 
 
-# @server.server.method('com.atproto.sync.getCommitPath')
-# def get_commit_path(input, did=None, earliest=None, latest=None):
-#     """Handler for `com.atproto.sync.getCommitPath` XRPC method."""
-#     # TODO
-
-
 @server.server.method('com.atproto.sync.getHead')
 def get_head(input, did=None):
     """Handler for `com.atproto.sync.getHead` XRPC method.
@@ -183,6 +177,16 @@ def get_head(input, did=None):
     repo = server.load_repo(did)
     return {
         'root': repo.head.cid.encode('base32'),
+    }
+
+
+@server.server.method('com.atproto.sync.getLatestCommit')
+def get_latest_commit(input, did=None):
+    """Handler for `com.atproto.sync.getLatestCommit` XRPC method."""
+    repo = server.load_repo(did)
+    return {
+        'cid': repo.head.cid.encode('base32'),
+        'rev': repo.head.decoded['rev'],
     }
 
 
