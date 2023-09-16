@@ -9,7 +9,7 @@ from enum import auto, Enum
 import dag_cbor
 from multiformats import CID, multicodec, multihash
 
-from .util import dag_cbor_cid
+from .util import dag_cbor_cid, tid_to_int
 
 SUBSCRIBE_REPOS_NSID = 'com.atproto.sync.subscribeRepos'
 
@@ -42,9 +42,9 @@ CommitOp = namedtuple('CommitOp', [  # for subscribeRepos
 # {
 #     'version': 3,
 #     'did': [repo],
-#     'rev': [integer],
+#     'rev': [str, TID],
 #     'data': [CID],
-#     'prev': [CID],  # optional
+#     'prev': [CID or None],
 #     'sig': [bytes],
 # }
 
@@ -355,7 +355,7 @@ class MemoryStorage(Storage):
         return block.cid
 
     def apply_commit(self, commit_data):
-        seq = commit_data.commit.decoded['rev']
+        seq = tid_to_int(commit_data.commit.decoded['rev'])
         assert seq
 
         for block in commit_data.blocks.values():

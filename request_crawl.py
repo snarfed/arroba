@@ -30,8 +30,8 @@ scheme = ('http' if os.environ["BGS_HOST"].startswith('localhost')
           else 'https')
 url = f'{scheme}://{os.environ["BGS_HOST"]}/xrpc/com.atproto.sync.requestCrawl'
 print(f'Fetching {url}')
-resp = requests.get(url, params={'hostname': os.environ['PDS_HOST']},
-                    headers={'Authorization': f'Bearer {token}'})
+resp = requests.post(url, json={'hostname': os.environ['PDS_HOST']},
+                     headers={'Authorization': f'Bearer {token}'})
 print(resp.content)
 resp.raise_for_status()
 print('OK')

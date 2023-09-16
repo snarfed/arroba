@@ -12,7 +12,7 @@ from multiformats import CID, multicodec, multihash
 from .repo import Repo
 from . import storage
 from .storage import Action, Block, Storage, SUBSCRIBE_REPOS_NSID
-from .util import dag_cbor_cid
+from .util import dag_cbor_cid, tid_to_int
 
 logger = logging.getLogger(__name__)
 
@@ -306,7 +306,7 @@ class DatastoreStorage(Storage):
 
     @ndb.transactional()
     def apply_commit(self, commit_data):
-        seq = commit_data.commit.decoded['rev']
+        seq = tid_to_int(commit_data.commit.decoded['rev'])
         assert seq
 
         for block in commit_data.blocks.values():

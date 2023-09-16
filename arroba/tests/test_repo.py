@@ -31,6 +31,11 @@ class RepoTest(TestCase):
                                 signing_key=self.key)
 
     def assertCommitIs(self, commit_data, write, seq):
+        self.assertEqual(3, commit_data.commit.decoded['version'])
+        self.assertEqual('did:web:user.com', commit_data.commit.decoded['did'])
+        self.assertEqual(util.int_to_tid(seq, clock_id=0),
+                         commit_data.commit.decoded['rev'])
+
         mst_entry_cid = commit_data.commit.decoded['data']
         mst_entry = commit_data.blocks[mst_entry_cid].decoded
 

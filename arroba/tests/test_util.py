@@ -11,9 +11,11 @@ from ..util import (
     new_key,
     next_tid,
     parse_at_uri,
+    int_to_tid,
     service_jwt,
     sign,
     tid_to_datetime,
+    tid_to_int,
     verify_sig,
 )
 from .testutil import NOW, TestCase
@@ -31,6 +33,20 @@ class UtilTest(TestCase):
 
     def test_tid_to_datetime(self):
         self.assertEqual(NOW, tid_to_datetime('3iom4o4g6u2l2'))
+
+    def test_int_to_tid(self):
+        self.assertEqual('22222222222l2', int_to_tid(0))
+        self.assertEqual('2222222222222', int_to_tid(0, clock_id=0))
+        self.assertEqual('2222222223el2', int_to_tid(42))
+        self.assertEqual('3iom4o4g6u2l2',
+                         int_to_tid(int(NOW.timestamp() * 1000 * 1000)))
+
+    def test_tid_to_int(self):
+        self.assertEqual(0, tid_to_int('22222222222l2'))
+        self.assertEqual(0, tid_to_int('2222222222222'))
+        self.assertEqual(42, tid_to_int('2222222223el2'))
+        self.assertEqual(int(NOW.timestamp() * 1000 * 1000),
+                         tid_to_int('3iom4o4g6u2l2'))
 
     def test_sign_and_verify(self):
         key = new_key()

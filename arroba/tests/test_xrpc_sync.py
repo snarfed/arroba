@@ -18,7 +18,7 @@ from ..repo import Repo, Write, writes_to_commit_ops
 from .. import server
 from ..storage import Action, Storage, SUBSCRIBE_REPOS_NSID
 from .. import util
-from ..util import dag_cbor_cid, next_tid
+from ..util import dag_cbor_cid, int_to_tid, next_tid
 from .. import xrpc_sync
 
 from . import testutil
@@ -499,7 +499,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             'version': 3,
             'did': 'did:web:user.com',
             'data': dag_cbor_cid(mst_entry),
-            'rev': seq,
+            'rev': int_to_tid(seq, clock_id=0),
             'prev': prev,
         }
 

@@ -104,27 +104,46 @@ def s32decode(val):
     return i
 
 
-def datetime_to_tid(dt):
-    """Converts a datetime to an ATProto TID.
+def datetime_to_tid(dt, clock_id=None):
+    """Converts a datetime to a TID.
 
-    https://atproto.com/guides/data-repos#identifier-types
+    https://atproto.com/specs/record-key#record-key-type-tid
 
     Args:
       dt: :class:`datetime.datetime`
+      clock_id: 0, optional. If not specified, uses this runtime's clock id
 
     Returns:
       str, base32-encoded TID
     """
-    tid = (s32encode(int(dt.timestamp() * 1000 * 1000)) +
-           s32encode(_clockid).ljust(2, '2'))
-    assert len(tid) == 13, tid
-    return tid
+    return int_to_tid(int(dt.timestamp() * 1000 * 1000), clock_id=clock_id)
+
+
+def int_to_tid(num, clock_id=None):
+    """Converts an integer to a TID.
+
+    https://atproto.com/specs/record-key#record-key-type-tid
+
+    Args:
+      seq: integer
+      clock_id: 0, optional. If not specified, uses this runtime's clock id
+
+    Returns:
+      str, base32-encoded TID
+    """
+    if clock_id is None:
+        clock_id = _clockid
+
+    tid = (s32encode(num) +
+           s32encode(clock_id).ljust(2, '2'))  # clock id
+    assert len(tid) <= 13, tid
+    return tid.rjust(13, '2')  # pad up to 13 chars; '2' decodes to 0
 
 
 def tid_to_datetime(tid):
-    """Converts an ATProto TID to a datetime.
+    """Converts an TID to a datetime.
 
-    https://atproto.com/guides/data-repos#identifier-types
+    https://atproto.com/specs/record-key#record-key-type-tid
 
     Args:
       tid: bytes, base32-encoded TID
@@ -135,11 +154,28 @@ def tid_to_datetime(tid):
     Raises:
       ValueError if tid is not bytes or not 13 characters long
     """
+    return datetime.fromtimestamp(tid_to_int(tid) / 1000 / 1000, timezone.utc)
+
+
+def tid_to_int(tid):
+    """Converts an TID to an integer.
+
+    https://atproto.com/specs/record-key#record-key-type-tid
+
+    Args:
+      tid: bytes, base32-encoded TID
+
+    Returns:
+      int
+
+    Raises:
+      ValueError if tid is not bytes or not 13 characters long
+    """
     if not isinstance(tid, (str, bytes)) or len(tid) != 13:
         raise ValueError(f'Expected 13-character str or bytes; got {tid}')
 
     encoded = tid.replace('-', '')[:-2]  # strip clock id
-    return datetime.fromtimestamp(s32decode(encoded) / 1000 / 1000, timezone.utc)
+    return s32decode(encoded)
 
 
 def next_tid():
