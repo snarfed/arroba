@@ -88,6 +88,8 @@ class AtpRepo(ndb.Model):
     Properties:
     * handles: str, repeated, optional
     * head: str CID
+    * signing_key: str
+    * rotation_key: str
     """
     handles = ndb.StringProperty(repeated=True)
     head = ndb.StringProperty(required=True)
@@ -96,10 +98,29 @@ class AtpRepo(ndb.Model):
     # these are both secp256k1 private keys, PEM-encoded bytes
     # https://atproto.com/specs/cryptography
     signing_key_pem = ndb.BlobProperty(required=True)
+    # TODO: rename this recovery_key_pem?
+    # https://discord.com/channels/1097580399187738645/1098725036917002302/1153447354003894372
     rotation_key_pem = ndb.BlobProperty()
 
     created = ndb.DateTimeProperty(auto_now_add=True)
     updated = ndb.DateTimeProperty(auto_now=True)
+
+    @property
+    def signing_key(self):
+        """
+        Returns: :class:`ec.EllipticCurvePrivateKey`
+        """
+        return serialization.load_pem_private_key(self.signing_key_pem,
+                                                  password=None)
+
+    @property
+    def rotation_key(self):
+        """
+        Returns: :class:`ec.EllipticCurvePrivateKey`, or None if not set
+        """
+        if self.rotation_key_pem:
+            return serialization.load_pem_private_key(self.rotation_key_pem,
+                                                      password=None)
 
 
 class AtpBlock(ndb.Model):
@@ -270,15 +291,9 @@ class DatastoreStorage(Storage):
         self.head = CID.decode(atp_repo.head)
         handle = atp_repo.handles[0] if atp_repo.handles else None
 
-        signing_key = serialization.load_pem_private_key(
-            atp_repo.signing_key_pem, password=None)
-        rotation_key = None
-        if atp_repo.rotation_key_pem:
-            rotation_key = serialization.load_pem_private_key(
-                atp_repo.rotation_key_pem, password=None)
-
         return Repo.load(self, cid=self.head, handle=handle,
-                         signing_key=signing_key, rotation_key=rotation_key)
+                         signing_key=atp_repo.signing_key,
+                         rotation_key=atp_repo.rotation_key)
 
     def read(self, cid):
         block = AtpBlock.get_by_id(cid.encode('base32'))
