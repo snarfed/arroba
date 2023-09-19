@@ -23,9 +23,10 @@ for module in ('google.cloud', 'oauthlib', 'requests', 'requests_oauthlib',
                'urllib3'):
   logging.getLogger(module).setLevel(logging.INFO)
 
+from arroba.datastore_storage import DatastoreStorage
 from arroba.repo import Repo
 from arroba import server
-from arroba.datastore_storage import DatastoreStorage
+from arroba import util
 from arroba import xrpc_repo, xrpc_server, xrpc_sync
 
 USER_AGENT = 'Arroba PDS (https://arroba-pds.appspot.com/)'
@@ -73,19 +74,10 @@ app.json.compact = False
 # https://atproto.com/specs/cryptography
 privkey = load_pem_private_key(os.environ['REPO_PRIVKEY'].encode(),
                                password=None)
-def jwt_data(aud):
-    data = {
-        'iss': os.environ['REPO_DID'],
-        'aud': aud,
-        'alg': 'ES256K',  # k256
-        'exp': int((datetime.now() + timedelta(days=999)).timestamp()),  # 😎
-    }
-    logger.info(f'Raw JWT data: {data}')
-    return data
 
-
-APPVIEW_JWT = jwt.encode(jwt_data(f'did:web:{os.environ["APPVIEW_HOST"]}'),
-                         privkey, algorithm='ES256K')
+APPVIEW_JWT = util.service_jwt(host=os.environ["APPVIEW_HOST"],
+                               repo_did=os.environ['REPO_DID'],
+                               privkey=privkey)
 APPVIEW_HEADERS = {
       'User-Agent': USER_AGENT,
       'Authorization': f'Bearer {APPVIEW_JWT}',
@@ -179,8 +171,9 @@ def homepage():
 """
 
 
-BGS_JWT = jwt.encode(jwt_data(f'did:web:{os.environ["BGS_HOST"]}'),
-                     privkey, algorithm='ES256K')
+BGS_JWT = util.service_jwt(host=os.environ["BGS_HOST"],
+                               repo_did=os.environ['REPO_DID'],
+                               privkey=privkey)
 BGS_HEADERS = {
       'User-Agent': USER_AGENT,
       'Authorization': f'Bearer {BGS_JWT}',
