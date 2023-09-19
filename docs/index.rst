@@ -22,11 +22,11 @@ License: This project is placed into the public domain.
 Usage
 -----
 
-TODO
-
-Single-user demo PDS based on arroba, for testing with the `ATProto
-federation
+See `app.py <https://github.com/snarfed/arroba/blob/main/app.py>`__
+for the minimal wrapper code needed to run a fully functional PDS based
+on arroba, for testing with the `ATProto federation
 sandbox <https://atproto.com/blog/federation-developer-sandbox>`__.
+
 Environment variables:
 
 -  ``APPVIEW_HOST``, default ``api.bsky-sandbox.dev``
@@ -45,8 +45,51 @@ Environment variables:
    ``refreshJwt``, defaults to contents of ``repo_token`` file. Not
    required to be an actual JWT.
 
+More docs to come!
+
 Changelog
 ---------
+
+0.4 - 2023-09-19
+~~~~~~~~~~~~~~~~
+
+-  Migrate to `ATProto repo
+   v3 <https://atproto.com/blog/repo-sync-update>`__. Specifically, the
+   existing ``subscribeRepos`` sequence number is reused as the new
+   ``rev`` field in commits.
+   (`Discussion. <https://github.com/bluesky-social/atproto/discussions/1607>`__).
+-  Add new ``did`` module with utilities to create and resolve
+   ``did:plc``\ s and resolve ``did:web``\ s.
+-  Add new ``util.service_jwt`` function that generates `ATProto
+   inter-service
+   JWTs <https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification>`__.
+-  ``Repo``:
+
+   -  Add new ``signing_key``/``rotation_key`` attributes. Generate
+      store, and load both in ``datastore_storage``.
+   -  Remove ``format_init_commit``, migrate existing calls to
+      ``format_commit``.
+
+-  ``Storage``:
+
+   -  Rename ``read_from_seq`` => ``read_blocks_by_seq`` (and in
+      ``MemoryStorage`` and ``DatastoreStorage``), add new
+      ``read_commits_by_seq`` method.
+   -  Merge ``load_repo`` ``did``/``handle`` kwargs into
+      ``did_or_handle``.
+
+-  XRPCs:
+
+   -  Make ``subscribeRepos`` check storage for all new commits every
+      time it wakes up.
+
+      -  As part of this, replace ``xrpc_sync.enqueue_commit`` with new
+         ``send_new_commits`` function that takes no parameters.
+
+   -  Drop bundled ``app.bsky``/``com.atproto`` lexicons, use
+      `lexrpc <https://lexrpc.readthedocs.io/>`__\ ’s instead.
+
+.. _section-1:
 
 0.3 - 2023-08-29
 ~~~~~~~~~~~~~~~~
@@ -64,7 +107,7 @@ minimal demo code needed to wrap arroba in a fully functional PDS.
 
 -  …and much more.
 
-.. _section-1:
+.. _section-2:
 
 0.2 - 2023-05-18
 ~~~~~~~~~~~~~~~~
@@ -74,7 +117,7 @@ storage. This completes the first pass at all PDS data structures. Next
 release will include initial implementations of the
 ``com.atproto.sync.*`` XRPC methods.
 
-.. _section-2:
+.. _section-3:
 
 0.1 - 2023-04-30
 ~~~~~~~~~~~~~~~~

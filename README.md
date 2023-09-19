@@ -16,9 +16,9 @@ License: This project is placed into the public domain.
 
 ## Usage
 
-TODO
+See [`app.py`](https://github.com/snarfed/arroba/blob/main/app.py) for the minimal wrapper code needed to run a fully functional PDS based on arroba, for testing with the [ATProto federation sandbox](https://atproto.com/blog/federation-developer-sandbox).
 
-Single-user demo PDS based on arroba, for testing with the [ATProto federation sandbox](https://atproto.com/blog/federation-developer-sandbox). Environment variables:
+Environment variables:
 
 * `APPVIEW_HOST`, default `api.bsky-sandbox.dev`
 * `BGS_HOST`, default `bgs.bsky-sandbox.dev`
@@ -30,10 +30,12 @@ Single-user demo PDS based on arroba, for testing with the [ATProto federation s
 * `REPO_PRIVKEY`, repo user's private key in PEM format, defaults to contents of `privkey.pem` file
 * `REPO_TOKEN`, static token to use as both `accessJwt` and `refreshJwt`, defaults to contents of `repo_token` file. Not required to be an actual JWT.
 
+More docs to come!
+
 
 ## Changelog
 
-### 0.4 - unreleased
+### 0.4 - 2023-09-19
 
 * Migrate to [ATProto repo v3](https://atproto.com/blog/repo-sync-update). Specifically, the existing `subscribeRepos` sequence number is reused as the new `rev` field in commits. ([Discussion.](https://github.com/bluesky-social/atproto/discussions/1607)).
 * Add new `did` module with utilities to create and resolve `did:plc`s and resolve `did:web`s.
@@ -79,12 +81,14 @@ Here's how to package, test, and ship a new release.
     ```
 1. Bump the version number in `pyproject.toml` and `docs/conf.py`. `git grep` the old version number to make sure it only appears in the changelog. Change the current changelog entry in `README.md` for this new version from _unreleased_ to the current date.
 1. Build the docs. If you added any new modules, add them to the appropriate file(s) in `docs/source/`. Then run `./docs/build.sh`. Check that the generated HTML looks fine by opening `docs/_build/html/index.html` and looking around.
-1. `git commit -am 'release vX.Y'`
+1. ```sh
+   setenv ver X.Y
+   git commit -am "release v$ver"
+   ```
 1. Upload to [test.pypi.org](https://test.pypi.org/) for testing.
 
     ```sh
     python3 -m build
-    setenv ver X.Y
     twine upload -r pypitest dist/arroba-$ver*
     ```
 1. Install from test.pypi.org.
