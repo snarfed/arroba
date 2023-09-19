@@ -35,7 +35,7 @@ class DatastoreStorageTest(DatastoreTest):
         self.assertIsNone(self.storage.load_repo('han.dull'))
         self.assertIsNone(self.storage.load_repo('did:web:user.com'))
 
-        rotation_key = new_key()
+        rotation_key = new_key(seed=4597489735324)
         repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key,
                            rotation_key=rotation_key, handle='han.dull')
 

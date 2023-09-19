@@ -35,6 +35,11 @@ More docs to come!
 
 ## Changelog
 
+### 0.5 - unreleased
+
+* `util`:
+  * `new_key`: add `seed` kwarg to allow deterministic key generation.
+
 ### 0.4 - 2023-09-19
 
 * Migrate to [ATProto repo v3](https://atproto.com/blog/repo-sync-update). Specifically, the existing `subscribeRepos` sequence number is reused as the new `rev` field in commits. ([Discussion.](https://github.com/bluesky-social/atproto/discussions/1607)).

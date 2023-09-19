@@ -238,15 +238,22 @@ def parse_at_uri(uri):
     return parsed.netloc, *rkey
 
 
-def new_key():
+def new_key(seed=None):
     """Generates a new ECC K-256 keypair.
 
     https://atproto.com/specs/cryptography
 
+    Args:
+      seed: int, optional deterministic value to derive private key from.
+      Don't use in production!
+
     Returns:
       :class:`ec.EllipticCurvePrivateKey`
     """
-    return ec.generate_private_key(ec.SECP256K1())
+    if seed:
+        return ec.derive_private_key(seed, ec.SECP256K1())
+    else:
+        return ec.generate_private_key(ec.SECP256K1())
 
 
 def sign(obj, private_key):
@@ -280,6 +287,9 @@ def sign(obj, private_key):
 
 def apply_low_s_mitigation(signature, curve):
     """Low-S signature mitigation.
+
+    This prevents signature malleability. (It *doesn't* guarantee deterministic
+    signatures though!)
 
     https://atproto.com/specs/cryptography#ecdsa-signature-malleability
 

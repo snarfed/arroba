@@ -8,7 +8,6 @@ from ..util import (
     at_uri,
     dag_cbor_cid,
     datetime_to_tid,
-    new_key,
     next_tid,
     parse_at_uri,
     int_to_tid,
@@ -49,20 +48,17 @@ class UtilTest(TestCase):
                          tid_to_int('3iom4o4g6u2l2'))
 
     def test_sign_and_verify(self):
-        key = new_key()
         commit = {'foo': 'bar'}
-        sign(commit, key)
-        assert verify_sig(commit, key.public_key())
+        sign(commit, self.key)
+        assert verify_sig(commit, self.key.public_key())
 
     def test_verify_sig_error(self):
-        key = new_key()
         with self.assertRaises(KeyError):
-            self.assertFalse(verify_sig({'foo': 'bar'}, key.public_key()))
+            self.assertFalse(verify_sig({'foo': 'bar'}, self.key.public_key()))
 
     def test_verify_sig_fail(self):
-        key = new_key()
         self.assertFalse(verify_sig({'foo': 'bar', 'sig': 'nope'},
-                                    key.public_key()))
+                                    self.key.public_key()))
 
     def test_next_tid(self):
         first = next_tid()

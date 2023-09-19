@@ -71,7 +71,7 @@ class TestCase(unittest.TestCase):
 
         # reuse this because it's expensive to generate
         if not TestCase.key:
-            TestCase.key = util.new_key()
+            TestCase.key = util.new_key(seed=2349872879569)
 
         os.environ.setdefault('PDS_HOST', 'localhost:8080')
         os.environ.setdefault('PLC_HOST', 'plc.bsky-sandbox.dev')
