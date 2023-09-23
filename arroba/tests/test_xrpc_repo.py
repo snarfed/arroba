@@ -26,7 +26,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
 
         resp = xrpc_repo.describe_repo({}, repo='at://did:web:user.com')
         self.assertEqual('did:web:user.com', resp['did'])
-        self.assertIsNone(resp['handle'])
+        self.assertEqual('han.dull', resp['handle'])
 
     # based on atproto/packages/pds/tests/crud.test.ts
     def test_create_record(self):

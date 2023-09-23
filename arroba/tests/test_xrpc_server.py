@@ -22,7 +22,7 @@ class XrpcServerTest(testutil.XrpcTestCase):
             'password': 'sooper-sekret',
         })
         self.assertEqual({
-            'handle': None,
+            'handle': 'han.dull',
             'did': 'did:web:user.com',
             'accessJwt': 'towkin',
             'refreshJwt': 'towkin',
@@ -31,8 +31,8 @@ class XrpcServerTest(testutil.XrpcTestCase):
         request.headers['Authorization'] = 'Bearer towkin'
         resp = xrpc_server.get_session({})
         self.assertEqual({
-            'handle': 'TODO',
-            'did': 'TODO',
+            'handle': 'han.dull',
+            'did': 'did:web:user.com',
         }, resp)
 
     def test_create_session_handle(self):

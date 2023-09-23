@@ -111,7 +111,8 @@ def proxy_appview(nsid_rest=None):
     logger.info(f'requests.{request.method} {url} {APPVIEW_HEADERS}')
     resp = requests.request(request.method, url, headers=APPVIEW_HEADERS)
     logger.info(f'Received {resp.status_code}: {"" if resp.ok else resp.text[:500]}')
-    logger.info(resp.json())
+    resp.headers.pop('Transfer-Encoding', None)
+    resp.headers.pop('Content-Encoding', None)
     return resp.content, resp.status_code, {
       **lexrpc.flask_server.RESPONSE_HEADERS,
       **resp.headers,

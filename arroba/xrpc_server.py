@@ -31,9 +31,10 @@ def get_session(input):
     server.auth()
 
     # TODO: parse JWT, extract repo DID
+    # decoded = jwt.decode(data, server.repo.privkey, algorithm='ES256K')
     return {
-        'handle': 'TODO',
-        'did': 'TODO',
+        'handle': server.repo.handle,
+        'did': server.repo.did,
     }
 
 
