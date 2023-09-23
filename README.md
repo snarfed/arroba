@@ -37,6 +37,8 @@ More docs to come!
 
 ### 0.5 - unreleased
 
+* `did`:
+  * `resolve_handle`: special-case `bsky.social` since its handles don't serve either DNS or HTTPS resolution ([bluesky-social/atproto/discussions#1661](https://github.com/bluesky-social/atproto/discussions/1661)).
 * `util`:
   * `new_key`: add `seed` kwarg to allow deterministic key generation.
 

@@ -20,6 +20,7 @@ from dns.exception import DNSException
 from dns.rdatatype import TXT
 import dns.resolver
 import dag_cbor
+from lexrpc import Client
 from multiformats import multibase, multicodec
 import requests
 
@@ -302,6 +303,8 @@ def resolve_handle(handle, get_fn=requests.get):
 
     https://atproto.com/specs/handle#handle-resolution
 
+    TODO: fetch the DID doc and confirm that it has this handle?
+
     Args:
       handle: str
       get_fn: callable for making HTTP GET requests
@@ -316,6 +319,17 @@ def resolve_handle(handle, get_fn=requests.get):
         raise ValueError(f"{handle} doesn't look like a domain")
 
     logger.info(f'Resolving handle {handle}')
+
+    if handle.endswith('.bsky.social'):
+        # special case the official PDS
+        # https://github.com/bluesky-social/atproto/discussions/1661
+        client = Client('https://bsky.social',
+                        headers={'User-Agent': util.USER_AGENT})
+        try:
+            return client.com.atproto.identity.resolveHandle(handle=handle)['did']
+        except (ValueError, requests.RequestException) as e:
+            logger.warning(f"Couldn't resolve {handle}: {e}")
+            return None
 
     # DNS method
     name = f'_atproto.{handle}.'
