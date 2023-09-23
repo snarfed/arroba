@@ -29,8 +29,6 @@ from arroba import server
 from arroba import util
 from arroba import xrpc_repo, xrpc_server, xrpc_sync
 
-USER_AGENT = 'Arroba PDS (https://arroba-pds.appspot.com/)'
-
 os.environ.setdefault('APPVIEW_HOST', 'api.bsky-sandbox.dev')
 os.environ.setdefault('BGS_HOST', 'bgs.bsky-sandbox.dev')
 os.environ.setdefault('PLC_HOST', 'plc.bsky-sandbox.dev')
@@ -79,7 +77,7 @@ APPVIEW_JWT = util.service_jwt(host=os.environ["APPVIEW_HOST"],
                                repo_did=os.environ['REPO_DID'],
                                privkey=privkey)
 APPVIEW_HEADERS = {
-      'User-Agent': USER_AGENT,
+      'User-Agent': util.USER_AGENT,
       'Authorization': f'Bearer {APPVIEW_JWT}',
 }
 
@@ -176,7 +174,7 @@ BGS_JWT = util.service_jwt(host=os.environ["BGS_HOST"],
                                repo_did=os.environ['REPO_DID'],
                                privkey=privkey)
 BGS_HEADERS = {
-      'User-Agent': USER_AGENT,
+      'User-Agent': util.USER_AGENT,
       'Authorization': f'Bearer {BGS_JWT}',
 }
 

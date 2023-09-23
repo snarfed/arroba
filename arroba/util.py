@@ -23,6 +23,8 @@ from . import jwt_monkeypatch as jwt
 
 logger = logging.getLogger(__name__)
 
+USER_AGENT = 'arroba (https://arroba.readthedocs.io/)'
+
 DOMAIN_RE = re.compile(r'^[^/:;@?!\']+\.[^/:@_?!\']+$')
 
 # the bottom 32 clock ids can be randomized & are not guaranteed to be collision
