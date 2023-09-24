@@ -16,6 +16,7 @@ Install from `PyPI <https://pypi.org/project/arroba/>`__ with
 License: This project is placed into the public domain.
 
 -  `Usage <#usage>`__
+-  `Docs <https://arroba.readthedocs.io/>`__
 -  `Changelog <#changelog>`__
 -  `Release instructions <#release-instructions>`__
 
@@ -49,6 +50,14 @@ More docs to come!
 
 Changelog
 ---------
+
+0.5 - unreleased
+~~~~~~~~~~~~~~~~
+
+-  ``util``:
+
+   -  ``new_key``: add ``seed`` kwarg to allow deterministic key
+      generation.
 
 0.4 - 2023-09-19
 ~~~~~~~~~~~~~~~~
@@ -148,14 +157,16 @@ Here’s how to package, test, and ship a new release.
     ``./docs/build.sh``. Check that the generated HTML looks fine by
     opening ``docs/_build/html/index.html`` and looking around.
 
-4.  ``git commit -am 'release vX.Y'``
+4.  .. code:: sh
+
+          setenv ver X.Y
+          git commit -am "release v$ver"
 
 5.  Upload to `test.pypi.org <https://test.pypi.org/>`__ for testing.
 
     .. code:: sh
 
        python3 -m build
-       setenv ver X.Y
        twine upload -r pypitest dist/arroba-$ver*
 
 6.  Install from test.pypi.org.

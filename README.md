@@ -10,6 +10,7 @@ Install from [PyPI](https://pypi.org/project/arroba/) with `pip install arroba`.
 License: This project is placed into the public domain.
 
 * [Usage](#usage)
+* [Docs](https://arroba.readthedocs.io/)
 * [Changelog](#changelog)
 * [Release instructions](#release-instructions)
 
