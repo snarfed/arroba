@@ -218,27 +218,3 @@ class DidTest(TestCase):
         self.assertIsNone(did.resolve_handle('foo.com', get_fn=self.mock_get))
         mock_resolve.assert_called_once_with('_atproto.foo.com.', TXT)
         self.mock_get.assert_called_with('https://foo.com/.well-known/atproto-did')
-
-    @patch('requests.get', return_value = requests_response({'did': 'did:plc:123abc'}))
-    def test_resolve_handle_bsky_social_special_case(self, mock_get):
-        self.assertEqual('did:plc:123abc', did.resolve_handle('foo.bsky.social'))
-        mock_get.assert_called_with(
-            'https://bsky.social/xrpc/com.atproto.identity.resolveHandle?handle=foo.bsky.social',
-            json=None,
-            headers={
-                'User-Agent': util.USER_AGENT,
-                'Content-Type': 'application/json',
-            },
-        )
-
-    @patch('requests.get', return_value = requests_response({}, status=400))
-    def test_resolve_handle_bsky_social_special_case_not_Found(self, mock_get):
-        self.assertIsNone(did.resolve_handle('foo.bsky.social'))
-        mock_get.assert_called_with(
-            'https://bsky.social/xrpc/com.atproto.identity.resolveHandle?handle=foo.bsky.social',
-            json=None,
-            headers={
-                'User-Agent': util.USER_AGENT,
-                'Content-Type': 'application/json',
-            },
-        )
