@@ -195,7 +195,7 @@ class DidTest(TestCase):
         mock_resolve.return_value = self.dns_answer('foo.com.', 'nope')
 
         self.mock_get.return_value = requests_response('did:plc:123abc')
-        self.mock_get.return_value.headers['Content-Type'] ='text/plain'
+        self.mock_get.return_value.headers['Content-Type'] ='text/plain; charset=utf-8'
 
         self.assertEqual('did:plc:123abc',
                          did.resolve_handle('foo.com', get_fn=self.mock_get))

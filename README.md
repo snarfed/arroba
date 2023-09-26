@@ -38,6 +38,8 @@ More docs to come!
 
 ### 0.5 - unreleased
 
+* `did`:
+  * `resolve_handle` bug fix: handle `charset` specifier in HTTPS method response `Content-Type`.
 * `util`:
   * `new_key`: add `seed` kwarg to allow deterministic key generation.
 

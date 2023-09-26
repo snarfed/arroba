@@ -334,7 +334,7 @@ def resolve_handle(handle, get_fn=requests.get):
 
     # HTTPS well-known method
     resp = get_fn(f'https://{handle}/.well-known/atproto-did')
-    if resp.ok and resp.headers.get('Content-Type') == 'text/plain':
+    if resp.ok and resp.headers.get('Content-Type', '').split(';')[0] == 'text/plain':
         return resp.text.strip()
 
     return None
