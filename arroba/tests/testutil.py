@@ -7,6 +7,12 @@ import unittest
 from unittest.mock import ANY, call
 
 import dag_cbor.random
+import dns.message
+import dns.name
+from dns.rdataclass import IN
+from dns.rdatatype import TXT
+from dns.resolver import Answer
+import dns.rrset
 from flask import Flask, request
 from google.auth.credentials import AnonymousCredentials
 from google.cloud import ndb
@@ -52,6 +58,25 @@ def requests_response(body, status=200):
     resp.encoding = 'utf-8'
     resp.status_code = status
     return resp
+
+
+def dns_answer(name, value):
+    """Generates a test :class:`dns.resolver.Answer`.
+
+    Args:
+      name (str)
+      value (str)
+
+    Returns:
+      :class:`dns.resolver.Answer`
+    """
+    qname = dns.name.from_text(name)
+    query = dns.message.make_query(qname=qname, rdclass=IN, rdtype=TXT)
+    resp = dns.message.make_response(query)
+    answer = Answer(qname=qname, rdtype=TXT, rdclass=IN, response=resp)
+    answer.rrset = dns.rrset.from_text_list(
+        name=qname, rdclass=IN, rdtype=TXT, ttl=300, text_rdatas=[value])
+    return answer
 
 
 class TestCase(unittest.TestCase):

@@ -3,18 +3,14 @@ import base64
 from unittest.mock import MagicMock, patch
 
 from cryptography.hazmat.primitives.asymmetric import ec
-import dns.message
-import dns.name
-from dns.rdataclass import IN
 from dns.rdatatype import TXT
-from dns.resolver import Answer
-import dns.rrset
+import dns.resolver
 import requests
 
 from .. import did
 from .. import util
 
-from .testutil import requests_response, TestCase
+from .testutil import dns_answer, requests_response, TestCase
 
 
 class DidTest(TestCase):
@@ -22,15 +18,6 @@ class DidTest(TestCase):
     def setUp(self):
         super().setUp()
         self.mock_get = MagicMock(return_value=requests_response({'foo': 'bar'}))
-
-    def dns_answer(self, name, value):
-        qname = dns.name.from_text(name)
-        query = dns.message.make_query(qname=qname, rdclass=IN, rdtype=TXT)
-        resp = dns.message.make_response(query)
-        answer = Answer(qname=qname, rdtype=TXT, rdclass=IN, response=resp)
-        answer.rrset = dns.rrset.from_text_list(
-            name=qname, rdclass=IN, rdtype=TXT, ttl=300, text_rdatas=[value])
-        return answer
 
     def test_resolve_plc(self):
         doc = did.resolve_plc('did:plc:123', get_fn=self.mock_get)
@@ -182,7 +169,7 @@ class DidTest(TestCase):
 
     @patch('dns.resolver.resolve')
     def test_resolve_handle_dns(self, mock_resolve):
-        mock_resolve.return_value = self.dns_answer(
+        mock_resolve.return_value = dns_answer(
             '_atproto.foo.com.', '"did=did:plc:123abc"')
 
         self.assertEqual('did:plc:123abc',
@@ -192,7 +179,7 @@ class DidTest(TestCase):
 
     @patch('dns.resolver.resolve')
     def test_resolve_handle_https_well_known(self, mock_resolve):
-        mock_resolve.return_value = self.dns_answer('foo.com.', 'nope')
+        mock_resolve.return_value = dns_answer('foo.com.', 'nope')
 
         self.mock_get.return_value = requests_response('did:plc:123abc')
         self.mock_get.return_value.headers['Content-Type'] ='text/plain; charset=utf-8'
@@ -204,7 +191,7 @@ class DidTest(TestCase):
 
     @patch('dns.resolver.resolve')
     def test_resolve_handle_nothing(self, mock_resolve):
-        mock_resolve.return_value = self.dns_answer('_atproto.foo.com.', 'nope')
+        mock_resolve.return_value = dns_answer('_atproto.foo.com.', 'nope')
         self.mock_get.return_value = requests_response('', status=404)
 
         self.assertIsNone(did.resolve_handle('foo.com', get_fn=self.mock_get))
