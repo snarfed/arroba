@@ -138,7 +138,12 @@ class RepoTest(TestCase):
     def test_has_a_valid_signature_to_commit(self):
         assert verify_sig(self.repo.head.decoded, self.key.public_key())
 
-    def test_loads_from_blockstore(self):
+    def test_load(self):
+        loaded = Repo.load(self.storage, self.repo.head.cid,
+                           signing_key=self.key)
+        self.assertEqual(self.repo.head, loaded.head)
+
+    def test_load_from_storage(self):
         objs = self.random_objects(5)
         self.repo.apply_writes([Write(Action.CREATE, 'co.ll', tid, obj)
                                 for tid, obj in objs.items()])

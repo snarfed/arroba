@@ -173,9 +173,15 @@ class Repo:
           :class:`Repo`
         """
         storage.apply_commit(commit_data)
-        repo = cls.load(storage, commit_data.commit.cid,
-                        signing_key=signing_key, rotation_key=rotation_key,
-                        **kwargs)
+
+        # avoid reading from storage, since if we're in a transaction, those
+        # reads won't see writes that happened in apply_commit. instead,
+        # construct Repo and MST in memory from existing data.
+        mst = MST(storage=storage, pointer=commit_data.commit.decoded['data'])
+        repo = Repo(storage=storage, mst=mst, head=commit_data.commit,
+                    signing_key=signing_key, rotation_key=rotation_key,
+                    **kwargs)
+
         storage.create_repo(repo, signing_key=signing_key, rotation_key=rotation_key)
         if repo.callback:
             repo.callback(commit_data)
