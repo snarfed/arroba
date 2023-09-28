@@ -3,13 +3,17 @@ arroba [![Circle CI](https://circleci.com/gh/snarfed/arroba.svg?style=svg)](http
 
 Python implementation of [Bluesky](https://blueskyweb.xyz/) [PDS](https://atproto.com/guides/data-repos) and [AT Protocol](https://atproto.com/specs/atp), including data repository, Merkle search tree, and [com.atproto.sync XRPC methods](https://atproto.com/lexicons/com-atproto-sync).
 
-_Arroba_ is the Spanish word for the [@ character](https://en.wikipedia.org/wiki/At_sign) ("at sign").
+You can build your own PDS on top of arroba with just a few lines of Python and run it in any WSGI server. You can build a more involved PDS with custom logic and behavior. Or you can build a different ATProto service, eg an [AppView, BGS](https://blueskyweb.xyz/blog/5-5-2023-federation-architecture), or something entirely new!
 
-Install from [PyPI](https://pypi.org/project/arroba/) with `pip install arroba`.
+Install [from PyPI](https://pypi.org/project/arroba/) with `pip install arroba`.
+
+_Arroba_ is the Spanish word for the [@ character](https://en.wikipedia.org/wiki/At_sign) ("at sign").
 
 License: This project is placed into the public domain.
 
 * [Usage](#usage)
+* [Overview](#overview)
+* [Configuration](#configuration)
 * [Docs](https://arroba.readthedocs.io/)
 * [Changelog](#changelog)
 * [Release instructions](#release-instructions)
@@ -17,21 +21,78 @@ License: This project is placed into the public domain.
 
 ## Usage
 
-See [`app.py`](https://github.com/snarfed/arroba/blob/main/app.py) for the minimal wrapper code needed to run a fully functional PDS based on arroba, for testing with the [ATProto federation sandbox](https://atproto.com/blog/federation-developer-sandbox).
+Here's minimal example code for a multi-repo PDS on top of arroba and [Flask](https://flask.palletsprojects.com/):
 
-Environment variables:
+```py
+from flask import Flask
+from google.cloud import ndb
+from lexrpc.flask_server import init_flask
+
+from arroba import server
+from arroba.datastore_storage import DatastoreStorage
+from arroba.xrpc_sync import send_new_commits
+
+server.storage = DatastoreStorage()
+server.repo.callback = lambda _: send_new_commits()  # to subscribeRepos
+
+app = Flask('my-pds')
+init_flask(server.server, app)
+
+# for Google Cloud Datastore
+ndb_client = ndb.Client()
+
+def ndb_context_middleware(wsgi_app):
+    def wrapper(environ, start_response):
+        with ndb_client.context():
+            return wsgi_app(environ, start_response)
+    return wrapper
+
+app.wsgi_app = ndb_context_middleware(app.wsgi_app)
+```
+
+See [`app.py`](https://github.com/snarfed/arroba/blob/main/app.py) for a more comprehensive example, including a CORS handler for `OPTIONS` preflight requests and a catch-all `app.bsky.*` XRPC handler that proxies requests to the AppView.
+
+
+## Overview
+
+Arroba consists of these parts:
+
+* **Data structures**:
+  * [`Repo`](https://arroba.readthedocs.io/en/stable/source/arroba.html#arroba.repo.Repo)
+  * [`MST`](https://arroba.readthedocs.io/en/stable/source/arroba.html#arroba.mst.MST) (Merkle search tree)
+* **Storage**:
+  * [`Storage`](https://arroba.readthedocs.io/en/stable/source/arroba.html#arroba.storage.Storage) abstract base class
+  * [`DatastoreStorage`](https://arroba.readthedocs.io/en/stable/source/arroba.html#arroba.datastore_storage.DatastoreStorage) (uses [Google Cloud Datastore](https://cloud.google.com/datastore/docs/))
+  * [TODO: filesystem storage](https://github.com/snarfed/arroba/issues/5)
+* **XRPC handlers**:
+  * [`com.atproto.repo`](https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_repo)
+  * [`com.atproto.server`](https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_server)
+  * [`com.atproto.sync`](https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_sync)
+* **Utilities**:
+  * [`did`](https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.did): create and resolve [`did:plc`](https://atproto.com/specs/did-plc)s, [`did:web`](https://w3c-ccg.github.io/did-method-web/)s, and [domain handles](https://atproto.com/specs/handle)
+  * [`diff`](https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.diff): find the deterministic minimal difference between two [`MST`](https://arroba.readthedocs.io/en/stable/source/arroba.html#arroba.mst.MST)s
+  * [`util`](https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.util): miscellaneous utilities for [TIDs](https://atproto.com/specs/record-key#record-key-type-tid), [AT URIs](https://atproto.com/specs/at-uri-scheme), [signing and verifying signatures](https://atproto.com/specs/repository#commit-objects), [generating JWTs](https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification), encoding/decoding, and more
+
+
+## Configuration
+
+Configure arroba with these environment variables:
 
 * `APPVIEW_HOST`, default `api.bsky-sandbox.dev`
 * `BGS_HOST`, default `bgs.bsky-sandbox.dev`
 * `PLC_HOST`, default `plc.bsky-sandbox.dev`
 * `PDS_HOST`, where you're running your PDS
+
+Optional, only used in the [com.atproto.server XRPC handlers](https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_server):
+
+* `REPO_TOKEN`, static token to use as both `accessJwt` and `refreshJwt`, defaults to contents of `repo_token` file. Not required to be an actual JWT.
+
+<!-- Only used in app.py:
 * `REPO_DID`, repo user's DID, defaults to contents of `repo_did` file
 * `REPO_HANDLE`, repo user's domain handle, defaults to `did:plc:*.json` file
 * `REPO_PASSWORD`, repo user's password, defaults to contents of `repo_password` file
 * `REPO_PRIVKEY`, repo user's private key in PEM format, defaults to contents of `privkey.pem` file
-* `REPO_TOKEN`, static token to use as both `accessJwt` and `refreshJwt`, defaults to contents of `repo_token` file. Not required to be an actual JWT.
-
-More docs to come!
+-->
 
 
 ## Changelog

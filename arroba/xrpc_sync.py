@@ -1,8 +1,8 @@
-"""com.atproto.sync.* XRPC methods.
+"""``com.atproto.sync.*`` XRPC methods.
 
 TODO:
+
 * getBlocks?
-* getCommitPath?
 * blobs
 """
 from datetime import timedelta

@@ -1,10 +1,4 @@
-"""com.atproto.repo.* XRPC methods.
-
-TODO:
-* auth
-* cid in getRecord, listRecords output
-* apply_writes
-"""
+"""``com.atproto.repo.*`` XRPC methods."""
 import logging
 
 from .repo import Repo, Write

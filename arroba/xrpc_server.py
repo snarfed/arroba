@@ -1,4 +1,4 @@
-"""com.atproto.server.* XRPC methods."""
+"""``com.atproto.server.*`` XRPC methods."""
 import logging
 import os
 

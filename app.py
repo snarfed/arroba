@@ -73,7 +73,7 @@ app.json.compact = False
 privkey = load_pem_private_key(os.environ['REPO_PRIVKEY'].encode(),
                                password=None)
 
-APPVIEW_JWT = util.service_jwt(host=os.environ["APPVIEW_HOST"],
+APPVIEW_JWT = util.service_jwt(host=os.environ['APPVIEW_HOST'],
                                repo_did=os.environ['REPO_DID'],
                                privkey=privkey)
 APPVIEW_HEADERS = {
@@ -102,6 +102,8 @@ def put_preferences():
 def cors_preflight(nsid_rest=None):
     return '', lexrpc.flask_server.RESPONSE_HEADERS
 
+# TODO: move inside arroba somewhere. maybe server.py? it's Flask-specific :/
+# same with above, maybe below
 @app.route(f'/xrpc/com.atproto.identity.resolveHandle', methods=['GET', 'POST'])
 @app.route(f'/xrpc/app.bsky.<nsid_rest>', methods=['GET', 'POST'])
 def proxy_appview(nsid_rest=None):
