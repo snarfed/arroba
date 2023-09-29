@@ -172,9 +172,9 @@ def homepage():
 """
 
 
-BGS_JWT = util.service_jwt(host=os.environ["BGS_HOST"],
-                               repo_did=os.environ['REPO_DID'],
-                               privkey=privkey)
+BGS_JWT = util.service_jwt(host=os.environ['BGS_HOST'],
+                           repo_did=os.environ['REPO_DID'],
+                           privkey=privkey)
 BGS_HEADERS = {
       'User-Agent': util.USER_AGENT,
       'Authorization': f'Bearer {BGS_JWT}',
