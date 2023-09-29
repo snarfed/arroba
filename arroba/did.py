@@ -61,7 +61,8 @@ def resolve(did, **kwargs):
 def resolve_plc(did, get_fn=requests.get):
     """Resolves a did:plc by fetching its DID document from a PLC registry.
 
-    The PLC registry hostname is specified in the PLC_HOST environment variable.
+    The PLC registry hostname is specified in the ``PLC_HOST`` environment
+    variable.
 
     did:plc background:
     * https://atproto.com/specs/did-plc
@@ -77,6 +78,7 @@ def resolve_plc(did, get_fn=requests.get):
     Raises:
       ValueError, if the input did is not a did:plc str
       requests.RequestException, if the HTTP request fails
+
     """
     if not isinstance(did, str) or not did.startswith('did:plc:'):
         raise ValueError(f'{did} is not a did:plc')
@@ -90,7 +92,8 @@ def create_plc(handle, signing_key=None, rotation_key=None, pds_url=None,
                post_fn=requests.post):
     """Creates a new did:plc in a PLC registry.
 
-    The PLC registry hostname is specified in the PLC_HOST environment variable.
+    The PLC registry hostname is specified in the ``PLC_HOST`` environment
+    variable.
 
     did:plc background:
 
@@ -119,8 +122,9 @@ def create_plc(handle, signing_key=None, rotation_key=None, pds_url=None,
       ValueError, if any inputs are invalid
       :class:`requests.RequestException`, if the HTTP request to the PLC
         registry fails
+
     """
-    assert os.environ["PLC_HOST"]
+    plc_host = os.environ.get('PLC_WRITE_HOST') or os.environ.get('PLC_HOST')
 
     if not isinstance(handle, str) or not handle:
         raise ValueError(f'{handle} is not a valid handle')
@@ -169,7 +173,7 @@ def create_plc(handle, signing_key=None, rotation_key=None, pds_url=None,
     did_plc = 'did:plc:' + base64.b32encode(hash)[:24].lower().decode()
     logger.info(f'  {did_plc}')
 
-    plc_url = f'https://{os.environ["PLC_HOST"]}/{did_plc}'
+    plc_url = f'https://{plc_host}/{did_plc}'
     logger.info(f'Publishing to {plc_url}  ...')
     resp = post_fn(plc_url, json=create)
     resp.raise_for_status()
