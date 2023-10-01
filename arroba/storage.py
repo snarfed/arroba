@@ -50,28 +50,29 @@ CommitOp = namedtuple('CommitOp', [  # for subscribeRepos
 
 
 class Block:
-    """An ATProto block: a record, MST entry, or commit.
+    """An ATProto block: a record, :class:`MST` entry, or commit.
 
-    Can start from either encoded bytes or decoded object, with or without CID.
-    Decodes, encodes, and generates CID lazily, on demand, on attribute access.
+    Can start from either encoded bytes or decoded object, with or without
+    :class:`CID`. Decodes, encodes, and generates :class:`CID` lazily, on
+    demand, on attribute access.
 
     Based on :class:`carbox.car.Block`.
 
     Attributes:
-      _cid: :class:`CID`, lazy-loaded
-      _decoded: dict, lazy-loaded
-      _encoded: bytes, lazy-loaded
-      seq: integer, com.atproto.sync.subscribeRepos sequence number
-      ops: list of :class:`CommitOp` if this is a commit, otherwise None
+      cid (CID): lazy-loaded (dynamic property)
+      decoded (dict): decoded object (dynamic property)
+      encoded (bytes): DAG-CBOR encoded data (dynamic property)
+      seq (int): ``com.atproto.sync.subscribeRepos`` sequence number
+      ops (list): :class:`CommitOp`\s if this is a commit, otherwise None
     """
     def __init__(self, *, cid=None, decoded=None, encoded=None, seq=None,
                  ops=None):
         """Constructor.
 
         Args:
-          cid: :class:`CID`, optional
-          decoded: dict, optional
-          encoded: bytes, optional
+          cid (CID): optional
+          decoded (dict): optional
+          encoded (bytes): optional
         """
         assert encoded or decoded
         self._cid = cid
@@ -85,10 +86,6 @@ class Block:
 
     @property
     def cid(self):
-        """
-        Returns:
-          :class:`CID`
-        """
         if self._cid is None:
             digest = multihash.digest(self.encoded, 'sha2-256')
             self._cid = CID('base58btc', 1, multicodec.get('dag-cbor'), digest)
@@ -96,20 +93,12 @@ class Block:
 
     @property
     def encoded(self):
-        """
-        Returns:
-          bytes, DAG-CBOR encoded
-        """
         if self._encoded is None:
             self._encoded = dag_cbor.encode(self.decoded)
         return self._encoded
 
     @property
     def decoded(self):
-        """
-        Returns:
-          dict, decoded object
-        """
         if self._decoded is None:
             self._decoded = dag_cbor.decode(self.encoded)
         return self._decoded
@@ -128,25 +117,26 @@ class Storage:
     Concrete subclasses should implement this on top of physical storage,
     eg database, filesystem, in memory.
 
-    # TODO: batch operations?
+    TODO: batch operations?
 
     Attributes:
-      head: :class:`CID`
+      head (CID)
     """
     head = None
 
     def create_repo(self, repo, *, signing_key, rotation_key=None):
         """Stores a new repo's metadata in storage.
 
-        Only stores the repo's DID, handle, and head commit CID, not blocks!
+        Only stores the repo's DID, handle, and head commit :class:`CID`, not
+        blocks!
 
         If the repo already exists in storage, this should update it instead of
         failing.
 
         Args:
-          repo: :class:`Repo`
-          signing_key: :class:`ec.EllipticCurvePrivateKey`
-          rotation_key: :class:`ec.EllipticCurvePrivateKey`, optional
+          repo (Repo)
+          signing_key (ec.EllipticCurvePrivateKey)
+          rotation_key (ec.EllipticCurvePrivateKey): optional
         """
         raise NotImplementedError()
 
@@ -154,10 +144,10 @@ class Storage:
         """Loads a repo from storage.
 
         Args:
-          did_or_handle: str, optional
+          did_or_handle (str): optional
 
         Returns:
-          :class:`Repo`, or None if the did or handle wasn't found
+          Repo, or None if the did or handle wasn't found:
         """
         raise NotImplementedError()
 
@@ -165,10 +155,10 @@ class Storage:
         """Reads a node from storage.
 
         Args:
-          cid: :class:`CID`
+          cid (CID)
 
         Returns:
-          :class:`Block` or None if not found
+          Block, or None if not found:
         """
         raise NotImplementedError()
 
@@ -176,8 +166,8 @@ class Storage:
         """Batch read multiple nodes from storage.
 
         Args:
-          cids: sequence of :class:`CID`
-          require_all: boolean, whether to assert that all cids are found
+          cids (sequence of CID)
+          require_all (bool): whether to assert that all cids are found
 
         Returns:
           dict: {:class:`CID`: :class:`Block` or None if not found}
@@ -185,28 +175,28 @@ class Storage:
         raise NotImplementedError()
 
     def read_blocks_by_seq(self, start=0):
-        """Batch read blocks from storage by `subscribeRepos` sequence number.
+        """Batch read blocks from storage by ``subscribeRepos`` sequence number.
 
         Args:
-          seq: integer, optional `subscribeRepos` sequence number to start from.
+          seq (int): optional ``subscribeRepos`` sequence number to start from.
             Defaults to 0.
 
         Returns:
-          iterable or generator of :class:`Block`, starting from `seq`,
-          inclusive, in ascending `seq` order
+          iterable or generator: all :class:`Block` s starting from ``seq``,
+          inclusive, in ascending ``seq`` order
         """
         raise NotImplementedError()
 
     def read_commits_by_seq(self, start=0):
-        """Batch read commits from storage by `subscribeRepos` sequence number.
+        """Batch read commits from storage by ``subscribeRepos`` sequence number.
 
         Args:
-          seq: integer, optional `subscribeRepos` sequence number to start from,
+          seq (int): optional ``subscribeRepos`` sequence number to start from,
             inclusive. Defaults to 0.
 
         Returns:
-          generator of :class:`CommitData`, starting from `seq`, inclusive, in
-          ascending `seq` order
+          generator: generator of :class:`CommitData`, starting from ``seq``,
+          inclusive, in ascending ``seq`` order
         """
         assert start >= 0
 
@@ -240,10 +230,10 @@ class Storage:
         """Checks if a given :class:`CID` is currently stored.
 
         Args:
-          cid: :class:`CID`
+          cid (CID)
 
         Returns:
-          boolean
+          bool:
         """
         raise NotImplementedError()
 
@@ -255,11 +245,11 @@ class Storage:
         TODO: remove? This seems unused.
 
         Args:
-          repo_did: str
-          obj: dict, a record, commit, or serialized MST node
+          repo_did (str):
+          obj (dict): a record, commit, or serialized :class:`MST` node
 
         Returns:
-          :class:`CID`
+          CID:
         """
         raise NotImplementedError()
 
@@ -269,7 +259,7 @@ class Storage:
         Generates a new sequence number and uses it for all blocks in the commit.
 
         Args:
-          commit: :class:`CommitData`
+          commit (CommitData)
         """
         raise NotImplementedError()
 
@@ -281,10 +271,10 @@ class Storage:
         https://atproto.com/specs/event-stream#sequence-numbers
 
         Args:
-          nsid: str, subscription XRPC method this sequence number is for
+          nsid (str): subscription XRPC method this sequence number is for
 
         Returns:
-          integer
+          int:
         """
         raise NotImplementedError()
 
@@ -292,10 +282,10 @@ class Storage:
         """Returns the last (highest) stored sequence number for the given NSID.
 
         Args:
-          nsid: str, subscription XRPC method this sequence number is for
+          nsid (str): subscription XRPC method this sequence number is for
 
         Returns:
-          integer
+          int:
         """
         raise NotImplementedError()
 
@@ -304,10 +294,10 @@ class MemoryStorage(Storage):
     """In memory storage implementation.
 
     Attributes:
-      repos: list of :class:`Repo`
-      blocks: dict: {:class:`CID`: :class:`Block`}
-      head: :class:`CID`
-      sequences: dict, maps str NSID to integer next sequence number
+      repos (list of :class:`Repo`)
+      blocks (dict): {:class:`CID`: :class:`Block`}
+      head (CID)
+      sequences (dict): {str NSID: int next sequence number}
     """
     repos = None
     blocks = None

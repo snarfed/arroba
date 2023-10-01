@@ -36,18 +36,18 @@ logger = logging.getLogger(__name__)
 
 
 def resolve(did, **kwargs):
-    """Resolves a did:plc or did:web.
+    """Resolves a ``did:plc`` or ``did:web``.
 
     Args:
-      did: str
-      kwargs: passed through to :meth:`resolve_plc`/:meth:`resolve_web`
+      did (str):
+      kwargs: passed through to :func:`resolve_plc`/:func:`resolve_web`
 
     Returns:
-      dict, JSON DID document
+      dict: JSON DID document
 
     Raises:
-      ValueError, if the input did is not a did:plc or did:web str
-      requests.RequestException, if an HTTP request fails
+      ValueError: if the input is not a ``did:plc`` or ``did:web``
+      requests.RequestException: if an HTTP request fails
     """
     if did:
         if did.startswith('did:plc:'):
@@ -59,25 +59,26 @@ def resolve(did, **kwargs):
 
 
 def resolve_plc(did, get_fn=requests.get):
-    """Resolves a did:plc by fetching its DID document from a PLC registry.
+    """Resolves a ``did:plc`` by fetching its DID document from a PLC registry.
 
     The PLC registry hostname is specified in the ``PLC_HOST`` environment
     variable.
 
-    did:plc background:
+    ``did:plc`` background:
+
     * https://atproto.com/specs/did-plc
     * https://github.com/bluesky-social/did-method-plc
 
     Args:
-      did: str
-      get_fn: callable for making HTTP GET requests
+      did (str)
+      get_fn (callable): for making HTTP GET requests
 
     Returns:
-      dict, JSON DID document
+      dict: JSON DID document
 
     Raises:
-      ValueError, if the input did is not a did:plc str
-      requests.RequestException, if the HTTP request fails
+      ValueError: if the input did is not a ``did:plc`` str
+      requests.RequestException: if the HTTP request fails
 
     """
     if not isinstance(did, str) or not did.startswith('did:plc:'):
@@ -90,39 +91,37 @@ def resolve_plc(did, get_fn=requests.get):
 
 def create_plc(handle, signing_key=None, rotation_key=None, pds_url=None,
                post_fn=requests.post):
-    """Creates a new did:plc in a PLC registry.
+    """Creates a new ``did:plc`` in a PLC registry.
 
     The PLC registry hostname is specified in the ``PLC_HOST`` environment
     variable.
 
-    did:plc background:
+    ``did:plc`` background:
 
     * https://atproto.com/specs/did-plc
     * https://github.com/bluesky-social/did-method-plc
 
     The DID document in the returned value is the *new format* DID doc, with the
-    fully qualified `verificationMethod.id` and `Multikey` key encoding, ie
-    `did:key` without the prefix. Details:
+    fully qualified ``verificationMethod.id`` and ``Multikey`` key encoding, ie
+    ``did:key`` without the prefix. Details:
     https://github.com/bluesky-social/atproto/discussions/1510
 
     Args:
-      handle: str, domain handle to associate with this DID
-      signing_key: :class:`ec.EllipticCurvePrivateKey`. The curve must be SECP256K1.
+      handle (str): domain handle to associate with this DID
+      signing_key (ec.EllipticCurvePrivateKey): The curve must be SECP256K1.
         If omitted, a new keypair will be created.
-      rotation_key: :class:`ec.EllipticCurvePrivateKey`. The curve must be SECP256K1.
+      rotation_key (ec.EllipticCurvePrivateKey): The curve must be SECP256K1.
         If omitted, a new keypair will be created.
-      pds_url: str, PDS base URL to associate with this DID. If omitted,
-        defaults to `https://[PDS_HOST]`
-      post_fn: callable for making HTTP POST requests
+      pds_url (str): PDS base URL to associate with this DID. If omitted,
+        defaults to ``https://[PDS_HOST]``
+      post_fn (callable): for making HTTP POST requests
 
     Returns:
-      :class:`DidPlc` with the newly created did:plc, keys, and DID document
+      DidPlc: with the newly created ``did:plc``, keys, and DID document
 
     Raises:
-      ValueError, if any inputs are invalid
-      :class:`requests.RequestException`, if the HTTP request to the PLC
-        registry fails
-
+      ValueError: if any inputs are invalid
+      requests.RequestException: if the HTTP request to the PLC registry fails
     """
     plc_host = os.environ.get('PLC_WRITE_HOST') or os.environ.get('PLC_HOST')
 
@@ -185,15 +184,15 @@ def create_plc(handle, signing_key=None, rotation_key=None, pds_url=None,
 
 
 def encode_did_key(pubkey):
-    """Encodes a :class:`ec.EllipticCurvePublicKey` into a `did:key` string.
+    """Encodes an :class:`ec.EllipticCurvePublicKey` into a ``did:key`` string.
 
     https://atproto.com/specs/did#public-key-encoding
 
     Args:
-      pubkey: :class:`ec.EllipticCurvePublicKey`
+      pubkey (ec.EllipticCurvePublicKey)
 
     Returns:
-      str, `did:key`
+      str: encoded ``did:key``
     """
     if isinstance(pubkey.curve, ec.SECP256K1):
         codec = 'secp256k1-pub'
@@ -210,15 +209,15 @@ def encode_did_key(pubkey):
 
 
 def decode_did_key(did_key):
-    """Decodes a `did:key` string into a :class:`ec.EllipticCurvePublicKey`.
+    """Decodes a ``did:key`` string into an :class:`ec.EllipticCurvePublicKey`.
 
     https://atproto.com/specs/did#public-key-encoding
 
     Args:
-      did_key: str
+      did_key (str)
 
     Returns:
-      :class:`ec.EllipticCurvePublicKey`
+      ec.EllipticCurvePublicKey
     """
     assert did_key.startswith('did:key:')
     wrapped_bytes = multibase.decode(did_key.removeprefix('did:key:'))
@@ -240,9 +239,15 @@ def plc_operation_to_did_doc(op):
     https://github.com/bluesky-social/did-method-plc#presentation-as-did-document
 
     The DID document in the returned value is the *new format* DID doc, with the
-    fully qualified `verificationMethod.id` and `Multikey` key encoding, ie
-    `did:key` without the prefix. Details:
+    fully qualified ``verificationMethod.id`` and ``Multikey`` key encoding, ie
+    ``did:key`` without the prefix. Details:
     https://github.com/bluesky-social/atproto/discussions/1510
+
+    Args:
+      op: dict, PLC operation, https://github.com/did-method-plc/did-method-plc#operation-serialization-signing-and-validation
+
+    Returns:
+      dict: DID document, https://www.w3.org/TR/did-core/#data-model
     """
     assert op
 
@@ -270,20 +275,20 @@ def plc_operation_to_did_doc(op):
 
 
 def resolve_web(did, get_fn=requests.get):
-    """Resolves a did:web by fetching its DID document.
+    """Resolves a ``did:web`` by fetching its DID document.
 
-    did:web spec: https://w3c-ccg.github.io/did-method-web/
+    ``did:web`` spec: https://w3c-ccg.github.io/did-method-web/
 
     Args:
-      did: str
-      get_fn: callable for making HTTP GET requests
+      did (str)
+      get_fn (callable): for making HTTP GET requests
 
     Returns:
-      dict, JSON DID document
+      dict: JSON DID document
 
     Raises:
-      ValueError, if the input did is not a did:web str
-      :class:`requests.RequestException`, if the HTTP request fails
+      ValueError: if the input did is not a ``did:web`` str
+      requests.RequestException: if the HTTP request fails
     """
     if not isinstance(did, str) or not did.startswith('did:web:'):
         raise ValueError(f'{did} is not a did:web')
@@ -307,14 +312,14 @@ def resolve_handle(handle, get_fn=requests.get):
     https://atproto.com/specs/handle#handle-resolution
 
     Args:
-      handle: str
-      get_fn: callable for making HTTP GET requests
+      handle (str)
+      get_fn (callable): for making HTTP GET requests
 
     Returns:
-      str, DID, or None if the handle can't be resolved
+      str or None: DID, or None if the handle can't be resolved
 
     Raises:
-      ValueError, if handle is not a domain
+      ValueError: if handle is not a domain
     """
     if not handle or not isinstance(handle, str) or not util.DOMAIN_RE.match(handle):
         raise ValueError(f"{handle} doesn't look like a domain")

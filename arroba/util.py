@@ -43,12 +43,12 @@ CURVE_ORDER = {
 
 
 def now(tz=timezone.utc, **kwargs):
-    """Wrapper for datetime.now that allows us to mock it out in tests."""
+    """Wrapper for :meth:`datetime.datetime.now` that lets us mock it out in tests."""
     return datetime.now(tz=tz, **kwargs)
 
 
 def time_ns():
-    """Wrapper for time.time_ns that allows us to mock it out in tests."""
+    """Wrapper for :func:`time.time_ns` that lets us mock it out in tests."""
     return time.time_ns()
 
 
@@ -59,7 +59,7 @@ def dag_cbor_cid(obj):
       obj: CBOR-compatible native object or value
 
     Returns:
-      :class:`CID`
+      CID:
     """
     encoded = dag_cbor.encode(obj)
     digest = multihash.digest(encoded, 'sha2-256')
@@ -72,10 +72,10 @@ def s32encode(num):
     Based on https://github.com/bluesky-social/atproto/blob/main/packages/common-web/src/tid.ts
 
     Args:
-      num: int or Integral
+      num (int or Integral)
 
     Returns:
-      str
+      str:
     """
     assert isinstance(num, Integral)
 
@@ -94,10 +94,10 @@ def s32decode(val):
     Based on https://github.com/bluesky-social/atproto/blob/main/packages/common-web/src/tid.ts
 
     Args:
-      val: str
+      val (str)
 
     Returns:
-      int or Integral
+      int or Integral:
     """
     i = 0
     for c in val:
@@ -112,11 +112,11 @@ def datetime_to_tid(dt, clock_id=None):
     https://atproto.com/specs/record-key#record-key-type-tid
 
     Args:
-      dt: :class:`datetime.datetime`
+      dt (datetime.datetime):
       clock_id: 0, optional. If not specified, uses this runtime's clock id
 
     Returns:
-      str, base32-encoded TID
+      str: base32-encoded TID
     """
     return int_to_tid(int(dt.timestamp() * 1000 * 1000), clock_id=clock_id)
 
@@ -127,11 +127,11 @@ def int_to_tid(num, clock_id=None):
     https://atproto.com/specs/record-key#record-key-type-tid
 
     Args:
-      seq: integer
-      clock_id: 0, optional. If not specified, uses this runtime's clock id
+      seq (int)
+      clock_id (int): optional. If not specified, uses this runtime's clock id
 
     Returns:
-      str, base32-encoded TID
+      str: base32-encoded TID
     """
     if clock_id is None:
         clock_id = _clockid
@@ -148,13 +148,13 @@ def tid_to_datetime(tid):
     https://atproto.com/specs/record-key#record-key-type-tid
 
     Args:
-      tid: bytes, base32-encoded TID
+      tid (bytes): base32-encoded TID
 
     Returns:
-      :class:`datetime.datetime`
+      datetime.datetime:
 
     Raises:
-      ValueError if tid is not bytes or not 13 characters long
+      ValueError: if tid is not bytes or not 13 characters long
     """
     return datetime.fromtimestamp(tid_to_int(tid) / 1000 / 1000, timezone.utc)
 
@@ -165,13 +165,13 @@ def tid_to_int(tid):
     https://atproto.com/specs/record-key#record-key-type-tid
 
     Args:
-      tid: bytes, base32-encoded TID
+      tid (bytes): base32-encoded TID
 
     Returns:
-      int
+      int:
 
     Raises:
-      ValueError if tid is not bytes or not 13 characters long
+      ValueError: if tid is not bytes or not 13 characters long
     """
     if not isinstance(tid, (str, bytes)) or len(tid) != 13:
         raise ValueError(f'Expected 13-character str or bytes; got {tid}')
@@ -190,7 +190,7 @@ def next_tid():
     https://github.com/bluesky-social/atproto/blob/main/packages/common-web/src/tid.ts
 
     Returns:
-      str, TID
+      str: TID
     """
     global _tid_last
 
@@ -201,17 +201,17 @@ def next_tid():
 
 
 def at_uri(did, collection, rkey):
-    """Returns the at:// URI for a given DID, collection, and rkey.
+    """Returns the ``at://`` URI for a given DID, collection, and rkey.
 
     https://atproto.com/specs/at-uri-scheme
 
     Args:
-      did: str
-      collection: str
-      rkey: str
+      did (str)
+      collection (str)
+      rkey (str)
 
     Returns:
-      str, at:// URI
+      str: ``at://`` URI
     """
     assert did
     assert collection
@@ -225,10 +225,10 @@ def parse_at_uri(uri):
     https://atproto.com/specs/at-uri-scheme
 
     Args:
-      uri: str
+      uri (str)
 
     Returns:
-      tuple of str: (did, collection, rkey)
+      tuple of str: ``(did, collection, rkey)``
     """
     if not uri or not uri.startswith('at://'):
         raise ValueError(f"{uri} isn't an at:// URI")
@@ -246,11 +246,11 @@ def new_key(seed=None):
     https://atproto.com/specs/cryptography
 
     Args:
-      seed: int, optional deterministic value to derive private key from.
-      Don't use in production!
+      seed (int): optional deterministic value to derive private key from.
+        Don't use in production!
 
     Returns:
-      :class:`ec.EllipticCurvePrivateKey`
+      ec.EllipticCurvePrivateKey:
     """
     if seed:
         return ec.derive_private_key(seed, ec.SECP256K1())
@@ -261,7 +261,7 @@ def new_key(seed=None):
 def sign(obj, private_key):
     """Signs an object, eg a repo commit or DID document.
 
-    Adds the signature in the `sig` field.
+    Adds the signature in the ``sig`` field.
 
     https://atproto.com/specs/cryptography
 
@@ -270,11 +270,11 @@ def sign(obj, private_key):
     https://atproto.com/specs/cryptography#ecdsa-signature-malleability
 
     Args:
-      obj: dict
-      private_key: :class:`ec.EllipticCurvePrivateKey`
+      obj (dict)
+      private_key (cryptography.hazmat.primitives.asymmetric.ec.EllipticCurvePrivateKey)
 
     Returns:
-      dict, obj with new `sig` field
+      dict: ``obj`` with new ``sig`` field
     """
     orig_sig = private_key.sign(dag_cbor.encode(obj), ec.ECDSA(hashes.SHA256()))
     r, s = decode_dss_signature(apply_low_s_mitigation(orig_sig, private_key.curve))
@@ -299,11 +299,11 @@ def apply_low_s_mitigation(signature, curve):
     https://github.com/DavidBuchanan314/picopds/blob/main/signing.py
 
     Args:
-      signature: bytes
-      curve: :class:`ec.EllipticCurve`
+      signature (bytes)
+      curve (ec.EllipticCurve)
 
     Returns:
-      bytes
+      bytes:
     """
     r, s = decode_dss_signature(signature)
     n = CURVE_ORDER[type(curve)]
@@ -318,11 +318,11 @@ def verify_sig(obj, public_key):
     See :func:`sign` for more background.
 
     Args:
-      obj: dict repo commit
-      public_key: :class:`ec.EllipticCurvePublicKey`
+      obj (dict): repo commit
+      public_key (ec.EllipticCurvePublicKey):
 
     Raises:
-      KeyError if obj isn't signed, ie doesn't have a `sig` field
+      KeyError: if ``obj`` isn't signed, ie doesn't have a ``sig`` field
     """
     obj = copy.copy(obj)
     sig = obj.pop('sig')
@@ -349,13 +349,13 @@ def service_jwt(host, repo_did, privkey, expiration=timedelta(minutes=10)):
     https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification
 
     Args:
-      host: str, hostname of the service this JWT is for, eg `bgs.bsky-sandbox.dev`
-      repo_did: str, DID of the repo this JWT is for
-      privkey: :class:`ec.EllipticCurvePrivateKey`, repo's signing key
-      expiration: timedelta, length of time this JWT will be valid, defaults to 10m
+      host (str): hostname of the service this JWT is for, eg ``bgs.bsky-sandbox.dev``
+      repo_did (str): DID of the repo this JWT is for
+      privkey (ec.EllipticCurvePrivateKey): repo's signing key
+      expiration (timedelta): length of time this JWT will be valid, defaults to 10m
 
     Returns:
-      str, JWT
+      str: JWT
     """
     assert host
     assert repo_did

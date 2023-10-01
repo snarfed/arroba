@@ -39,13 +39,13 @@ Write = namedtuple('Write', [
 
 
 def writes_to_commit_ops(writes):
-    """Converts :class:`Write`s to :class:`CommitOp`s.
+    """Converts :class:`Write`\s to :class:`CommitOp`\s.
 
     Args:
-      write: iterable of :class:`Write`
+      write (iterable): of :class:`Write`
 
     Returns:
-      list of :class:`CommitOp`
+      list of :class:`repo.CommitOp`
     """
     if not writes:
         return writes
@@ -60,12 +60,13 @@ class Repo:
     """AT Protocol data repo implementation, storage agnostic.
 
     Attributes:
-      did: str, dynamic, repo DID
-      storage: :class:`Storage`
-      mst: :class:`MST`
-      head: :class:`Block`, head commit
-      handle: str
-      callback: callable, (:class:`CommitData`) => None, called on new commits
+      did (str): repo DID (dynamic property)
+      version (int): AT Protocol version (dynamic property)
+      storage (Storage)
+      mst (MST)
+      head (Block): head commit
+      handle (str)
+      callback (callable: (CommitData) => None): called on new commits.
         May be set directly by clients. None means no callback.
     """
     storage = None
@@ -81,13 +82,13 @@ class Repo:
         """Constructor.
 
         Args:
-          storage: :class:`Storage`, required
-          mst: :class:`MST`
-          commit: dict, head commit
-          cid: :class:`CID`, head CID
-          callback: callable, (:class:`CommitData`) => None
-          signing_key: :class:`ec.EllipticCurvePrivateKey`, required
-          rotation_key: :class:`ec.EllipticCurvePrivateKey`
+          storage (Storage): required
+          mst (MST)
+          commit (dict): head commit
+          cid (CID): head CID
+          callback (callable, CommitData => None)
+          signing_key (ec.EllipticCurvePrivateKey): required
+          rotation_key (ec.EllipticCurvePrivateKey)
         """
         assert storage
         assert signing_key
@@ -108,21 +109,11 @@ class Repo:
 
     @property
     def did(self):
-        """
-
-        Returns:
-          str, DID
-        """
         if self.head:
             return self.head.decoded['did']
 
     @property
     def version(self):
-        """
-
-        Returns:
-          int, AT Protocol version
-        """
         if self.head:
             return self.head.decoded['version']
 
@@ -130,11 +121,11 @@ class Repo:
         """
 
         Args:
-          collection: str
-          rkey: str
+          collection (str)
+          rkey (str)
 
         Returns:
-          dict node, record or commit or serialized MST
+          dict: node, record or commit or serialized :class:`MST`
         """
         cid = self.mst.get(f'{collection}/{rkey}')
         if cid:
@@ -144,7 +135,7 @@ class Repo:
         """
 
         Returns:
-          dict, {str collection: {str rkey: dict record}}
+          dict mapping str collection to dict mapping str rkey to dict record:
         """
         entries = self.mst.list()
         blocks = self.storage.read_many([e.value for e in entries])
@@ -161,16 +152,16 @@ class Repo:
         """
 
         Args:
-          storage: :class:`Storage`
-          commit_data: :class:`CommitData`
-          signing_key: :class:`ec.EllipticCurvePrivateKey`, passed through to
-            :class:`Storage.create_repo`
-          rotation_key: :class:`ec.EllipticCurvePrivateKey`, optional, passed
-            through to :class:`Storage.create_repo`
+          storage (Storage)
+          commit_data (CommitData)
+          signing_key (ec.EllipticCurvePrivateKey): passed through to
+            :meth:`Storage.create_repo`
+          rotation_key (ec.EllipticCurvePrivateKey): optional, passed
+            through to :meth:`Storage.create_repo`
           kwargs: passed through to :class:`Repo` constructor
 
         Returns:
-          :class:`Repo`
+          Repo:
         """
         storage.apply_commit(commit_data)
 
@@ -193,17 +184,17 @@ class Repo:
         """
 
         Args:
-          storage: :class:`Storage`
-          did: string
-          signing_key: :class:`ec.EllipticCurvePrivateKey`, passed through to
+          storage (Storage)
+          did (string)
+          signing_key (ec.EllipticCurvePrivateKey): passed through to
             :class:`Storage.create_repo`
-          rotation_key: :class:`ec.EllipticCurvePrivateKey`, optional, passed
+          rotation_key (ec.EllipticCurvePrivateKey): optional, passed
             through to :class:`Storage.create_repo`
-          initial_writes: sequence of :class:`Write`
+          initial_writes (sequence of Write)
           kwargs: passed through to :class:`Repo` constructor
 
         Returns:
-          :class:`Repo`, self
+          Repo: self
         """
         # initial commit
         commit_data = cls.format_commit(storage=storage, repo_did=did,
@@ -216,12 +207,12 @@ class Repo:
     def load(cls, storage, cid=None, **kwargs):
         """
         Args:
-          storage: :class:`Storage`
-          cid: :class:`CID`, optional
+          storage (Storage)
+          cid (CID): optional
           kwargs: passed through to :class:`Repo` constructor
 
         Returns:
-          :class:`Repo`
+          Repo:
         """
         commit_cid = cid or storage.head
         assert commit_cid, 'No cid provided and none in storage'
@@ -236,24 +227,24 @@ class Repo:
                       signing_key=None, mst=None, cur_head=None, writes=None):
         """Creates, but does not store, a new commit.
 
-        If `repo` is provided, all other kwargs should be omitted except
-        (optionally) `writes`. Otherwise, `storage`, `repo_did`, and
-        `signing_key` are required.
+        If ``repo`` is provided, all other kwargs should be omitted except
+        (optionally) ``writes``. Otherwise, ``storage``, ``repo_did``, and
+        ``signing_key`` are required.
 
-        If `repo` is provided, its `mst` attribute is set to the new
+        If ``repo`` is provided, its ``mst`` attribute is set to the new
         :class:`MST` resulting from applying this commit.
 
         Args:
-          repo: :class:`Repo`, optional
-          storage: :class:`Storage`, optional
-          repo_did: str, optional
-          signing_key: :class:`ec.EllipticCurvePrivateKey`, optional
-          mst: :class:`MST`, optional
-          cur_head: :class:`CID`, optional
-          writes: sequence of :class:`Write`, optional
+          repo (Repo): optional
+          storage (Storage): optional
+          repo_did (str): optional
+          signing_key (ec.EllipticCurvePrivateKey): optional
+          mst (MST): optional
+          cur_head (CID): optional
+          writes (sequence of Write): optional
 
         Returns:
-          :class:`CommitData`
+          CommitData:
         """
         if repo:
             assert (not storage and not repo_did and not signing_key and not mst
@@ -320,10 +311,10 @@ class Repo:
         """
 
         Args:
-          commit_data: :class:`CommitData`
+          commit_data (CommitData)
 
         Returns:
-          :class:`Repo`, self
+          Repo: self
         """
         self.storage.apply_commit(commit_data)
         self.head = commit_data.commit
@@ -335,10 +326,10 @@ class Repo:
         """
 
         Args:
-          writes: :class:`Write` or sequence of :class:`Write`
+          writes (Write or sequence of Write)
 
         Returns:
-          :class:`Repo`, self
+          Repo: self
         """
         if isinstance(writes, Write):
             writes = [writes]

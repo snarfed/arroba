@@ -39,10 +39,10 @@ We do compression on prefixes by describing keys as:
 
 For example:
 
-If the first leaf in a tree is `bsky/posts/abcdefg` and the second is
-`bsky/posts/abcdehi` Then the first will be described as `prefix: 0, key:
-'bsky/posts/abcdefg'`, and the second will be described as `prefix: 16, key:
-'hi'.`
+If the first leaf in a tree is ``bsky/posts/abcdefg`` and the second is
+``bsky/posts/abcdehi``, then the first will be described as ``prefix: 0, key:
+'bsky/posts/abcdefg'``, and the second will be described as ``prefix: 16, key:
+'hi'``.
 """
 from collections import namedtuple
 import copy
@@ -82,11 +82,11 @@ class MST:
     """Merkle search tree class.
 
     Attributes:
-      storage: :class:`Storage`
-      entries: sequence of :class:`MST` and :class:`Leaf`
-      layer: int, this MST's layer in the root MST
-      pointer: :class:`CID`
-      outdated_pointer: boolean, whether pointer needs to be recalculated
+      storage (Storage):
+      entries (sequence of MST and Leaf)
+      layer (int): this MST's layer in the root MST
+      pointer (CID):
+      outdated_pointer (bool): whether pointer needs to be recalculated
     """
     storage = None
     entries = None
@@ -98,13 +98,13 @@ class MST:
         """Constructor.
 
         Args:
-          storage: :class:`Storage`
-          entries: sequence of :class:`MST` and :class:`Leaf`
-          pointer: :class:`CID`
-          layer: int
+          storage (Storage)
+          entries (sequence of MST and Leaf)
+          pointer (CID)
+          layer (int)
 
         Returns:
-          :class:`MST`
+          MST:
         """
         self.storage = storage
         self.entries = entries
@@ -120,12 +120,12 @@ class MST:
         """
 
         Args:
-          storage: :class:`Storage`
-          entries: sequence of :class:`MST` and :class:`Leaf`
-          layer: int
+          storage (Storage)
+          entries (sequence of MST and Leaf)
+          layer (int)
 
         Returns:
-          :class:`MST`
+          MST
         """
         if not entries:
             entries = []
@@ -135,7 +135,7 @@ class MST:
 #     def from_data(storage, data, opts):
 #         """
 #         Returns:
-#           :class:`MST`
+#           MST:
 #         """
 #         entries = deserialize_node_data(data)
 #         pointer = cid_for_cbor(data)
@@ -157,10 +157,10 @@ class MST:
         """We never mutate an MST, we just return a new MST with updated values.
 
         Args:
-            entries: sequence of :class:`MST` and :class:`Leaf`
+            entries (sequence of MST and Leaf)
 
         Returns:
-            :class:`MST`
+            MST:
         """
         mst = MST(storage=self.storage, entries=entries, pointer=self.pointer,
                   layer=self.layer)
@@ -177,7 +177,7 @@ class MST:
         We don't want to load entries of every subtree, just the ones we need.
 
         Returns:
-          sequence of :class:`MST` and :class:`Leaf`
+          sequence of MST and Leaf:
         """
         if self.entries is not None:
             return copy.copy(self.entries)
@@ -202,7 +202,7 @@ class MST:
         (recursively) calculate when needed.
 
         Returns:
-          :class:`CID`
+          CID:
         """
         if not self.outdated_pointer:
             return self.pointer
@@ -222,7 +222,7 @@ class MST:
         return self.pointer
 
     def get_layer(self):
-        """Returns this MST's layer, and sets self.layer.
+        """Returns this MST's layer, and sets ``self.layer``.
 
         In most cases, we get the layer of a node from a hint on creation. In the
         case of the topmost node in the tree, we look for a key in the node &
@@ -231,7 +231,7 @@ class MST:
         node is layer 0.
 
         Returns:
-          int
+          int:
         """
         self.layer = self.attempt_get_layer()
         if self.layer is None:
@@ -240,10 +240,10 @@ class MST:
         return self.layer
 
     def attempt_get_layer(self):
-        """Returns this MST's layer, and sets self.layer.
+        """Returns this MST's layer, and sets ``self.layer``.
 
         Returns:
-          int or None
+          int or None:
         """
         if self.layer is not None:
             return self.layer
@@ -271,7 +271,7 @@ class MST:
         """Return the necessary blocks to persist the MST to repo storage.
 
         Returns:
-          (:class:`CID` root, dict of {:class:`CID`: :class:`Block`}) tuple
+          (CID root, dict mapping CID to Block) tuple:
         """
         unstored = {}
         pointer = self.get_pointer()
@@ -295,15 +295,15 @@ class MST:
         """Adds a new leaf for the given key/value pair.
 
         Args:
-          key: str
-          value: :class:`CID`
-          known_zeros: int
+          key (str)
+          value (CID)
+          known_zeros (int)
 
         Returns:
-          :class:`MST`
+          MST:
 
         Raises:
-          ValueError if a leaf with that key already exists
+          ValueError: if a leaf with that key already exists
         """
         ensure_valid_key(key)
         key_zeros = known_zeros or leading_zeros_on_hash(key)
@@ -367,10 +367,10 @@ class MST:
         """Gets the value at the given key.
 
         Args:
-          key: str
+          key (str)
 
         Returns:
-          :class:`CID` or None
+          CID or None:
         """
         index = self.find_gt_or_equal_leaf_index(key)
         found = self.at_index(index)
@@ -385,14 +385,14 @@ class MST:
         """Edits the value at the given key.
 
         Args:
-          key: str
-          value: :class:`CID`
+          key (str)
+          value (CID)
 
         Returns:
-          :class:`MST`
+          MST:
 
         Raises:
-          KeyError if key doesn't exist
+          KeyError: if key doesn't exist
         """
         ensure_valid_key(key)
 
@@ -412,13 +412,13 @@ class MST:
         """Deletes the value at the given key.
 
         Args:
-          key: str
+          key (str)
 
         Returns:
-          :class:`MST`
+          MST
 
         Raises:
-          KeyError if key doesn't exist
+          KeyError: if key doesn't exist
         """
         return self.delete_recurse(key).trim_top()
 
@@ -426,10 +426,10 @@ class MST:
         """Deletes the value and subtree, if any, at the given key.
 
         Args:
-          key: str
+          key (str):
 
         Returns:
-          :class:`MST`
+          MST
         """
         index = self.find_gt_or_equal_leaf_index(key)
         found = self.at_index(index)
@@ -465,11 +465,11 @@ class MST:
         """Updates an entry in place.
 
         Args:
-          index: int
-          entry: :class:`MST` or :class:`Leaf`
+          index (int)
+          entry (MST or Leaf)
 
         Returns:
-          :class:`MST`
+          MST:
         """
         return self.new_tree(
             entries=self.slice(0, index) + [entry] + self.slice(index + 1))
@@ -478,10 +478,10 @@ class MST:
         """Removes the entry at a given index.
 
         Args:
-          index: int
+          index (int)
 
         Returns:
-          :class:`MST`
+          MST:
         """
         return self.new_tree(entries=self.slice(0, index) + self.slice(index + 1))
 
@@ -489,10 +489,10 @@ class MST:
         """Appends an entry to the end of the node.
 
         Args:
-          entry: :class:`MST` or :class:`Leaf`
+          entry (MST or Leaf)
 
         Returns:
-          :class:`MST`
+          MST:
         """
         return self.new_tree(self.get_entries() + [entry])
 
@@ -500,10 +500,10 @@ class MST:
         """Prepends an entry to the start of the node.
 
         Args:
-          entry: :class:`MST` or :class:`Leaf`
+          entry (MST or Leaf)
 
         Returns:
-          :class:`MST`
+          MST:
         """
         return self.new_tree([entry] + self.get_entries())
 
@@ -511,10 +511,10 @@ class MST:
         """Returns the entry at a given index.
 
         Args:
-          index: int
+          index (int)
 
         Returns:
-          :class:`MST` or :class:`Leaf` or None
+          MST or Leaf or None:
         """
         entries = self.get_entries()
         if 0 <= index < len(entries):
@@ -524,11 +524,11 @@ class MST:
         """Returns a slice of this node.
 
         Args:
-          start: int, optional, inclusive
-          end: int, optional, exclusive
+          start (int): optional, inclusive
+          end (int): optional, exclusive
 
         Returns:
-          sequence of :class:`MST` and :class:`Leaf`
+          sequence of MST and Leaf:
         """
         return self.get_entries()[start:end]
 
@@ -536,11 +536,11 @@ class MST:
         """Inserts an entry at a given index.
 
         Args:
-          entry: :class:`MST` or :class:`Leaf`
-          index: int
+          entry (MST or Leaf)
+          index (int)
 
         Returns:
-          :class:`MST`
+          MST:
         """
         return self.new_tree(self.slice(0, index) + [entry] + self.slice(index))
 
@@ -548,13 +548,13 @@ class MST:
         """Replaces an entry with [ Maybe(tree), Leaf, Maybe(tree) ].
 
         Args:
-          index: int
-          left: :class:`MST` or :class:`Leaf`
-          leaf: :class:`Leaf`
-          right: :class:`MST` or :class:`Leaf`
+          index (int):
+          left (MST or Leaf):
+          leaf (Leaf):
+          right (MST or Leaf):
 
         Returns:
-          :class:`MST`
+          MST:
         """
         updated = self.slice(0, index)
         if left:
@@ -572,7 +572,7 @@ class MST:
         Otherwise, does nothing.
 
         Returns:
-          :class:`MST`
+          MST:
         """
         entries = self.get_entries()
         if len(entries) == 1 and isinstance(entries[0], MST):
@@ -588,10 +588,10 @@ class MST:
         """Recursively splits a subtree around a given key.
 
         Args:
-          key: str
+          key (str)
 
         Returns:
-          tuple, (:class:`MST` or None, :class:`MST or None)
+          (MST or None, MST or None) tuple:
         """
         index = self.find_gt_or_equal_leaf_index(key)
         # split tree around key
@@ -623,10 +623,10 @@ class MST:
         every key in the left tree. Used primarily for deletes.
 
         Args:
-          to_merge: :class:`MST`
+          to_merge (MST)
 
         Returns:
-          :class:`MST`
+          MST:
         """
         assert self.get_layer() == to_merge.get_layer(), \
             'Trying to merge two nodes from different layers of the MST'
@@ -650,7 +650,7 @@ class MST:
     def create_child(self):
         """
         Returns:
-          :class:`MST`
+          MST:
         """
         return MST.create(storage=self.storage, entries=[],
                           layer=self.get_layer() - 1)
@@ -658,7 +658,7 @@ class MST:
     def create_parent(self):
         """
         Returns:
-          :class:`MST`
+          MST:
         """
         parent = MST.create(storage=self.storage, entries=[self],
                             layer=self.get_layer() + 1)
@@ -673,10 +673,10 @@ class MST:
         """Finds the index of the first leaf node greater than or equal to value.
 
         Args:
-          key: str
+          key (str)
 
         Returns:
-          int
+          int:
         """
         entries = self.get_entries()
         for i, entry in enumerate(entries):
@@ -696,10 +696,10 @@ class MST:
         Generator for leaves in the tree, starting at a given rkey.
 
         Args:
-          key: str
+          key (str):
 
         Generates:
-          :class:`Leaf`
+          Leaf
         """
         index = self.find_gt_or_equal_leaf_index(key)
         entries = self.get_entries()
@@ -721,11 +721,11 @@ class MST:
         """Returns entries, optionally bounded within an rkey range.
 
         Args:
-          after: str rkey, optional
-          before: str rkey, optional
+          after (str): rkey, optional
+          before (str): rkey, optional
 
         Returns:
-          sequence of :class:`Leaf`
+          sequence of Leaf:
         """
         vals = []
 
@@ -742,10 +742,10 @@ class MST:
         """Returns entries with a given rkey prefix.
 
         Args:
-          prefix: str, rkey prefix
+          prefix (str): rkey prefix
 
         Returns:
-          sequence of :class:`Leaf`
+          sequence of Leaf
         """
         vals = []
 
@@ -763,7 +763,7 @@ class MST:
         """Walk full tree, depth first, and emit nodes.
 
         Returns:
-          generator of :class:`MST` and :class:`Leaf`
+          generator of MST and Leaf:
         """
         yield self
 
@@ -778,7 +778,7 @@ class MST:
 #     def paths():
 #     """
 #     Returns:
-#       sequence of :class:`MST` and :class:`Leaf`
+#       sequence of MST and Leaf
 #     """
 #         paths = []
 #         for entry in self.get_entries():
@@ -794,7 +794,7 @@ class MST:
         """Walks the tree and returns all nodes.
 
         Returns:
-          sequence of :class:`MST` and :class:`Leaf`
+          sequence of MST and Leaf:
         """
         return list(self.walk())
 
@@ -818,7 +818,7 @@ class MST:
         """Walks tree and returns all leaves.
 
         Returns:
-          sequence of :class:`Leaf`
+          sequence of Leaf:
         """
         return [entry for entry in self.walk() if isinstance(entry, Leaf)]
 
@@ -826,7 +826,7 @@ class MST:
         """Returns the total number of leaves in this MST.
 
         Returns:
-          int
+          int:
         """
         return len(self.leaves())
 
@@ -868,10 +868,10 @@ class MST:
     def load_all(self):
         """Generator. Used in :func:`xrpc_sync.get_checkout`.
 
-        (The bluesky-social/atproto TS code calls this writeToCarStream.)
+        (The bluesky-social/atproto TS code calls this ``writeToCarStream``.)
 
         Returns:
-          generator of (:class:`CID`, bytes) tuples
+          generator of (CID, bytes) tuples
         """
         leaves = set()   # CIDs
         to_fetch = set() # CIDs
@@ -903,7 +903,7 @@ class MST:
 #         """Returns the CIDs in a given key path. ???
 #
 #         Args:
-#           key: str
+#           key (str):
 #
 #         Returns:
 #           sequence of :class:`CID`
@@ -923,10 +923,10 @@ def leading_zeros_on_hash(key):
     """Returns the number of leading zeros in a key's hash.
 
     Args:
-      key: str or bytes
+      key (str or bytes)
 
     Returns:
-      int
+      int:
     """
     if not isinstance(key, bytes):
         key = key.encode()  # ensure_valid_key enforces that this is ASCII only
@@ -950,10 +950,10 @@ def leading_zeros_on_hash(key):
 def layer_for_entries(entries):
     """
     Args:
-      entries: sequence of :class:`MST` and :class:`Leaf`
+      entries (MST or Leaf)
 
     Returns:
-      number | None
+      int or None:
     """
     for entry in entries:
         if isinstance(entry, Leaf):
@@ -963,11 +963,11 @@ def layer_for_entries(entries):
 def deserialize_node_data(*, storage=None, data=None, layer=None):
     """
     Args:
-      storage: :class:`Storage`
-      data: :class:`Data`
+      storage (Storage)
+      data (Data)
 
     Returns:
-      sequence of :class:`MST` and :class:`Leaf`
+      sequence of MST and Leaf:
     """
     entries = []
     if (data.l is not None):
@@ -992,10 +992,10 @@ def deserialize_node_data(*, storage=None, data=None, layer=None):
 def serialize_node_data(entries):
     """
     Args:
-      entries: sequence of :class:`MST` and :class:`Leaf`
+      entries (sequence of MST and Leaf)
 
     Returns:
-      :class:`Data`
+      Data:
     """
     l = None
     i = 0
@@ -1035,10 +1035,11 @@ def serialize_node_data(entries):
 def common_prefix_len(a, b):
     """
     Args:
-      a, b: str
+      a (str)
+      b (str)
 
     Returns:
-      int
+      int:
     """
     return len(commonprefix((a, b)))
 
@@ -1046,10 +1047,10 @@ def common_prefix_len(a, b):
 def cid_for_entries(entries):
     """
     Args:
-      entries: sequence of :class:`MST` and :class:`Leaf`
+      entries (sequence of MST and Leaf)
 
     Returns:
-      :class:`CID`
+      CID
     """
     return dag_cbor_cid(serialize_node_data(entries)._asdict())
 
@@ -1057,10 +1058,10 @@ def cid_for_entries(entries):
 def ensure_valid_key(key):
     """
     Args:
-      key: str
+      key (str)
 
     Raises:
-      ValueError if key is not a valid MST key.
+      ValueError: if key is not a valid MST key
     """
     valid = re.compile('[a-zA-Z0-9_\-:.]*$')
     split = key.split('/')
@@ -1075,7 +1076,7 @@ def ensure_valid_key(key):
 
 
 WalkStatus = namedtuple('WalkStatus', [
-    'done',     # boolean
+    'done',     # bool
     'cur',      # MST or Leaf
     'walking',  # MST or None if cur is the root of the tree
     'index',    # int
@@ -1086,8 +1087,8 @@ class Walker:
     """Allows walking an MST manually.
 
     Attributes:
-      stack: sequence of WalkStatus
-      status: WalkStatus, current
+      stack (sequence of WalkStatus)
+      status (WalkStatus): current
     """
     stack = None
     status = None
@@ -1096,7 +1097,7 @@ class Walker:
         """Constructor.
 
         Args:
-          tree: :class:`MST`
+          tree (MST)
         """
         self.stack = []
         self.status = WalkStatus(
@@ -1146,7 +1147,7 @@ class Walker:
         """Steps into a subtree.
 
         Raises:
-          RuntimeError, if curently on a leaf
+          RuntimeError: if curently on a leaf
         """
         if self.status.done:
             return

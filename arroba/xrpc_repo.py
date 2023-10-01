@@ -24,7 +24,7 @@ def validate(input, **params):
 
 @server.server.method('com.atproto.repo.createRecord')
 def create_record(input):
-    """Handler for `com.atproto.repo.createRecord` XRPC method."""
+    """Handler for ``com.atproto.repo.createRecord`` XRPC method."""
     validate(input)
     repo = server.load_repo(input['repo'])
     input.setdefault('rkey', next_tid())
@@ -54,7 +54,7 @@ def get_record(input, repo=None, collection=None, rkey=None, cid=None):
 
 @server.server.method('com.atproto.repo.deleteRecord')
 def delete_record(input):
-    """Handler for `com.atproto.repo.deleteRecord` XRPC method."""
+    """Handler for ``com.atproto.repo.deleteRecord`` XRPC method."""
     validate(input)
     repo = server.load_repo(input['repo'])
 
@@ -93,7 +93,7 @@ def list_records(input, repo=None, collection=None, limit=None, cursor=None,
 
 @server.server.method('com.atproto.repo.putRecord')
 def put_record(input):
-    """Handler for `com.atproto.repo.putRecord` XRPC method."""
+    """Handler for ``com.atproto.repo.putRecord`` XRPC method."""
     validate(input)
     repo = server.load_repo(input['repo'])
 
@@ -114,7 +114,7 @@ def put_record(input):
 
 @server.server.method('com.atproto.repo.describeRepo')
 def describe_repo(input, repo=None):
-    """Handler for `com.atproto.repo.describeRepo` XRPC method."""
+    """Handler for ``com.atproto.repo.describeRepo`` XRPC method."""
     validate(input, repo=repo)
     repo = server.load_repo(input['repo'])
 
@@ -134,14 +134,14 @@ def describe_repo(input, repo=None):
 
 @server.server.method('com.atproto.repo.applyWrites')
 def apply_writes(input):
-    """Handler for `com.atproto.repo.applyWrites` XRPC method."""
+    """Handler for ``com.atproto.repo.applyWrites`` XRPC method."""
     validate(input)
     return 'Not implemented yet', 501
 
 
 @server.server.method('com.atproto.repo.uploadBlob')
 def upload_blob(input):
-    """Handler for `com.atproto.repo.uploadBlob` XRPC method."""
+    """Handler for ``com.atproto.repo.uploadBlob`` XRPC method."""
     # input: binary
     validate(input)
     return 'Not implemented yet', 501

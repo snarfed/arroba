@@ -27,9 +27,9 @@ new_commits = Condition()
 
 @server.server.method('com.atproto.sync.getCheckout')
 def get_checkout(input, did=None):
-    """Handler for `com.atproto.sync.getCheckout` XRPC method.
+    """Handler for ``com.atproto.sync.getCheckout`` XRPC method.
 
-    Deprecated! Use getRepo instead.
+    Deprecated! Use ``getRepo`` instead.
 
     Gets a checkout, either head or a specific commit.
     """
@@ -38,9 +38,9 @@ def get_checkout(input, did=None):
 
 @server.server.method('com.atproto.sync.getRepo')
 def get_repo(input, did=None, since=None):
-    """Handler for `com.atproto.sync.getRepo` XRPC method.
+    """Handler for ``com.atproto.sync.getRepo`` XRPC method.
 
-    TODO: implement since
+    TODO: implement ``since``
     """
     if since:
         raise ValueError('since is not implemented yet')
@@ -53,7 +53,7 @@ def get_repo(input, did=None, since=None):
 
 # @server.server.method('com.atproto.sync.listRepos')
 # def list_repos(input, limit=None, cursor=None):
-#     """Handler for `com.atproto.sync.listRepos` XRPC method.
+#     """Handler for ``com.atproto.sync.listRepos`` XRPC method.
 
 #     TODO: implement. needs new Storage.list_repos method or similar
 #     TODO: implement cursor
@@ -68,7 +68,7 @@ def get_repo(input, did=None, since=None):
 
 
 def send_new_commits():
-    """Triggers subscribeRepos to deliver new commits from storage to subscribers.
+    """Triggers ``subscribeRepos`` to deliver new commits from storage to subscribers.
     """
     logger.debug(f'Triggering subscribeRepos to look for new commits')
     with new_commits:
@@ -77,7 +77,7 @@ def send_new_commits():
 
 @server.server.method('com.atproto.sync.subscribeRepos')
 def subscribe_repos(cursor=None):
-    """Firehose event stream XRPC (ie type: subscription) for all new commits.
+    """Firehose event stream XRPC (ie ``type: subscription``) for all new commits.
 
     Event stream details: https://atproto.com/specs/event-stream#framing
 
@@ -86,22 +86,20 @@ def subscribe_repos(cursor=None):
     choose how to register and serve it themselves, eg asyncio vs threads vs
     WSGI workers.
 
-    Example:
-
     See :func:`send_new_commits` for an example thread-based callback to
     register with :class:`Repo` to deliver all new commits to subscribers.
     Here's how to register that callback and this XRPC method in a threaded
-    context:
+    context::
 
-      server.repo.callback = lambda commit_data: xrpc_sync.send_new_commits()
-      server.server.register('com.atproto.sync.subscribeRepos',
-                             xrpc_sync.subscribe_repos)
+        server.repo.callback = lambda commit_data: xrpc_sync.send_new_commits()
+        server.server.register('com.atproto.sync.subscribeRepos',
+                               xrpc_sync.subscribe_repos)
 
     Args:
-      cursor: integer, try to serve commits from this sequence number forward
+      cursor (int): try to serve commits from this sequence number forward
 
     Returns:
-      (dict header, dict payload)
+      (dict, dict) tuple: (header, payload)
     """
     def header_payload(commit_data):
         commit = commit_data.commit.decoded
@@ -162,14 +160,14 @@ def subscribe_repos(cursor=None):
 
 # @server.server.method('com.atproto.sync.getBlocks')
 # def get_blocks(input, did=None, cids=None):
-#     """Handler for `com.atproto.sync.getBlocks` XRPC method."""
+#     """Handler for ``com.atproto.sync.getBlocks`` XRPC method."""
 #     # TODO
 #     return b''
 
 
 @server.server.method('com.atproto.sync.getHead')
 def get_head(input, did=None):
-    """Handler for `com.atproto.sync.getHead` XRPC method.
+    """Handler for ``com.atproto.sync.getHead`` XRPC method.
 
     Deprecated! Use getLatestCommit instead.
     """
@@ -181,7 +179,7 @@ def get_head(input, did=None):
 
 @server.server.method('com.atproto.sync.getLatestCommit')
 def get_latest_commit(input, did=None):
-    """Handler for `com.atproto.sync.getLatestCommit` XRPC method."""
+    """Handler for ``com.atproto.sync.getLatestCommit`` XRPC method."""
     repo = server.load_repo(did)
     return {
         'cid': repo.head.cid.encode('base32'),
@@ -191,10 +189,12 @@ def get_latest_commit(input, did=None):
 
 @server.server.method('com.atproto.sync.getRecord')
 def get_record(input, did=None, collection=None, rkey=None, commit=None):
-    """Handler for `com.atproto.sync.getRecord` XRPC method.
+    """Handler for ``com.atproto.sync.getRecord`` XRPC method.
 
-    TODO: implement commit
-    TODO: merge with xrpc_repo.get_record?
+    TODO:
+
+    * implement commit
+    * merge with xrpc_repo.get_record?
     """
     if commit:
         raise ValueError('commit not supported yet')
@@ -209,24 +209,24 @@ def get_record(input, did=None, collection=None, rkey=None, commit=None):
 
 # @server.server.method('com.atproto.sync.notifyOfUpdate')
 # def notify_of_update(input, did=None, earliest=None, latest=None):
-#     """Handler for `com.atproto.sync.notifyOfUpdate` XRPC method."""
+#     """Handler for ``com.atproto.sync.notifyOfUpdate`` XRPC method."""
 #     # input: {'hostname': ...}
 #     # no output
 
 
 # @server.server.method('com.atproto.sync.requestCrawl')
 # def request_crawl(input):
-#     """Handler for `com.atproto.sync.requestCrawl` XRPC method."""
+#     """Handler for ``com.atproto.sync.requestCrawl`` XRPC method."""
 #     # input: {'hostname': ...}
 #     # no output
 
 
 # @server.server.method('com.atproto.sync.getBlob')
 # def get_blob(input, did=None, cid=None):
-#     """Handler for `com.atproto.sync.getBlob` XRPC method."""
+#     """Handler for ``com.atproto.sync.getBlob`` XRPC method."""
 #     # output: binary
 
 # @server.server.method('com.atproto.sync.listBlobs')
 # def list_blobs(input, did=None, earliest=None, latest=None):
-#     """Handler for `com.atproto.sync.listBlobs` XRPC method."""
+#     """Handler for ``com.atproto.sync.listBlobs`` XRPC method."""
 #     # output: {'cids': [CID, ...]}

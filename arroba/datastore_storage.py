@@ -28,7 +28,7 @@ class WriteOnce:
 
 
 class JsonProperty(ndb.TextProperty):
-    """Fork of ndb's that subclasses TextProperty instead of BlobProperty.
+    """Fork of ndb's that subclasses :class:`ndb.TextProperty` instead of :class:`ndb.BlobProperty`.
 
     This makes values show up as normal, human-readable, serialized JSON in the
     web console.
@@ -52,10 +52,11 @@ class JsonProperty(ndb.TextProperty):
 
 
 class ComputedJsonProperty(JsonProperty, ndb.ComputedProperty):
-    """Custom ComputedProperty for JSON values that stores them as strings.
+    """Custom :class:`ndb.ComputedProperty` for JSON values that stores them as
+    strings.
 
-    ...instead of like StructuredProperty, with "entity" type, which bloats them
-    unnecessarily in the datastore.
+    ...instead of like :class:`ndb.StructuredProperty`, with "entity" type, which
+    bloats them unnecessarily in the datastore.
     """
     def __init__(self, *args, **kwargs):
         kwargs['indexed'] = False
@@ -69,8 +70,8 @@ class WriteOnceBlobProperty(WriteOnce, ndb.BlobProperty):
 class CommitOp(ndb.Model):
     """Repo operations - creates, updates, deletes - included in a commit.
 
-    Used in a StructuredProperty inside AtpBlock; not stored directly in the
-    datastore.
+    Used in a :class:`StructuredProperty` inside :class:`AtpBlock`; not stored
+    directly in the datastore.
 
     https://googleapis.dev/python/python-ndb/latest/model.html#google.cloud.ndb.model.StructuredProperty
     """
@@ -83,13 +84,13 @@ class AtpRepo(ndb.Model):
     """An ATProto repo.
 
     Key name is DID. Only stores the repo's metadata. Blocks are stored in
-    :class:`AtpBlock`s.
+    :class:`AtpBlock`\s.
 
-    Properties:
-    * handles: str, repeated, optional
-    * head: str CID
-    * signing_key: str
-    * rotation_key: str
+    Attributes:
+    * handles (str): repeated, optional
+    * head (str): CID
+    * signing_key (str)
+    * rotation_key (str)
     """
     handles = ndb.StringProperty(repeated=True)
     head = ndb.StringProperty(required=True)
@@ -107,17 +108,13 @@ class AtpRepo(ndb.Model):
 
     @property
     def signing_key(self):
-        """
-        Returns: :class:`ec.EllipticCurvePrivateKey`
-        """
+        """(ec.EllipticCurvePrivateKey)"""
         return serialization.load_pem_private_key(self.signing_key_pem,
                                                   password=None)
 
     @property
     def rotation_key(self):
-        """
-        Returns: :class:`ec.EllipticCurvePrivateKey`, or None if not set
-        """
+        """(ec.EllipticCurvePrivateKey` or None)"""
         if self.rotation_key_pem:
             return serialization.load_pem_private_key(self.rotation_key_pem,
                                                       password=None)
@@ -129,9 +126,9 @@ class AtpBlock(ndb.Model):
     Key name is the DAG-CBOR base32 CID of the data.
 
     Properties:
-    * encoded: bytes, DAG-CBOR encoded value
-    * data: dict, DAG-JSON value, only used for human debugging
-    * seq: int, sequence number for the subscribeRepos event stream
+    * encoded (bytes): DAG-CBOR encoded value
+    * data (dict): DAG-JSON value, only used for human debugging
+    * seq (int): sequence number for the subscribeRepos event stream
     """
     repo = ndb.KeyProperty(AtpRepo, required=True)
     encoded = WriteOnceBlobProperty(required=True)
@@ -157,9 +154,9 @@ class AtpBlock(ndb.Model):
         this current sequence number.
 
         Args:
-          repo_did: str
-          data: dict value
-          seq: integer
+          repo_did (str):
+          data (dict): value
+          seq (int):
 
         Returns:
           :class:`AtpBlock`
@@ -179,7 +176,7 @@ class AtpBlock(ndb.Model):
         """Converts to :class:`Block`.
 
         Returns:
-          :class:`Block`
+          Block
         """
         ops = [storage.CommitOp(action=Action[op.action.upper()], path=op.path,
                                 cid=CID.decode(op.cid) if op.cid else None)
@@ -191,11 +188,11 @@ class AtpBlock(ndb.Model):
         """Converts a :class:`Block` to an :class:`AtpBlock`.
 
         Args:
-          repo_did: str
-          block: :class:`Block`
+          repo_did (str)
+          block (Block)
 
         Returns:
-          :class:`AtpBlock`
+          AtpBlock
         """
         ops = [CommitOp(action=op.action.name.lower(), path=op.path,
                         cid=op.cid.encode('base32') if op.cid else None)
@@ -231,7 +228,7 @@ class AtpSequence(ndb.Model):
         for the given NSID.
 
         Args:
-          nsid: str, the subscription XRPC method for this sequence number
+          nsid (str): the subscription XRPC method for this sequence number
 
         Returns:
           integer, next sequence number for this NSID

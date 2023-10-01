@@ -18,11 +18,11 @@ def mst_diff(cur, prev=None):
     """Generates a diff between two MSTs.
 
     Args:
-        cur: :class:`MST`
-        prev: :class:`MST`, optional
+        cur (MST)
+        prev (MST): optional
 
     Returns:
-        :class:`Diff`
+        Diff:
     """
     cur.get_pointer()
     if not prev:
@@ -150,10 +150,10 @@ def null_diff(tree):
     """Generates a "null" diff for a single MST with all adds and new CIDs.
 
     Args:
-        tree: :class:`MST`
+        tree (MST)
 
     Returns:
-        :class:`Diff`
+        Diff:
     """
     diff = Diff()
 
@@ -168,8 +168,8 @@ def null_diff(tree):
 
 Change = namedtuple('Change', [
     'key',   # str
-    'cid',   # :class:`CID`
-    'prev',  # :class:`CID`
+    'cid',   # CID
+    'prev',  # CID
 ], defaults=[None])
 
 
@@ -177,11 +177,11 @@ class Diff:
     """A diff between two MSTs.
 
     Attributes:
-      adds: {str key: :class:`Change`}
-      updates: {str key: :class:`Change`}
-      deletes: {str key: :class:`Change`}
-      new_cids: set of :class:`CID`
-      removed_cids: set of :class:`CID`
+      adds (dict): maps str to :class:`Change`
+      updates (dict): maps str to :class:`Change`
+      deletes (dict): maps str to :class:`Change`
+      new_cids (set of :class:`CID`)
+      removed_cids (set of :class:`CID`)
     """
 
     def __init__(self):
@@ -195,19 +195,19 @@ class Diff:
     def of(cur, prev=None):
         """
         Args:
-          cur: :class:`MST`
-          prev: :class:`MST`, optional
+          cur (MST)
+          prev (MST): optional
 
         Returns:
-          :class:`Diff`
+          Diff:
         """
         return mst_diff(cur, prev)
 
     def record_add(self, key, cid):
         """
         Args:
-          key: str
-          cid: :class:`CID`
+          key (str)
+          cid (CID)
         """
         self.adds[key] = Change(key=key, cid=cid)
         self.new_cids.add(cid)
@@ -215,9 +215,9 @@ class Diff:
     def record_update(self, key, prev, cid):
         """
         Args:
-          key: str
-          prev: :class:`CID`
-          cid: :class:`CID`
+          key (str)
+          prev (CID)
+          cid (CID)
         """
         self.updates[key] = Change(key=key, cid=cid, prev=prev)
         self.new_cids.add(cid)
@@ -225,15 +225,15 @@ class Diff:
     def record_delete(self, key, cid):
         """
         Args:
-          key: str
-          cid: :class:`CID`
+          key (str)
+          cid (CID)
         """
         self.deletes[key] = Change(key=key, cid=cid)
 
     def record_new_cid(self, cid):
         """
         Args:
-          cid: :class:`CID`
+          cid (CID)
         """
         if cid in self.removed_cids:
             self.removed_cids.remove(cid)
@@ -243,7 +243,7 @@ class Diff:
     def record_removed_cid(self, cid):
         """
         Args:
-          cid: :class:`CID`
+          cid (CID)
         """
         if cid in self.new_cids:
             self.new_cids.remove(cid)
@@ -253,7 +253,7 @@ class Diff:
     def add_diff(self, diff):
         """
         Args:
-          diff: :class:`Diff`
+          diff (Diff)
         """
         for add in diff.adds.values():
             if self.deletes[add.key]:

@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 @server.server.method('com.atproto.server.createSession')
 def create_session(input):
-    """Handler for `com.atproto.server.createSession` XRPC method."""
+    """Handler for ``com.atproto.server.createSession`` XRPC method."""
     id = input['identifier']
     repo = server.storage.load_repo(id)
     if not repo:
@@ -27,7 +27,7 @@ def create_session(input):
 
 @server.server.method('com.atproto.server.getSession')
 def get_session(input):
-    """Handler for `com.atproto.server.getSession` XRPC method."""
+    """Handler for ``com.atproto.server.getSession`` XRPC method."""
     server.auth()
 
     # TODO: parse JWT, extract repo DID
@@ -40,7 +40,7 @@ def get_session(input):
 
 @server.server.method('com.atproto.server.refreshSession')
 def refresh_session(input, did=None, commit=None):
-    """Handler for `com.atproto.server.refreshSession` XRPC method."""
+    """Handler for ``com.atproto.server.refreshSession`` XRPC method."""
     server.auth()
 
     token = os.environ['REPO_TOKEN']
@@ -54,17 +54,17 @@ def refresh_session(input, did=None, commit=None):
 
 @server.server.method('com.atproto.server.describeServer')
 def describe_server(input):
-    """Handler for `com.atproto.server.describeServer` XRPC method."""
+    """Handler for ``com.atproto.server.describeServer`` XRPC method."""
     return {'availableUserDomains': []}
 
 
 @server.server.method('com.atproto.server.getAccountInviteCodes')
 def get_account_invite_codes(input, includeUsed=None, createAvailable=None):
-    """Handler for `com.atproto.server.getAccountInviteCodes` XRPC method."""
+    """Handler for ``com.atproto.server.getAccountInviteCodes`` XRPC method."""
     return {'codes': []}
 
 
 @server.server.method('com.atproto.server.listAppPasswords')
 def list_app_passwords(input):
-    """Handler for `com.atproto.server.listAppPasswords` XRPC method."""
+    """Handler for ``com.atproto.server.listAppPasswords`` XRPC method."""
     return {'passwords': []}

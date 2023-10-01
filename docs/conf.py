@@ -335,8 +335,13 @@ texinfo_documents = [
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {
-    'cryptography': ('https://cryptography.io/en/latest', None),
-    'dag_cbor': ('https://dag-cbor.readthedocs.io/en/latest', None),
-    'lexrpc': ('https://lexrpc.readthedocs.io/en/latest', None),
-    'multiformats': ('https://multiformats.readthedocs.io/en/latest', None),
+    'cryptography': ('https://cryptography.io/en/stable', None),
+    'ec': ('https://cryptography.io/en/stable', None),
+    'dag_cbor': ('https://dag-cbor.readthedocs.io/en/stable', None),
+    'lexrpc': ('https://lexrpc.readthedocs.io/en/stable', None),
+    'multiformats': ('https://multiformats.readthedocs.io/en/stable', None),
+    'ndb': ('https://googleapis.dev/python/python-ndb/latest/', None),
+    'python': ('https://docs.python.org/3/', None),
+    'requests': ('https://requests.readthedocs.io/en/stable', None),
+    'urllib3': ('https://urllib3.readthedocs.io/en/stable', None),
 }
