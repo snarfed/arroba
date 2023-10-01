@@ -9,14 +9,6 @@ from lexrpc.client import Client
 logging.basicConfig()
 logging.getLogger().setLevel(logging.DEBUG)
 
-repo_did = os.environ.get('REPO_DID')
-if not repo_did:
-    did_docs = list(Path(__file__).parent.glob('did:plc:*.json'))
-    assert len(did_docs) == 1, f'Expected one DID doc file; got {did_docs}'
-    repo_did = did_docs[0].name.removesuffix('.json')
-
-privkey_pem = os.environ.get('REPO_PRIVKEY') or open('privkey.pem').read().strip()
-
 bgs = os.environ.get('BGS_HOST', 'bgs.bsky-sandbox.dev')
 scheme = ('http' if bgs.startswith('localhost') or bgs.startswith('127.0.0.1')
           else 'https')
