@@ -20,4 +20,4 @@ if __name__ == '__main__':
     client = Client(f'{scheme}://{host}')
     kwargs = {'cursor': sys.argv[2]} if len(sys.argv) == 3 else {}
     for msg in client.com.atproto.sync.subscribeRepos(**kwargs):
-        print(dag_json.encode(msg).decode(), file=sys.stdout)
+        print(dag_json.encode(msg).decode(), file=sys.stdout, flush=True)
