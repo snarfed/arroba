@@ -99,6 +99,8 @@ Optional, only used in the [com.atproto.server XRPC handlers](https://arroba.rea
 
 ### 0.5 - unreleased
 
+* `datastore_storage`:
+  * Bug fix for `DatastoreStorage.last_seq`, handle new NSID.
 * `did`:
   * `resolve_handle` bug fix: handle `charset` specifier in HTTPS method response `Content-Type`.
 * `util`:

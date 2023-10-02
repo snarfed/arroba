@@ -239,6 +239,22 @@ class AtpSequence(ndb.Model):
         seq.put()
         return ret
 
+    @classmethod
+    def last(cls, nsid):
+        """Returns the last sequence number for a given NSID.
+
+        Creates a new :class:`AtpSequence` entity if one doesn't already exist
+        for the given NSID.
+
+        Args:
+          nsid (str): the subscription XRPC method for this sequence number
+
+        Returns:
+          integer, last sequence number for this NSID
+        """
+        seq = AtpSequence.get_or_insert(nsid, next=1)
+        return seq.next - 1
+
 
 class DatastoreStorage(Storage):
     """Google Cloud Datastore implementation of :class:`Storage`.
@@ -348,4 +364,4 @@ class DatastoreStorage(Storage):
 
     def last_seq(self, nsid):
         assert nsid
-        return AtpSequence.get_by_id(nsid).next - 1
+        return AtpSequence.last(nsid)

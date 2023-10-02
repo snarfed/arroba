@@ -31,6 +31,26 @@ CIDS = [
 
 class DatastoreStorageTest(DatastoreTest):
 
+    def test_atpsequence_allocate_new(self):
+        self.assertIsNone(AtpSequence.query().get())
+        self.assertEqual(1, AtpSequence.allocate('foo'))
+        self.assertEqual(2, AtpSequence.get_by_id('foo').next)
+
+    def test_atpsequence_allocate_existing(self):
+        AtpSequence(id='foo', next=42).put()
+        self.assertEqual(42, AtpSequence.allocate('foo'))
+        self.assertEqual(43, AtpSequence.get_by_id('foo').next)
+
+    def test_atpsequence_last_new(self):
+        self.assertIsNone(AtpSequence.query().get())
+        self.assertEqual(0, AtpSequence.last('foo'))
+        self.assertEqual(1, AtpSequence.get_by_id('foo').next)
+
+    def test_atpsequence_last_existing(self):
+        AtpSequence(id='foo', next=42).put()
+        self.assertEqual(41, AtpSequence.last('foo'))
+        self.assertEqual(42, AtpSequence.get_by_id('foo').next)
+
     def test_create_load_repo(self):
         self.assertIsNone(self.storage.load_repo('han.dull'))
         self.assertIsNone(self.storage.load_repo('did:web:user.com'))
