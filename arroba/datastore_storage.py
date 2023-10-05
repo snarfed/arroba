@@ -262,7 +262,9 @@ class AtpRemoteBlob(ndb.Model):
 
     Key ID is the URL.
 
-    TODO: follow redirects, use final URL as key id
+    TODO:
+    * follow redirects, use final URL as key id
+    * abstract this in :class:`Storage`
     """
     cid = ndb.StringProperty(required=True)
     size = ndb.IntegerProperty(required=True)

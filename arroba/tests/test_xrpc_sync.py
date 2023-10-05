@@ -12,8 +12,9 @@ from carbox.car import Block, read_car
 import dag_cbor
 from google.cloud import ndb
 from google.cloud.ndb.exceptions import ContextError
+from lexrpc.server import Redirect
 
-from ..datastore_storage import DatastoreStorage
+from ..datastore_storage import AtpRemoteBlob, DatastoreStorage
 from ..repo import Repo, Write, writes_to_commit_ops
 from .. import server
 from ..storage import Action, Storage, SUBSCRIBE_REPOS_NSID
@@ -595,6 +596,19 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
 class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
     STORAGE_CLS = DatastoreStorage
+
+    def test_get_blob(self):
+        cid = 'bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq'
+        AtpRemoteBlob(id='http://blob', cid=cid, size=13).put()
+
+        with self.assertRaises(Redirect) as r:
+            resp = xrpc_sync.get_blob({}, did='did:web:user.com', cid=cid)
+
+        self.assertEqual('http://blob', r.exception.to)
+
+    def test_get_blob_missing(self):
+        with self.assertRaises(ValueError):
+            resp = xrpc_sync.get_blob({}, did='did:web:user.com', cid='nope')
 
 
 class DatastoreSubscribeReposTest(SubscribeReposTest, testutil.DatastoreTest):

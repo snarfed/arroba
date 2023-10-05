@@ -105,6 +105,8 @@ Optional, only used in the [com.atproto.server XRPC handlers](https://arroba.rea
   * `resolve_handle` bug fix: handle `charset` specifier in HTTPS method response `Content-Type`.
 * `util`:
   * `new_key`: add `seed` kwarg to allow deterministic key generation.
+* `xrpc_sync`:
+  * Implement `getBlob`, right now only based on "remote" blobs stored in `AtpRemoteBlob`s in datastore storage.
 
 ### 0.4 - 2023-09-19
 

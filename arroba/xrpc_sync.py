@@ -12,8 +12,10 @@ from threading import Condition
 
 from carbox import car
 import dag_cbor
+from lexrpc.server import Redirect
 
 from . import server
+from .datastore_storage import AtpRemoteBlob
 from .storage import CommitData, SUBSCRIBE_REPOS_NSID
 from . import util
 from . import xrpc_repo
@@ -207,24 +209,20 @@ def get_record(input, did=None, collection=None, rkey=None, commit=None):
     block = car.Block(decoded=record)
     return car.write_car([block.cid], [block])
 
-# @server.server.method('com.atproto.sync.notifyOfUpdate')
-# def notify_of_update(input, did=None, earliest=None, latest=None):
-#     """Handler for ``com.atproto.sync.notifyOfUpdate`` XRPC method."""
-#     # input: {'hostname': ...}
-#     # no output
 
+@server.server.method('com.atproto.sync.getBlob')
+def get_blob(input, did=None, cid=None):
+    """Handler for ``com.atproto.sync.getBlob`` XRPC method.
 
-# @server.server.method('com.atproto.sync.requestCrawl')
-# def request_crawl(input):
-#     """Handler for ``com.atproto.sync.requestCrawl`` XRPC method."""
-#     # input: {'hostname': ...}
-#     # no output
+    Right now only supports redirecting to "remote" blobs based on stored
+    :class:`AtpRemoteBlob`\s.
+    """
+    blob = AtpRemoteBlob.query(AtpRemoteBlob.cid == cid).get()
+    if blob:
+        raise Redirect(to=blob.key.id())
 
+    raise ValueError(f'No blob found for CID {cid}')
 
-# @server.server.method('com.atproto.sync.getBlob')
-# def get_blob(input, did=None, cid=None):
-#     """Handler for ``com.atproto.sync.getBlob`` XRPC method."""
-#     # output: binary
 
 # @server.server.method('com.atproto.sync.listBlobs')
 # def list_blobs(input, did=None, earliest=None, latest=None):
