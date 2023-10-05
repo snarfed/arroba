@@ -38,7 +38,7 @@ unittest.util._MAX_LENGTH = 999999
 os.environ.setdefault('DATASTORE_EMULATOR_HOST', 'localhost:8089')
 
 
-def requests_response(body, status=200):
+def requests_response(body, status=200, headers=None):
     """
     Args:
       body: dict or list, JSON response
@@ -53,6 +53,9 @@ def requests_response(body, status=200):
         resp._text = json.dumps(body, indent=2)
     else:
         resp._text = body
+
+    if headers:
+        resp.headers.update(headers)
 
     resp._content = resp._text.encode()
     resp.encoding = 'utf-8'

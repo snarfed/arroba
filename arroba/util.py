@@ -63,7 +63,7 @@ def dag_cbor_cid(obj):
     """
     encoded = dag_cbor.encode(obj)
     digest = multihash.digest(encoded, 'sha2-256')
-    return CID('base58btc', 1, multicodec.get('dag-cbor'), digest)
+    return CID('base58btc', 1, 'dag-cbor', digest)
 
 
 def s32encode(num):

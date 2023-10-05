@@ -1,6 +1,7 @@
 """Google Cloud Datastore implementation of repo storage."""
 import json
 import logging
+import requests
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -164,7 +165,7 @@ class AtpBlock(ndb.Model):
         assert seq > 0
         encoded = dag_cbor.encode(data)
         digest = multihash.digest(encoded, 'sha2-256')
-        cid = CID('base58btc', 1, multicodec.get('dag-cbor'), digest)
+        cid = CID('base58btc', 1, 'dag-cbor', digest)
 
         repo_key = ndb.Key(AtpRepo, repo_did)
         atp_block = AtpBlock.get_or_insert(cid.encode('base32'), repo=repo_key,
@@ -254,6 +255,75 @@ class AtpSequence(ndb.Model):
         """
         seq = AtpSequence.get_or_insert(nsid, next=1)
         return seq.next - 1
+
+
+class AtpRemoteBlob(ndb.Model):
+    """A blob available at a public HTTP URL that we don't store ourselves.
+
+    Key ID is the URL.
+
+    TODO: follow redirects, use final URL as key id
+    """
+    cid = ndb.StringProperty(required=True)
+    size = ndb.IntegerProperty(required=True)
+    mime_type = ndb.StringProperty(required=True, default='application/octet-stream')
+
+    created = ndb.DateTimeProperty(auto_now_add=True)
+    updated = ndb.DateTimeProperty(auto_now=True)
+
+    @classmethod
+    @ndb.transactional()
+    def get_or_create(cls, *, url=None, cid=None, get_fn=requests.get):
+        """Returns a new or existing :class:`AtpRemoteBlob` for a given URL.
+
+        If there isn't an existing :class:`AtpRemoteBlob`, fetches the URL over
+        the network and creates a new one for it.
+
+        Args:
+          url (str)
+          cid (CID)
+          get_fn (callable): for making HTTP GET requests
+
+        Returns:
+          AtpRemoteBlob: existing or newly created :class:`AtpRemoteBlob`, or
+          None if ``cid`` was provided and no stored :class:`AtpRemoteBlob` has
+          that CID.
+        """
+        assert url or cid
+
+        if url:
+            existing = cls.get_by_id(url)
+            if existing:
+                return existing
+        elif cid:
+            assert isinstance(cid, CID)
+            return cls.query(cls.cid == cid.encode('base32')).get()
+
+        resp = get_fn(url)
+        resp.raise_for_status()
+
+        digest = multihash.digest(resp.content, 'sha2-256')
+        cid = CID('base58btc', 1, 'raw', digest).encode('base32')
+        logger.info(f'Creating new AtpRemoteBlob for {url} CID {cid}')
+        blob = cls(id=url, cid=cid, mime_type=resp.headers.get('Content-Type'),
+                   size=len(resp.content))
+        blob.put()
+        return blob
+
+    def as_ref(self):
+        """Returns an ATProto `ref` object for this blob.
+
+        https://atproto.com/specs/data-model#blob-type
+
+        Returns:
+          dict: ATProto `ref`
+        """
+        return {
+            '$type': 'blob',
+            'ref': self.cid,
+            'mimeType': self.mime_type,
+            'size': self.size,
+        }
 
 
 class DatastoreStorage(Storage):

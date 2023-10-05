@@ -1,5 +1,6 @@
 """Unit tests for datastore_storage.py."""
 import os
+from unittest.mock import MagicMock, patch
 
 from google.cloud import ndb
 
@@ -10,6 +11,7 @@ from multiformats import CID
 
 from ..datastore_storage import (
     AtpBlock,
+    AtpRemoteBlob,
     AtpRepo,
     AtpSequence,
     DatastoreStorage,
@@ -20,7 +22,7 @@ from ..storage import Block, CommitData, MemoryStorage, SUBSCRIBE_REPOS_NSID
 from ..util import dag_cbor_cid, new_key, next_tid
 
 from . import test_repo
-from .testutil import DatastoreTest
+from .testutil import DatastoreTest, requests_response
 
 CIDS = [
     CID.decode('bafyreie5cvv4h45feadgeuwhbcutmh6t2ceseocckahdoe6uat64zmz454'),
@@ -204,3 +206,26 @@ class DatastoreStorageTest(DatastoreTest):
 
         atp_repo = AtpRepo.get_by_id('did:web:user.com')
         self.assertEqual(cid, CID.decode(atp_repo.head))
+
+    def test_create_remote_blob(self):
+        mock_get = MagicMock(return_value=requests_response(
+            'blob contents', headers={'Content-Type': 'foo/bar'}))
+        cid = 'bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq'
+
+        blob = AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get)
+        mock_get.assert_called_with('http://blob')
+        self.assertEqual({
+            '$type': 'blob',
+            'ref': cid,
+            'mimeType': 'foo/bar',
+            'size': 13,
+        }, blob.as_ref())
+
+        mock_get.reset_mock()
+        got = AtpRemoteBlob.get_or_create(url='http://blob')
+        self.assertEqual(blob, got)
+        mock_get.assert_not_called()
+
+        got = AtpRemoteBlob.get_or_create(cid=CID.decode(cid))
+        self.assertEqual(blob, got)
+        mock_get.assert_not_called()

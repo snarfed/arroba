@@ -88,7 +88,7 @@ class Block:
     def cid(self):
         if self._cid is None:
             digest = multihash.digest(self.encoded, 'sha2-256')
-            self._cid = CID('base58btc', 1, multicodec.get('dag-cbor'), digest)
+            self._cid = CID('base58btc', 1, 'dag-cbor', digest)
         return self._cid
 
     @property
