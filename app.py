@@ -75,7 +75,8 @@ privkey = load_pem_private_key(os.environ['REPO_PRIVKEY'].encode(),
 
 APPVIEW_JWT = util.service_jwt(host=os.environ['APPVIEW_HOST'],
                                repo_did=os.environ['REPO_DID'],
-                               privkey=privkey)
+                               privkey=privkey,
+                               expiration=timedelta(days=999))
 APPVIEW_HEADERS = {
       'User-Agent': util.USER_AGENT,
       'Authorization': f'Bearer {APPVIEW_JWT}',
@@ -174,7 +175,8 @@ def homepage():
 
 BGS_JWT = util.service_jwt(host=os.environ['BGS_HOST'],
                            repo_did=os.environ['REPO_DID'],
-                           privkey=privkey)
+                           privkey=privkey,
+                           expiration=timedelta(days=999))
 BGS_HEADERS = {
       'User-Agent': util.USER_AGENT,
       'Authorization': f'Bearer {BGS_JWT}',
