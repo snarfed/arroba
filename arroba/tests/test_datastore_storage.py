@@ -225,7 +225,3 @@ class DatastoreStorageTest(DatastoreTest):
         got = AtpRemoteBlob.get_or_create(url='http://blob')
         self.assertEqual(blob, got)
         mock_get.assert_not_called()
-
-        got = AtpRemoteBlob.get_or_create(cid=CID.decode(cid))
-        self.assertEqual(blob, got)
-        mock_get.assert_not_called()

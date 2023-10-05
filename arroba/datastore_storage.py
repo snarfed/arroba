@@ -275,7 +275,7 @@ class AtpRemoteBlob(ndb.Model):
 
     @classmethod
     @ndb.transactional()
-    def get_or_create(cls, *, url=None, cid=None, get_fn=requests.get):
+    def get_or_create(cls, *, url=None, get_fn=requests.get):
         """Returns a new or existing :class:`AtpRemoteBlob` for a given URL.
 
         If there isn't an existing :class:`AtpRemoteBlob`, fetches the URL over
@@ -283,23 +283,18 @@ class AtpRemoteBlob(ndb.Model):
 
         Args:
           url (str)
-          cid (CID)
           get_fn (callable): for making HTTP GET requests
 
         Returns:
-          AtpRemoteBlob: existing or newly created :class:`AtpRemoteBlob`, or
-          None if ``cid`` was provided and no stored :class:`AtpRemoteBlob` has
-          that CID.
-        """
-        assert url or cid
+          AtpRemoteBlob: existing or newly created :class:`AtpRemoteBlob`
 
-        if url:
-            existing = cls.get_by_id(url)
-            if existing:
-                return existing
-        elif cid:
-            assert isinstance(cid, CID)
-            return cls.query(cls.cid == cid.encode('base32')).get()
+        Raises:
+          requests.RequestException: if the HTTP request to fetch the blob failed
+        """
+        assert url
+        existing = cls.get_by_id(url)
+        if existing:
+            return existing
 
         resp = get_fn(url)
         resp.raise_for_status()
