@@ -262,6 +262,9 @@ class AtpRemoteBlob(ndb.Model):
 
     Key ID is the URL.
 
+    * https://atproto.com/specs/data-model#blob-type
+    * https://atproto.com/specs/xrpc#blob-upload-and-download
+
     TODO:
     * follow redirects, use final URL as key id
     * abstract this in :class:`Storage`
@@ -307,17 +310,17 @@ class AtpRemoteBlob(ndb.Model):
         blob.put()
         return blob
 
-    def as_ref(self):
-        """Returns an ATProto `ref` object for this blob.
+    def as_object(self):
+        """Returns an ATProto ``blob`` object for this blob.
 
         https://atproto.com/specs/data-model#blob-type
 
         Returns:
-          dict: ATProto `ref`
+          dict:
         """
         return {
             '$type': 'blob',
-            'ref': self.cid,
+            'ref': CID.decode(self.cid),
             'mimeType': self.mime_type,
             'size': self.size,
         }
