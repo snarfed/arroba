@@ -33,7 +33,8 @@ jobs:
             pip -V
             # TODO: remove six
             # https://github.com/googleapis/python-ndb/issues/913
-            pip install -U .[datastore,flask,tests] six 'typing-extensions<4.6.0' 'git+https://github.com/snarfed/carbox.git#egg=carbox' 'git+https://github.com/snarfed/lexrpc.git#egg=lexrpc'
+            pip uninstall carbox lexrpc
+            pip install -U .[datastore,flask] six 'typing-extensions<4.6.0' 'git+https://github.com/snarfed/carbox.git#egg=carbox' 'git+https://github.com/snarfed/lexrpc.git#egg=lexrpc'
             pip install coverage coveralls flake8
 
       - run:
