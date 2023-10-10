@@ -205,3 +205,12 @@ class DidTest(TestCase):
         self.assertIsNone(did.resolve_handle('foo.com', get_fn=self.mock_get))
         mock_resolve.assert_called_once_with('_atproto.foo.com.', TXT)
         self.mock_get.assert_called_with('https://foo.com/.well-known/atproto-did')
+
+    @patch('dns.resolver.resolve', side_effect=dns.resolver.NXDOMAIN())
+    def test_resolve_handle_request_exception(self, mock_resolve):
+        self.mock_get.side_effect = requests.exceptions.InvalidURL('foo')
+
+        self.assertIsNone(did.resolve_handle('.foo.com', get_fn=self.mock_get))
+
+        mock_resolve.assert_called_once_with('_atproto..foo.com.', TXT)
+        self.mock_get.assert_called_with('https://.foo.com/.well-known/atproto-did')

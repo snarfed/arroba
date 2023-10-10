@@ -342,7 +342,12 @@ def resolve_handle(handle, get_fn=requests.get):
         logger.info(repr(e))
 
     # HTTPS well-known method
-    resp = get_fn(f'https://{handle}/.well-known/atproto-did')
+    try:
+        resp = get_fn(f'https://{handle}/.well-known/atproto-did')
+    except requests.RequestException as e:
+        logger.info(f'HTTPS handle resolution failed: {e}')
+        return None
+
     if resp.ok and resp.headers.get('Content-Type', '').split(';')[0] == 'text/plain':
         return resp.text.strip()
 

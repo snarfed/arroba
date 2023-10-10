@@ -103,6 +103,7 @@ Optional, only used in the [com.atproto.server XRPC handlers](https://arroba.rea
   * Bug fix for `DatastoreStorage.last_seq`, handle new NSID.
   * Add new `AtpRemoteBlob` class for storing "remote" blobs, available at public HTTP URLs, that we don't store ourselves.
 * `did`:
+  * `resolve_handle`: return None on bad domain, eg `.foo.com`.
   * `resolve_handle` bug fix: handle `charset` specifier in HTTPS method response `Content-Type`.
 * `util`:
   * `new_key`: add `seed` kwarg to allow deterministic key generation.
