@@ -4,6 +4,7 @@ import json
 import logging
 import os
 from pathlib import Path
+from threading import Timer
 from urllib.parse import urljoin
 
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
@@ -182,14 +183,14 @@ BGS_HEADERS = {
       'Authorization': f'Bearer {BGS_JWT}',
 }
 
-# # requestCrawl in prod
-# # not working because the BGS immediately tries to connect and errors if it can't,
-# # and evidently we're not quite serving subscribeRepos here yet. not sure why not.
-# if is_prod:
-#     url = f'https://{os.environ["BGS_HOST"]}/xrpc/com.atproto.sync.requestCrawl'
-#     logger.info(f'Fetching {url}')
-#     resp = requests.get(url, params={'hostname': os.environ['PDS_HOST']},
-#                         headers=BGS_HEADERS)
-#     logger.info(resp.content)
-#     resp.raise_for_status()
-#     logger.info('OK')
+# send requestCrawl to BGS
+# delay because we're not up and serving XRPCs at this point yet. not sure why not.
+if is_prod:
+    def request_crawl():
+        bgs = lexrpc.client.Client(f'https://{os.environ["BGS_HOST"]}',
+                                   headers={'User-Agent': util.USER_AGENT})
+        resp = bgs.com.atproto.sync.requestCrawl({'hostname': os.environ['PDS_HOST']})
+        logger.info(resp)
+
+    Timer(15, request_crawl).start()
+    logger.info('Will send BGS requestCrawl in 15s')
