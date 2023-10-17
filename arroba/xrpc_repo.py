@@ -143,5 +143,5 @@ def apply_writes(input):
 def upload_blob(input):
     """Handler for ``com.atproto.repo.uploadBlob`` XRPC method."""
     # input: binary
-    validate(input)
+    validate({})
     return 'Not implemented yet', 501
