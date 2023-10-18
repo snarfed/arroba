@@ -78,6 +78,7 @@ APPVIEW_JWT = util.service_jwt(host=os.environ['APPVIEW_HOST'],
                                repo_did=os.environ['REPO_DID'],
                                privkey=privkey,
                                expiration=timedelta(days=999))
+os.environ['APPVIEW_JWT'] = APPVIEW_JWT
 APPVIEW_HEADERS = {
       'User-Agent': util.USER_AGENT,
       'Authorization': f'Bearer {APPVIEW_JWT}',
@@ -100,13 +101,14 @@ def put_preferences():
 
 # proxy all other app.bsky.* XRPCs to sandbox AppView
 # https://atproto.com/blog/federation-developer-sandbox#bluesky-app-view
+@app.route(f'/xrpc/com.atproto.identity.resolveHandle', methods=['OPTIONS'])
 @app.route(f'/xrpc/app.bsky.<nsid_rest>', methods=['OPTIONS'])
 def cors_preflight(nsid_rest=None):
     return '', lexrpc.flask_server.RESPONSE_HEADERS
 
 # TODO: move inside arroba somewhere. maybe server.py? it's Flask-specific :/
 # same with above, maybe below
-@app.route(f'/xrpc/com.atproto.identity.resolveHandle', methods=['GET', 'POST'])
+@app.route(f'/xrpc/com.atproto.identity.resolveHandle', methods=['GET'])
 @app.route(f'/xrpc/app.bsky.<nsid_rest>', methods=['GET', 'POST'])
 def proxy_appview(nsid_rest=None):
     url = urljoin('https://' + os.environ['APPVIEW_HOST'], request.full_path)

@@ -1,10 +1,13 @@
 """``com.atproto.repo.*`` XRPC methods."""
 import logging
+import os
+
+from lexrpc import Client
 
 from .repo import Repo, Write
 from .storage import Action
 from . import server
-from .util import at_uri, dag_cbor_cid, next_tid
+from .util import at_uri, dag_cbor_cid, next_tid, USER_AGENT
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +46,17 @@ def get_record(input, repo=None, collection=None, rkey=None, cid=None):
 
     record = repo.get_record(collection, rkey)
     if record is None:
+        # fall back to AppView if available
+        av_host = os.environ.get('APPVIEW_HOST')
+        if av_host:
+            logger.info(f'Falling back to AppView at {av_host}')
+            headers = {'User-Agent': USER_AGENT}
+            jwt = os.environ.get('APPVIEW_JWT')
+            if jwt:
+                headers['Authorization'] = f'Bearer {jwt}'
+            appview = Client(f'https://{av_host}', headers=headers)
+            return appview.com.atproto.repo.getRecord(
+                {}, repo=input['repo'], collection=collection, rkey=rkey)
         raise ValueError(f'{collection} {rkey} not found')
 
     return {

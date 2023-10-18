@@ -105,6 +105,8 @@ class TestCase(unittest.TestCase):
         os.environ.setdefault('PLC_HOST', 'plc.bsky-sandbox.dev')
         os.environ.setdefault('REPO_PASSWORD', 'sooper-sekret')
         os.environ.setdefault('REPO_TOKEN', 'towkin')
+        os.environ.pop('APPVIEW_HOST', None)
+        os.environ.pop('APPVIEW_JWT', None)
 
     @staticmethod
     def random_keys_and_cids(num):

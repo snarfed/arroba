@@ -3,10 +3,12 @@
 TODO:
 
 * paging, cursors
-* blobs
 """
 from flask import request
 import itertools
+import os
+from urllib.parse import urlencode
+from unittest.mock import patch
 
 from arroba import xrpc_repo
 
@@ -73,13 +75,52 @@ class XrpcRepoTest(testutil.XrpcTestCase):
             },
         }, resp)
 
-    def test_get_record_not_found(self):
+    def test_get_record_not_found_no_app_view_env_var(self):
         with self.assertRaises(ValueError):
             xrpc_repo.get_record({},
                 repo='at://did:web:user.com',
                 collection='app.bsky.feed.post',
                 rkey='99999',
             )
+
+    @patch('requests.get')
+    def test_get_record_not_found_fall_back_to_app_view(self, mock_get):
+        resp = {
+            'uri': 'at://did:web:user.com/app.bsky.feed.post/99999',
+            'cid': '¯\_(ツ)_/¯',
+            'value': {'foo': 'bar'},
+        }
+        mock_get.return_value = testutil.requests_response(resp)
+
+        params = {
+            'repo': 'at://did:web:user.com',
+            'collection': 'app.bsky.feed.post',
+            'rkey': '99999',
+        }
+        os.environ.update({
+            'APPVIEW_HOST': 'app.vue',
+            'APPVIEW_JWT': 'jay-dublyew-tee',
+        })
+        self.assertEqual(resp, xrpc_repo.get_record({}, **params))
+
+        mock_get.assert_called_once_with(
+            'https://app.vue/xrpc/com.atproto.repo.getRecord?' + urlencode(params),
+            headers={
+                'User-Agent': util.USER_AGENT,
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer jay-dublyew-tee',
+            }, json=None)
+
+    # TODO: what does getRecord return not found? uri and value in output are
+    # required, and it doesn't declare any errors
+    # @patch('requests.get')
+    # def test_get_record_not_found_locally_or_app_view(self):
+    #     with self.assertRaises(ValueError):
+    #         xrpc_repo.get_record({},
+    #             repo='at://did:web:user.com',
+    #             collection='app.bsky.feed.post',
+    #             rkey='99999',
+    #         )
 
     def test_delete_record(self):
         self.test_create_record()
@@ -133,51 +174,6 @@ class XrpcRepoTest(testutil.XrpcTestCase):
 
         with self.assertRaises(ValueError):
             xrpc_repo.put_record(input)
-
-    # def test_attaches_images_to_a_post(self):
-    #     file = fs.readFile('tests/image/fixtures/key-landscape-small.jpg')
-    #     uploadedRes = xrpc_repo.upload_blob(file, {
-    #         'encoding': 'image/jpeg',
-    #     })
-    #     uploaded = uploadedRes.blob
-
-    #     # Expect blobstore not to have image yet
-    #     #
-    #     # BlobNotFoundError
-    #     with self.assertRaises(ValueError):
-    #         ctx.blobstore.getBytes(uploaded.ref)
-
-    #     # Associate image with post, image should be placed in blobstore
-    #     res = aliceAgent.api.app.bsky.feed.post.create(
-    #         { 'repo': 'at://did:web:user.com' },
-    #         {
-    #             '$type': 'app.bsky.feed.post',
-    #             'text': "Here's a key!",
-    #             'createdAt': testutil.NOW.isoformat(),
-    #             'embed': {
-    #                 '$type': 'app.bsky.embed.images',
-    #                 'images': [{ 'image': uploaded, 'alt': '' }],
-    #             },
-    #         },
-    #     )
-
-    #     # Ensure image is on post record
-    #     post = aliceAgent.api.app.bsky.feed.post.get({
-    #         'rkey': res.uri.rkey,
-    #         'repo': 'at://did:web:user.com',
-    #     })
-    #     images = post.value.embed.images
-    #     self.assertEqual(1, images.length)
-    #     self.assertTrue(uploaded.ref.equals(images[0].image.ref))
-
-    #     # Ensure that the uploaded image is now in the blobstore, i.e. doesn't
-    #     # throw BlobNotFoundError
-    #     ctx.blobstore.getBytes(uploaded.ref)
-    #     # Cleanup
-    #     aliceAgent.api.app.bsky.feed.post.delete({
-    #         'rkey': res.uri.rkey,
-    #         'repo': 'at://did:web:user.com',
-    #     })
 
     def test_put_new_record(self):
         resp = xrpc_repo.put_record({
