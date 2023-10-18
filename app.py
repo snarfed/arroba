@@ -192,5 +192,5 @@ if is_prod:
         resp = bgs.com.atproto.sync.requestCrawl({'hostname': os.environ['PDS_HOST']})
         logger.info(resp)
 
-    Timer(15, request_crawl).start()
-    logger.info('Will send BGS requestCrawl in 15s')
+    Timer(5 * 60, request_crawl).start()
+    logger.info('Will send BGS requestCrawl in 5m')
