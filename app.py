@@ -55,10 +55,8 @@ if is_prod:
     logging_client.setup_logging(log_level=logging.DEBUG)
 else:
     logger.info('Running locally')
-    creds = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
-    assert not creds or creds.endswith('fake_user_account.json')
-    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = \
-        os.path.join(os.path.dirname(__file__), 'fake_user_account.json')
+    # os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = \
+    #     os.path.join(os.path.dirname(__file__), 'fake_user_account.json')
     os.environ.setdefault('CLOUDSDK_CORE_PROJECT', 'app')
     os.environ.setdefault('DATASTORE_DATASET', 'app')
     os.environ.setdefault('GOOGLE_CLOUD_PROJECT', 'app')
