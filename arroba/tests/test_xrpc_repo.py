@@ -11,6 +11,7 @@ from urllib.parse import urlencode
 from unittest.mock import patch
 
 from arroba import xrpc_repo
+from werkzeug.exceptions import HTTPException
 
 from ..datastore_storage import DatastoreStorage
 from .. import util
@@ -121,6 +122,24 @@ class XrpcRepoTest(testutil.XrpcTestCase):
     #             collection='app.bsky.feed.post',
     #             rkey='99999',
     #         )
+
+    @patch('requests.get')
+    def test_get_record_not_found_locally_or_app_view(self, mock_get):
+        mock_get.return_value = testutil.requests_response({'my': 'err'}, status=400)
+
+        os.environ.update({
+            'APPVIEW_HOST': 'app.vue',
+            'APPVIEW_JWT': 'jay-dublyew-tee',
+        })
+        with self.assertRaises(HTTPException) as e:
+            xrpc_repo.get_record({},
+                repo='at://did:web:user.com',
+                collection='app.bsky.feed.post',
+                rkey='99999')
+
+        resp = e.exception.get_response()
+        self.assertEqual(400, resp.status_code)
+        self.assertEqual({'my': 'err'}, resp.json)
 
     def test_delete_record(self):
         self.test_create_record()

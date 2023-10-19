@@ -2,7 +2,9 @@
 import logging
 import os
 
+from flask import abort, make_response
 from lexrpc import Client
+from requests import HTTPError
 
 from .repo import Repo, Write
 from .storage import Action
@@ -45,25 +47,31 @@ def get_record(input, repo=None, collection=None, rkey=None, cid=None):
     repo = server.load_repo(input['repo'])
 
     record = repo.get_record(collection, rkey)
-    if record is None:
-        # fall back to AppView if available
-        av_host = os.environ.get('APPVIEW_HOST')
-        if av_host:
-            logger.info(f'Falling back to AppView at {av_host}')
-            headers = {'User-Agent': USER_AGENT}
-            jwt = os.environ.get('APPVIEW_JWT')
-            if jwt:
-                headers['Authorization'] = f'Bearer {jwt}'
-            appview = Client(f'https://{av_host}', headers=headers)
-            return appview.com.atproto.repo.getRecord(
-                {}, repo=input['repo'], collection=collection, rkey=rkey)
+    if record is not None:
+        return {
+            'uri': at_uri(repo.did, collection, rkey),
+            'cid': dag_cbor_cid(record).encode('base32'),
+            'value': record,
+        }
+
+    # fall back to AppView if available
+    av_host = os.environ.get('APPVIEW_HOST')
+    jwt = os.environ.get('APPVIEW_JWT')
+    if not av_host or not jwt:
         raise ValueError(f'{collection} {rkey} not found')
 
-    return {
-        'uri': at_uri(repo.did, collection, rkey),
-        'cid': dag_cbor_cid(record).encode('base32'),
-        'value': record,
-    }
+    logger.info(f'Falling back to AppView at {av_host}')
+    appview = Client(f'https://{av_host}', access_token=jwt,
+                     headers={'User-Agent': USER_AGENT})
+
+    try:
+        return appview.com.atproto.repo.getRecord(
+            {}, repo=input['repo'], collection=collection, rkey=rkey)
+    except HTTPError as e:
+        body = e.response.json()
+        logger.info(f'Returning AppView error to client: {e} {body}')
+        status = e.response.status_code
+        abort(status, response=make_response(body, status))
 
 
 @server.server.method('com.atproto.repo.deleteRecord')
