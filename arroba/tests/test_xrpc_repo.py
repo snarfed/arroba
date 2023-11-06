@@ -87,14 +87,14 @@ class XrpcRepoTest(testutil.XrpcTestCase):
     @patch('requests.get')
     def test_get_record_not_found_fall_back_to_app_view(self, mock_get):
         resp = {
-            'uri': 'at://did:web:user.com/app.bsky.feed.post/99999',
+            'uri': 'at://did:web:other/app.bsky.feed.post/99999',
             'cid': '¯\_(ツ)_/¯',
             'value': {'foo': 'bar'},
         }
         mock_get.return_value = testutil.requests_response(resp)
 
         params = {
-            'repo': 'at://did:web:user.com',
+            'repo': 'at://did:web:other',
             'collection': 'app.bsky.feed.post',
             'rkey': '99999',
         }

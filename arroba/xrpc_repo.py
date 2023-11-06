@@ -44,15 +44,18 @@ def get_record(input, repo=None, collection=None, rkey=None, cid=None):
     if cid:
         raise ValueError(f'cid not supported yet')
 
-    repo = server.load_repo(input['repo'])
-
-    record = repo.get_record(collection, rkey)
-    if record is not None:
-        return {
-            'uri': at_uri(repo.did, collection, rkey),
-            'cid': dag_cbor_cid(record).encode('base32'),
-            'value': record,
-        }
+    try:
+        repo = server.load_repo(input['repo'])
+        record = repo.get_record(collection, rkey)
+        if record is not None:
+            return {
+                'uri': at_uri(repo.did, collection, rkey),
+                'cid': dag_cbor_cid(record).encode('base32'),
+                'value': record,
+            }
+    except ValueError as e:
+        logger.info(e)
+        pass
 
     # fall back to AppView if available
     av_host = os.environ.get('APPVIEW_HOST')
