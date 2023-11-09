@@ -9,7 +9,7 @@ Install [from PyPI](https://pypi.org/project/arroba/) with `pip install arroba`.
 
 _Arroba_ is the Spanish word for the [@ character](https://en.wikipedia.org/wiki/At_sign) ("at sign").
 
-License: This project is placed into the public domain.
+License: This project is placed in the public domain. You may also use it under the [CC0 License](https://creativecommons.org/publicdomain/zero/1.0/).
 
 * [Usage](#usage)
 * [Overview](#overview)
