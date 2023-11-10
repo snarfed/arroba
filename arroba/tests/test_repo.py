@@ -43,7 +43,7 @@ class RepoTest(TestCase):
         if write.record:
             record_cid = dag_cbor_cid(write.record)
             self.assertEqual([{
-                'k': f'co.ll/{util.int_to_tid(util._tid_last)}'.encode(),
+                'k': f'co.ll/{util.int_to_tid(util._tid_ts_last)}'.encode(),
                 'p': 0,
                 't': None,
                 'v': record_cid,

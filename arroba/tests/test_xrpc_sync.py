@@ -473,7 +473,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             record_cid = dag_cbor_cid(record)
             mst_entry = {
                 'e': [{
-                    'k': f'co.ll/{int_to_tid(util._tid_last)}'.encode(),
+                    'k': f'co.ll/{int_to_tid(util._tid_ts_last)}'.encode(),
                     'v': record_cid,
                     'p': 0,
                     't': None,

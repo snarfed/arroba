@@ -21,7 +21,7 @@ from . import testutil
 class XrpcRepoTest(testutil.XrpcTestCase):
 
     def last_at_uri(self):
-        tid = util.int_to_tid(util._tid_last)
+        tid = util.int_to_tid(util._tid_ts_last)
         return f'at://did:web:user.com/app.bsky.feed.post/{tid}'
 
     def test_describe_repo(self):
@@ -65,7 +65,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         resp = xrpc_repo.get_record({},
             repo='at://did:web:user.com',
             collection='app.bsky.feed.post',
-            rkey=util.int_to_tid(util._tid_last),
+            rkey=util.int_to_tid(util._tid_ts_last),
         )
         self.assertEqual({
             'cid': 'bafyreibwxoxuto2bj2lsspzs6dl4kw6cyu3goswuxi5qbhpc2xlqvnnjg4',
@@ -148,14 +148,14 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         xrpc_repo.delete_record({
             'repo': 'at://did:web:user.com',
             'collection': 'app.bsky.feed.post',
-            'rkey': util.int_to_tid(util._tid_last),
+            'rkey': util.int_to_tid(util._tid_ts_last),
         })
 
         with self.assertRaises(ValueError):
             xrpc_repo.get_record({},
                 repo='at://did:web:user.com',
                 collection='app.bsky.feed.post',
-                rkey=util.int_to_tid(util._tid_last),
+                rkey=util.int_to_tid(util._tid_ts_last),
             )
 
         resp = xrpc_repo.list_records({},

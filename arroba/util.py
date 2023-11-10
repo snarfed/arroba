@@ -30,7 +30,7 @@ DOMAIN_RE = re.compile(r'^[^/:;@?!\']+\.[^/:@_?!\']+$')
 # the bottom 32 clock ids can be randomized & are not guaranteed to be collision
 # resistant. we use the same clockid for all TIDs coming from this runtime.
 _clockid = random.randint(0, 31)
-_tid_last = 0  # microseconds
+_tid_ts_last = 0  # microseconds
 
 S32_CHARS = '234567abcdefghijklmnopqrstuvwxyz'
 
@@ -194,12 +194,12 @@ def next_tid():
     Returns:
       str: TID
     """
-    global _tid_last
+    global _tid_ts_last
 
     # enforce that we're at least 1us after the last TID to prevent TIDs moving
     # backwards if system clock drifts backwards
-    _tid_last = max(time_ns(), _tid_last + 1)
-    return int_to_tid(_tid_last)
+    _tid_ts_last = max(time_ns(), _tid_ts_last + 1)
+    return int_to_tid(_tid_ts_last)
 
 
 def at_uri(did, collection, rkey):
