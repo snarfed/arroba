@@ -122,7 +122,7 @@ def subscribe_repos(cursor=None):
             'blocks': car.write_car([commit_data.commit.cid], car_blocks),
             'time': util.now().isoformat(),
             'seq': commit_data.commit.seq,
-            'rev': util.int_to_tid(commit_data.commit.seq),
+            'rev': util.int_to_tid(commit_data.commit.seq, clock_id=0),
             'since': None,  # TODO: load commit_data.commit['prev']'s CID
             'rebase': False,
             'tooBig': False,

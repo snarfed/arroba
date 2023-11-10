@@ -461,7 +461,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             } for op in writes_to_commit_ops([write] if write else [])],
             'time': testutil.NOW.isoformat(),
             'seq': seq,
-            'rev': int_to_tid(seq),
+            'rev': int_to_tid(seq, clock_id=0),
             # TODO
             'since': None,
             'rebase': False,
@@ -473,7 +473,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             record_cid = dag_cbor_cid(record)
             mst_entry = {
                 'e': [{
-                    'k': f'co.ll/{util._tid_last}'.encode(),
+                    'k': f'co.ll/{int_to_tid(util._tid_last)}'.encode(),
                     'v': record_cid,
                     'p': 0,
                     't': None,

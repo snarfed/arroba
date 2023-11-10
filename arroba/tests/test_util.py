@@ -61,9 +61,8 @@ class UtilTest(TestCase):
                                     self.key.public_key()))
 
     def test_next_tid(self):
-        first = next_tid()
-        second = next_tid()
-        self.assertGreater(second, first)
+        self.assertEqual('3iom4o4g6u2l2', next_tid())
+        self.assertEqual('3iom4o4g6u3l2', next_tid())
 
     def test_at_uri(self):
         with self.assertRaises(AssertionError):

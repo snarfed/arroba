@@ -99,6 +99,7 @@ Optional, only used in the [com.atproto.server XRPC handlers](https://arroba.rea
 
 ### 0.5 - unreleased
 
+* Bug fix: base32-encode TIDs in record keys, `at://` URIs, commit `rev`s, etc. Before, we were using the integer UNIX timestamp directly, which happened to be the same 13 character length. Oops.
 * `datastore_storage`:
   * Bug fix for `DatastoreStorage.last_seq`, handle new NSID.
   * Add new `AtpRemoteBlob` class for storing "remote" blobs, available at public HTTP URLs, that we don't store ourselves.

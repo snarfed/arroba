@@ -91,6 +91,7 @@ class TestCase(unittest.TestCase):
 
         util.now = lambda **kwargs: NOW
         util.time_ns = lambda: int(NOW.timestamp() * 1000 * 1000)
+        util._tid_last = 0
 
         # make random test data deterministic
         util._clockid = 17

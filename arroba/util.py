@@ -183,10 +183,12 @@ def tid_to_int(tid):
 def next_tid():
     """Returns the TID corresponding to the current time.
 
-    A TID is UNIX timestamp (ie time since the epoch) in microseconds.
-    Returned tids are guaranteed to monotonically increase across calls.
+    A TID is a base32-sortable-encoded UNIX timestamp (ie time since the epoch)
+    in microseconds. Returned tids are guaranteed to monotonically increase
+    across calls.
 
     https://atproto.com/specs/atp#timestamp-ids-tid
+    https://atproto.com/specs/record-key#record-key-type-tid
     https://github.com/bluesky-social/atproto/blob/main/packages/common-web/src/tid.ts
 
     Returns:
@@ -196,8 +198,8 @@ def next_tid():
 
     # enforce that we're at least 1us after the last TID to prevent TIDs moving
     # backwards if system clock drifts backwards
-    _tid_last = max(time_ns() // 1000, _tid_last + 1)
-    return str(_tid_last)
+    _tid_last = max(time_ns(), _tid_last + 1)
+    return int_to_tid(_tid_last)
 
 
 def at_uri(did, collection, rkey):
