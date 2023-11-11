@@ -198,7 +198,7 @@ def next_tid():
 
     # enforce that we're at least 1us after the last TID to prevent TIDs moving
     # backwards if system clock drifts backwards
-    _tid_ts_last = max(time_ns(), _tid_ts_last + 1)
+    _tid_ts_last = max(time_ns() // 1000, _tid_ts_last + 1)
     return int_to_tid(_tid_ts_last)
 
 
