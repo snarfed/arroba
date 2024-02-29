@@ -165,7 +165,7 @@ def create_plc(handle, signing_key=None, rotation_key=None, pds_url=None,
         'prev': None,
     }
     create = util.sign(create, rotation_key)
-    create['sig'] = base64.urlsafe_b64encode(create['sig']).decode()
+    create['sig'] = base64.urlsafe_b64encode(create['sig']).decode().rstrip('=')
     sha256 = Hash(SHA256())
     sha256.update(dag_cbor.encode(create))
     hash = sha256.finalize()

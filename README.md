@@ -104,6 +104,7 @@ Optional, only used in the [com.atproto.server XRPC handlers](https://arroba.rea
   * Bug fix for `DatastoreStorage.last_seq`, handle new NSID.
   * Add new `AtpRemoteBlob` class for storing "remote" blobs, available at public HTTP URLs, that we don't store ourselves.
 * `did`:
+  * `create_plc`: strip padding from genesis operation signature (for [did-method-plc#54](https://github.com/did-method-plc/did-method-plc/pull/54), [atproto#1839](https://github.com/bluesky-social/atproto/pull/1839)).
   * `resolve_handle`: return None on bad domain, eg `.foo.com`.
   * `resolve_handle` bug fix: handle `charset` specifier in HTTPS method response `Content-Type`.
 * `util`:

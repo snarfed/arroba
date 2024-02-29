@@ -74,7 +74,8 @@ class DidTest(TestCase):
 
         genesis_op = mock_post.call_args.kwargs['json']
         self.assertEqual(did_plc.did, genesis_op.pop('did'))
-        genesis_op['sig'] = base64.urlsafe_b64decode(genesis_op['sig'])
+        genesis_op['sig'] = base64.urlsafe_b64decode(
+            genesis_op['sig'] + '=' * (4 - len(genesis_op['sig']) % 4))  # padding
         assert util.verify_sig(genesis_op, did_plc.rotation_key.public_key())
         del genesis_op['sig']
 
@@ -182,7 +183,7 @@ class DidTest(TestCase):
         mock_resolve.return_value = dns_answer('foo.com.', 'nope')
 
         self.mock_get.return_value = requests_response('did:plc:123abc')
-        self.mock_get.return_value.headers['Content-Type'] ='text/plain; charset=utf-8'
+        self.mock_get.return_value.headers['Content-Type'] = 'text/plain; charset=utf-8'
 
         self.assertEqual('did:plc:123abc',
                          did.resolve_handle('foo.com', get_fn=self.mock_get))
