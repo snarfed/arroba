@@ -195,6 +195,22 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         with self.assertRaises(ValueError):
             xrpc_repo.put_record(input)
 
+    def test_authed_writes_without_repo_token_return_not_implemented(self):
+        del os.environ['REPO_TOKEN']
+
+        input = {
+            'repo': 'at://did:web:user.com',
+        }
+
+        with self.assertRaises(NotImplementedError):
+            xrpc_repo.create_record(input)
+
+        with self.assertRaises(NotImplementedError):
+            xrpc_repo.delete_record(input)
+
+        with self.assertRaises(NotImplementedError):
+            xrpc_repo.put_record(input)
+
     def test_put_new_record(self):
         resp = xrpc_repo.put_record({
             'repo': 'at://did:web:user.com',

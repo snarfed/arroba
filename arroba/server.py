@@ -15,7 +15,12 @@ storage = None
 
 
 def auth():
-    if request.headers.get('Authorization') != f'Bearer {os.environ["REPO_TOKEN"]}':
+    token = os.environ.get('REPO_TOKEN')
+    if not token:
+      raise NotImplementedError(
+          'Authenticated XRPC methods are not currently supported')
+
+    if request.headers.get('Authorization') != f'Bearer {token}':
         raise ValueError('Invalid bearer token in Authorization header')
 
 

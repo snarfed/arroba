@@ -83,9 +83,9 @@ Configure arroba with these environment variables:
 * `PLC_HOST`, default `plc.bsky-sandbox.dev`
 * `PDS_HOST`, where you're running your PDS
 
-Optional, only used in the [com.atproto.server XRPC handlers](https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_server):
+Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_repo) and [com.atproto.server](https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_server) XRPC handlers:
 
-* `REPO_TOKEN`, static token to use as both `accessJwt` and `refreshJwt`, defaults to contents of `repo_token` file. Not required to be an actual JWT.
+* `REPO_TOKEN`, static token to use as both `accessJwt` and `refreshJwt`, defaults to contents of `repo_token` file. Not required to be an actual JWT. If not set, XRPC methods that require auth will return HTTP 501 Not Implemented.
 
 <!-- Only used in app.py:
 * `REPO_DID`, repo user's DID, defaults to contents of `repo_did` file
