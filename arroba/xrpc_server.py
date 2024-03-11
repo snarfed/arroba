@@ -55,7 +55,12 @@ def refresh_session(input, did=None, commit=None):
 @server.server.method('com.atproto.server.describeServer')
 def describe_server(input):
     """Handler for ``com.atproto.server.describeServer`` XRPC method."""
-    return {'availableUserDomains': []}
+    return {
+        'availableUserDomains': [],
+        # what is this for?! bsky.social sets it to did:web:bsky.social
+        # https://github.com/bluesky-social/atproto/pull/2170#pullrequestreview-1889553896
+        'did': f'did:web:{os.environ["PDS_HOST"]}',
+    }
 
 
 @server.server.method('com.atproto.server.getAccountInviteCodes')
