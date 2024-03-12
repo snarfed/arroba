@@ -346,7 +346,7 @@ def verify_sig(obj, public_key):
 
 
 def service_jwt(host, repo_did, privkey, expiration=timedelta(minutes=10)):
-    """Generates an inter-service JWT, eg for a BGS or AppView.
+    """Generates an inter-service JWT, eg for a relay or AppView.
 
     https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification
 

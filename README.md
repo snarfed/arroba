@@ -3,7 +3,7 @@ arroba [![Circle CI](https://circleci.com/gh/snarfed/arroba.svg?style=svg)](http
 
 Python implementation of [Bluesky](https://blueskyweb.xyz/) [PDS](https://atproto.com/guides/data-repos) and [AT Protocol](https://atproto.com/specs/atp), including data repository, Merkle search tree, and [com.atproto.sync XRPC methods](https://atproto.com/lexicons/com-atproto-sync).
 
-You can build your own PDS on top of arroba with just a few lines of Python and run it in any WSGI server. You can build a more involved PDS with custom logic and behavior. Or you can build a different ATProto service, eg an [AppView, BGS](https://blueskyweb.xyz/blog/5-5-2023-federation-architecture), or something entirely new!
+You can build your own PDS on top of arroba with just a few lines of Python and run it in any WSGI server. You can build a more involved PDS with custom logic and behavior. Or you can build a different ATProto service, eg an [AppView, relay (née BGS)](https://blueskyweb.xyz/blog/5-5-2023-federation-architecture), or something entirely new!
 
 Install [from PyPI](https://pypi.org/project/arroba/) with `pip install arroba`.
 
@@ -79,7 +79,7 @@ Arroba consists of these parts:
 Configure arroba with these environment variables:
 
 * `APPVIEW_HOST`, default `api.bsky-sandbox.dev`
-* `BGS_HOST`, default `bgs.bsky-sandbox.dev`
+* `RELAY_HOST`, default `bgs.bsky-sandbox.dev`
 * `PLC_HOST`, default `plc.bsky-sandbox.dev`
 * `PDS_HOST`, where you're running your PDS
 
@@ -100,6 +100,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 ### 0.5 - unreleased
 
 * Bug fix: base32-encode TIDs in record keys, `at://` URIs, commit `rev`s, etc. Before, we were using the integer UNIX timestamp directly, which happened to be the same 13 character length. Oops.
+* Switch from `BGS_HOST` environment variable to `RELAY_HOST`. `BGS_HOST` is still supported for backward compatibility.
 * `datastore_storage`:
   * Bug fix for `DatastoreStorage.last_seq`, handle new NSID.
   * Add new `AtpRemoteBlob` class for storing "remote" blobs, available at public HTTP URLs, that we don't store ourselves.

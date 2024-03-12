@@ -424,7 +424,7 @@ class DatastoreStorage(Storage):
 
         repo = AtpRepo.get_by_id(commit['did'])
         if repo:
-            logger.info(f'Updating repo {repo}')
+            logger.info(f'Updating {repo.key}')
             repo.head = head_encoded
             repo.put()
 

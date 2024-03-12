@@ -10,8 +10,8 @@ methods <https://atproto.com/lexicons/com-atproto-sync>`__.
 You can build your own PDS on top of arroba with just a few lines of
 Python and run it in any WSGI server. You can build a more involved PDS
 with custom logic and behavior. Or you can build a different ATProto
-service, eg an `AppView,
-BGS <https://blueskyweb.xyz/blog/5-5-2023-federation-architecture>`__,
+service, eg an `AppView, relay (née
+BGS) <https://blueskyweb.xyz/blog/5-5-2023-federation-architecture>`__,
 or something entirely new!
 
 Install `from PyPI <https://pypi.org/project/arroba/>`__ with
@@ -20,7 +20,9 @@ Install `from PyPI <https://pypi.org/project/arroba/>`__ with
 *Arroba* is the Spanish word for the `@
 character <https://en.wikipedia.org/wiki/At_sign>`__ (“at sign”).
 
-License: This project is placed into the public domain.
+License: This project is placed in the public domain. You may also use
+it under the `CC0
+License <https://creativecommons.org/publicdomain/zero/1.0/>`__.
 
 -  `Usage <#usage>`__
 -  `Overview <#overview>`__
@@ -120,16 +122,20 @@ Configuration
 Configure arroba with these environment variables:
 
 -  ``APPVIEW_HOST``, default ``api.bsky-sandbox.dev``
--  ``BGS_HOST``, default ``bgs.bsky-sandbox.dev``
+-  ``RELAY_HOST``, default ``bgs.bsky-sandbox.dev``
 -  ``PLC_HOST``, default ``plc.bsky-sandbox.dev``
 -  ``PDS_HOST``, where you’re running your PDS
 
-Optional, only used in the `com.atproto.server XRPC
-handlers <https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_server>`__:
+Optional, only used in
+`com.atproto.repo <https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_repo>`__
+and
+`com.atproto.server <https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_server>`__
+XRPC handlers:
 
 -  ``REPO_TOKEN``, static token to use as both ``accessJwt`` and
    ``refreshJwt``, defaults to contents of ``repo_token`` file. Not
-   required to be an actual JWT.
+   required to be an actual JWT. If not set, XRPC methods that require
+   auth will return HTTP 501 Not Implemented.
 
 .. raw:: html
 
@@ -146,8 +152,22 @@ Changelog
 0.5 - unreleased
 ~~~~~~~~~~~~~~~~
 
+-  Bug fix: base32-encode TIDs in record keys, ``at://`` URIs, commit
+   ``rev``\ s, etc. Before, we were using the integer UNIX timestamp
+   directly, which happened to be the same 13 character length. Oops.
+-  ``datastore_storage``:
+
+   -  Bug fix for ``DatastoreStorage.last_seq``, handle new NSID.
+   -  Add new ``AtpRemoteBlob`` class for storing “remote” blobs,
+      available at public HTTP URLs, that we don’t store ourselves.
+
 -  ``did``:
 
+   -  ``create_plc``: strip padding from genesis operation signature
+      (for
+      `did-method-plc#54 <https://github.com/did-method-plc/did-method-plc/pull/54>`__,
+      `atproto#1839 <https://github.com/bluesky-social/atproto/pull/1839>`__).
+   -  ``resolve_handle``: return None on bad domain, eg ``.foo.com``.
    -  ``resolve_handle`` bug fix: handle ``charset`` specifier in HTTPS
       method response ``Content-Type``.
 
@@ -155,6 +175,16 @@ Changelog
 
    -  ``new_key``: add ``seed`` kwarg to allow deterministic key
       generation.
+
+-  ``xrpc_repo``:
+
+   -  ``getRecord``: try to load record locally first; if not available,
+      forward to AppView.
+
+-  ``xrpc_sync``:
+
+   -  Implement ``getBlob``, right now only based on “remote” blobs
+      stored in ``AtpRemoteBlob``\ s in datastore storage.
 
 0.4 - 2023-09-19
 ~~~~~~~~~~~~~~~~

@@ -1,13 +1,14 @@
-private_notes
+bgs.json
+did:plc:*
 pds_host
+private_notes
+privkey.pem
+relay.json
 repo_did
 repo_handle
 repo_password
 repo_token
-did:plc:*
-privkey.pem
 service_account_creds.json
-bgs.json
 *.log
 
 # Byte-compiled / optimized / DLL files

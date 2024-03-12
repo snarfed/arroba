@@ -84,13 +84,13 @@ class UtilTest(TestCase):
             self.assertEqual(expected, parse_at_uri(uri))
 
     def test_service_jwt(self):
-        token = service_jwt('bgs.local', 'did:web:user.com', self.key)
+        token = service_jwt('relay.local', 'did:web:user.com', self.key)
         decoded = jwt.decode(token, self.key, algorithms=['ES256K'],
-                             audience='did:web:bgs.local',
+                             audience='did:web:relay.local',
                              leeway=timedelta(weeks=9999))
         self.assertEqual({
             'alg': 'ES256K',
-            'aud': 'did:web:bgs.local',
+            'aud': 'did:web:relay.local',
             'exp': 1641093245,
             'iss': 'did:web:user.com',
         }, decoded)

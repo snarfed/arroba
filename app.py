@@ -31,7 +31,7 @@ from arroba import util
 from arroba import xrpc_repo, xrpc_server, xrpc_sync
 
 os.environ.setdefault('APPVIEW_HOST', 'api.bsky-sandbox.dev')
-os.environ.setdefault('BGS_HOST', 'bgs.bsky-sandbox.dev')
+os.environ.setdefault('RELAY_HOST', os.environ.get('BGS_HOST') or 'bgs.bsky-sandbox.dev')
 os.environ.setdefault('PLC_HOST', 'plc.bsky-sandbox.dev')
 os.environ.setdefault('PDS_HOST', open('pds_host').read().strip())
 # Alternative: include these as env vars in app.yaml
@@ -174,23 +174,23 @@ def homepage():
 """
 
 
-BGS_JWT = util.service_jwt(host=os.environ['BGS_HOST'],
-                           repo_did=os.environ['REPO_DID'],
-                           privkey=privkey,
-                           expiration=timedelta(days=999))
-BGS_HEADERS = {
+RELAY_JWT = util.service_jwt(host=os.environ['RELAY_HOST'],
+                             repo_did=os.environ['REPO_DID'],
+                             privkey=privkey,
+                             expiration=timedelta(days=999))
+RELAY_HEADERS = {
       'User-Agent': util.USER_AGENT,
-      'Authorization': f'Bearer {BGS_JWT}',
+      'Authorization': f'Bearer {RELAY_JWT}',
 }
 
-# send requestCrawl to BGS
+# send requestCrawl to relay
 # delay because we're not up and serving XRPCs at this point yet. not sure why not.
 if is_prod:
     def request_crawl():
-        bgs = lexrpc.client.Client(f'https://{os.environ["BGS_HOST"]}',
-                                   headers={'User-Agent': util.USER_AGENT})
-        resp = bgs.com.atproto.sync.requestCrawl({'hostname': os.environ['PDS_HOST']})
+        relay = lexrpc.client.Client(f'https://{relay}',
+                                     headers={'User-Agent': util.USER_AGENT})
+        resp = relay.com.atproto.sync.requestCrawl({'hostname': os.environ['PDS_HOST']})
         logger.info(resp)
 
     Timer(5 * 60, request_crawl).start()
-    logger.info('Will send BGS requestCrawl in 5m')
+    logger.info('Will send relay requestCrawl in 5m')

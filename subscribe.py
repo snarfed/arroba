@@ -3,7 +3,7 @@
 Outputs DAG-JSON encoded payloads to stdout in JSON Lines format, one object per
 line.
 
-Usage: subscribe.py [BGS_HOST [CURSOR]]
+Usage: subscribe.py [RELAY_HOST [CURSOR]]
 """
 import json
 import os
