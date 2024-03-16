@@ -17,9 +17,8 @@ from cryptography.hazmat.primitives.asymmetric.utils import (
 )
 from cryptography.hazmat.primitives import hashes
 import dag_cbor
+import jwt
 from multiformats import CID, multicodec, multihash
-
-from . import jwt_monkeypatch as jwt
 
 logger = logging.getLogger(__name__)
 

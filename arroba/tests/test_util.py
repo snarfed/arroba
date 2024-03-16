@@ -1,9 +1,9 @@
 """Unit tests for util.py."""
 from datetime import timedelta
 
+import jwt
 from multiformats import CID
 
-from .. import jwt_monkeypatch as jwt
 from ..util import (
     at_uri,
     dag_cbor_cid,

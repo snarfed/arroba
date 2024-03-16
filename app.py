@@ -11,10 +11,9 @@ from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from flask import Flask, make_response, redirect, request
 import google.cloud.logging
 from google.cloud import ndb
+import jwt
 import lexrpc.flask_server
 import requests
-
-from arroba import jwt_monkeypatch as jwt
 
 logger = logging.getLogger(__name__)
 logging.basicConfig()
