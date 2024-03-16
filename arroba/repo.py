@@ -39,7 +39,7 @@ Write = namedtuple('Write', [
 
 
 def writes_to_commit_ops(writes):
-    """Converts :class:`Write`\s to :class:`CommitOp`\s.
+    r"""Converts :class:`Write`\s to :class:`CommitOp`\s.
 
     Args:
       write (iterable): of :class:`Write`

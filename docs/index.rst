@@ -149,12 +149,14 @@ XRPC handlers:
 Changelog
 ---------
 
-0.5 - unreleased
+0.5 - 2024-03-16
 ~~~~~~~~~~~~~~~~
 
 -  Bug fix: base32-encode TIDs in record keys, ``at://`` URIs, commit
    ``rev``\ s, etc. Before, we were using the integer UNIX timestamp
    directly, which happened to be the same 13 character length. Oops.
+-  Switch from ``BGS_HOST`` environment variable to ``RELAY_HOST``.
+   ``BGS_HOST`` is still supported for backward compatibility.
 -  ``datastore_storage``:
 
    -  Bug fix for ``DatastoreStorage.last_seq``, handle new NSID.
@@ -185,6 +187,8 @@ Changelog
 
    -  Implement ``getBlob``, right now only based on “remote” blobs
       stored in ``AtpRemoteBlob``\ s in datastore storage.
+
+.. _section-1:
 
 0.4 - 2023-09-19
 ~~~~~~~~~~~~~~~~
@@ -225,7 +229,7 @@ Changelog
    -  Drop bundled ``app.bsky``/``com.atproto`` lexicons, use
       `lexrpc <https://lexrpc.readthedocs.io/>`__\ ’s instead.
 
-.. _section-1:
+.. _section-2:
 
 0.3 - 2023-08-29
 ~~~~~~~~~~~~~~~~
@@ -243,7 +247,7 @@ minimal demo code needed to wrap arroba in a fully functional PDS.
 
 -  …and much more.
 
-.. _section-2:
+.. _section-3:
 
 0.2 - 2023-05-18
 ~~~~~~~~~~~~~~~~
@@ -253,7 +257,7 @@ storage. This completes the first pass at all PDS data structures. Next
 release will include initial implementations of the
 ``com.atproto.sync.*`` XRPC methods.
 
-.. _section-3:
+.. _section-4:
 
 0.1 - 2023-04-30
 ~~~~~~~~~~~~~~~~

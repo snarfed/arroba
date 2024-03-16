@@ -9,7 +9,7 @@ where = ['.']
 
 [project]
 name = 'arroba'
-version = '0.4'
+version = '0.5'
 authors = [
     { name='Ryan Barrett', email='arroba@ryanb.org' },
 ]
@@ -18,13 +18,13 @@ readme = 'README.md'
 requires-python = '>=3.9'
 keywords = ['arroba', 'AT Protocol', 'ATP', 'Bluesky']
 dependencies = [
-    'carbox',
+    'carbox>=0.3',
     'cryptography',
     'dag-cbor',
     'dag-json',
     'dnspython>=2.0.0',
-    'lexrpc>=0.3',
-    'multiformats>=0.2.0',
+    'lexrpc>=0.6',
+    'multiformats>=0.3.1',
     'pyjwt>=2.0.0',
     'simple-websocket',
 ]

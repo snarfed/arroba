@@ -50,7 +50,7 @@ CommitOp = namedtuple('CommitOp', [  # for subscribeRepos
 
 
 class Block:
-    """An ATProto block: a record, :class:`MST` entry, or commit.
+    r"""An ATProto block: a record, :class:`MST` entry, or commit.
 
     Can start from either encoded bytes or decoded object, with or without
     :class:`CID`. Decodes, encodes, and generates :class:`CID` lazily, on

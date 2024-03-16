@@ -82,7 +82,7 @@ class CommitOp(ndb.Model):
 
 
 class AtpRepo(ndb.Model):
-    """An ATProto repo.
+    r"""An ATProto repo.
 
     Key name is DID. Only stores the repo's metadata. Blocks are stored in
     :class:`AtpBlock`\s.
