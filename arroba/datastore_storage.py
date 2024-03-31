@@ -1,4 +1,5 @@
 """Google Cloud Datastore implementation of repo storage."""
+from functools import wraps
 import json
 import logging
 import requests
@@ -8,6 +9,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 import dag_cbor
 import dag_json
 from google.cloud import ndb
+from google.cloud.ndb.context import get_context
 from multiformats import CID, multicodec, multihash
 
 from .repo import Repo
@@ -335,6 +337,36 @@ class DatastoreStorage(Storage):
 
     See :class:`Storage` for method details.
     """
+    ndb_client = None
+
+    def __init__(self, *, ndb_client=None):
+        """Constructor.
+
+        Args:
+          ndb_client (google.cloud.ndb.Client): used in :meth:`read_blocks_by_seq`;
+            it's used in the `subscribeRepos` event subscription, so lexrpc calls
+            it on a different thread, so it needs its own ndb client context.
+        """
+        super().__init__()
+        self.ndb_client = ndb_client
+
+    def ndb_context(fn):
+        @wraps(fn)
+        def decorated(self, *args, **kwargs):
+            context = get_context(raise_context_error=False)
+
+            with context.use() if context else self.ndb_client.context():
+                ret = fn(self, *args, **kwargs)
+
+                # cargo-culted from ndb.Client.context(): finish any work left to do
+                if context:
+                    context.eventloop.run()
+
+            return ret
+
+        return decorated
+
+    @ndb_context
     def create_repo(self, repo, *, signing_key, rotation_key=None):
         assert repo.did
         assert repo.head
@@ -361,6 +393,7 @@ class DatastoreStorage(Storage):
         atp_repo.put()
         logger.info(f'Stored repo {atp_repo}')
 
+    @ndb_context
     def load_repo(self, did_or_handle):
         assert did_or_handle
         atp_repo = (AtpRepo.get_by_id(did_or_handle)
@@ -378,30 +411,39 @@ class DatastoreStorage(Storage):
                          signing_key=atp_repo.signing_key,
                          rotation_key=atp_repo.rotation_key)
 
+    @ndb_context
     def read(self, cid):
         block = AtpBlock.get_by_id(cid.encode('base32'))
         if block:
             return block.to_block()
 
+    @ndb_context
     def read_many(self, cids):
         keys = [ndb.Key(AtpBlock, cid.encode('base32')) for cid in cids]
         got = list(zip(cids, ndb.get_multi(keys)))
         return {cid: block.to_block() if block else None
                 for cid, block in got}
 
+    @ndb_context
     def read_blocks_by_seq(self, start=0):
         assert start >= 0
+
+        # lexrpc event subscription handlers like subscribeRepos call this on a
+        # different thread, so if we're there, we need to create a new ndb context
         for atp_block in AtpBlock.query(AtpBlock.seq >= start)\
                                  .order(AtpBlock.seq):
             yield atp_block.to_block()
 
+    @ndb_context
     def has(self, cid):
         return self.read(cid) is not None
 
+    @ndb_context
     def write(self, repo_did, obj):
         seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
         return AtpBlock.create(repo_did=repo_did, data=obj, seq=seq).cid
 
+    @ndb_context
     @ndb.transactional()
     def apply_commit(self, commit_data):
         seq = tid_to_int(commit_data.commit.decoded['rev'])
@@ -428,10 +470,12 @@ class DatastoreStorage(Storage):
             repo.head = head_encoded
             repo.put()
 
+    @ndb_context
     def allocate_seq(self, nsid):
         assert nsid
         return AtpSequence.allocate(nsid)
 
+    @ndb_context
     def last_seq(self, nsid):
         assert nsid
         return AtpSequence.last(nsid)

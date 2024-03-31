@@ -124,7 +124,7 @@ lexrpc.flask_server.init_flask(server.server, app)
 ndb_client = ndb.Client()
 
 with ndb_client.context():
-    server.storage = DatastoreStorage()
+    server.storage = DatastoreStorage(ndb_client=ndb_client)
     server.repo = server.storage.load_repo(os.environ['REPO_DID'])
     if server.repo is None:
         server.repo = Repo.create(server.storage, os.environ['REPO_DID'],
