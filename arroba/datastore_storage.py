@@ -424,15 +424,19 @@ class DatastoreStorage(Storage):
         return {cid: block.to_block() if block else None
                 for cid, block in got}
 
-    @ndb_context
+    # can't use @ndb_context because this is a generator, not a normal function
     def read_blocks_by_seq(self, start=0):
         assert start >= 0
 
-        # lexrpc event subscription handlers like subscribeRepos call this on a
-        # different thread, so if we're there, we need to create a new ndb context
-        for atp_block in AtpBlock.query(AtpBlock.seq >= start)\
-                                 .order(AtpBlock.seq):
-            yield atp_block.to_block()
+        context = get_context(raise_context_error=False)
+
+        with context.use() if context else self.ndb_client.context() as cm:
+            # lexrpc event subscription handlers like subscribeRepos call this
+            # on a different thread, so if we're there, we need to create a new
+            # ndb context
+            for atp_block in AtpBlock.query(AtpBlock.seq >= start)\
+                                     .order(AtpBlock.seq):
+                yield atp_block.to_block()
 
     @ndb_context
     def has(self, cid):
