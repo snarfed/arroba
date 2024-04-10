@@ -18,6 +18,7 @@ readme = 'README.md'
 requires-python = '>=3.9'
 keywords = ['arroba', 'AT Protocol', 'ATP', 'Bluesky']
 dependencies = [
+    'cachetools>=5.0',
     'carbox>=0.3',
     'cryptography',
     'dag-cbor',

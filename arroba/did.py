@@ -8,11 +8,13 @@
 """
 import base64
 from collections import namedtuple
+from datetime import timedelta
 import json
 import logging
 import os
 import urllib.parse
 
+from cachetools import cached, TTLCache
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.hashes import Hash, SHA256
 from cryptography.hazmat.primitives import serialization
@@ -33,6 +35,9 @@ DidPlc = namedtuple('DidPlc', [
 ])
 
 logger = logging.getLogger(__name__)
+
+CACHE_SIZE = 5000
+CACHE_TTL = timedelta(hours=6)
 
 
 def resolve(did, **kwargs):
@@ -58,6 +63,7 @@ def resolve(did, **kwargs):
     raise ValueError(f'{did} is not a did:plc or did:web')
 
 
+@cached(TTLCache(maxsize=CACHE_SIZE, ttl=CACHE_TTL.total_seconds()))
 def resolve_plc(did, get_fn=requests.get):
     """Resolves a ``did:plc`` by fetching its DID document from a PLC registry.
 
@@ -274,6 +280,7 @@ def plc_operation_to_did_doc(op):
     }
 
 
+@cached(TTLCache(maxsize=CACHE_SIZE, ttl=CACHE_TTL.total_seconds()))
 def resolve_web(did, get_fn=requests.get):
     """Resolves a ``did:web`` by fetching its DID document.
 
@@ -304,6 +311,7 @@ def resolve_web(did, get_fn=requests.get):
     return resp.json()
 
 
+@cached(TTLCache(maxsize=CACHE_SIZE, ttl=CACHE_TTL.total_seconds()))
 def resolve_handle(handle, get_fn=requests.get):
     """Resolves an ATProto handle to a DID.
 
