@@ -6,6 +6,7 @@ import os
 import unittest
 from unittest.mock import ANY, call
 
+from arroba import did
 import dag_cbor.random
 import dns.message
 import dns.name
@@ -101,6 +102,11 @@ class TestCase(unittest.TestCase):
         # reuse this because it's expensive to generate
         if not TestCase.key:
             TestCase.key = util.new_key(seed=2349872879569)
+
+        # clear caches
+        did.resolve_handle.cache.clear()
+        did.resolve_plc.cache.clear()
+        did.resolve_web.cache.clear()
 
         os.environ.setdefault('PDS_HOST', 'localhost:8080')
         os.environ.setdefault('PLC_HOST', 'plc.bsky-sandbox.dev')
