@@ -15,7 +15,7 @@ click==8.1.7
 cryptography==42.0.5
 dag-cbor==0.3.3
 dnspython==2.6.1
-eventlet==0.33.3
+eventlet==0.35.2
 Flask==3.0.2
 flask-sock==0.7.0
 google-api-core==2.11.1
