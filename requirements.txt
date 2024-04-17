@@ -32,7 +32,7 @@ greenlet==2.0.2
 grapheme==0.6.0
 grpcio==1.62.0
 grpcio-status==1.62.0
-gunicorn==21.2.0
+gunicorn==22.0.0
 h11==0.14.0
 idna==3.7
 importlib-metadata==6.8.0
