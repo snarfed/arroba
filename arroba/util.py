@@ -344,7 +344,8 @@ def verify_sig(obj, public_key):
         return False
 
 
-def service_jwt(host, repo_did, privkey, expiration=timedelta(minutes=10)):
+def service_jwt(host, repo_did, privkey, expiration=timedelta(minutes=10),
+                aud=None):
     """Generates an inter-service JWT, eg for a relay or AppView.
 
     https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification
@@ -354,6 +355,8 @@ def service_jwt(host, repo_did, privkey, expiration=timedelta(minutes=10)):
       repo_did (str): DID of the repo this JWT is for
       privkey (ec.EllipticCurvePrivateKey): repo's signing key
       expiration (timedelta): length of time this JWT will be valid, defaults to 10m
+      aud (str): JWT audience. Default is ``did:web:[host]``, which works for relays
+        and AppViews, but others (eg mod services) have ``did:plc``s instead.
 
     Returns:
       str: JWT
@@ -363,7 +366,7 @@ def service_jwt(host, repo_did, privkey, expiration=timedelta(minutes=10)):
     assert expiration
     data = {
         'iss': repo_did,
-        'aud': f'did:web:{host}',
+        'aud': aud or f'did:web:{host}',
         'alg': 'ES256K',  # k256
         'exp': int((now() + expiration).timestamp()),
     }

@@ -95,3 +95,16 @@ class UtilTest(TestCase):
             'iss': 'did:web:user.com',
         }, decoded)
 
+    def test_service_jwt_aud(self):
+        token = service_jwt('relay.local', 'did:web:user.com', self.key,
+                            aud='did:plc:aud')
+        decoded = jwt.decode(token, self.key, algorithms=['ES256K'],
+                             audience='did:plc:aud',
+                             leeway=timedelta(weeks=9999))
+        self.assertEqual({
+            'alg': 'ES256K',
+            'aud': 'did:plc:aud',
+            'exp': 1641093245,
+            'iss': 'did:web:user.com',
+        }, decoded)
+

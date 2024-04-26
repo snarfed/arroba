@@ -105,6 +105,8 @@ _Breaking changes:_
   * `DatastoreStorage`: add new required `ndb_client` kwarg to constructor, used to get new context in lexrpc websocket subscription handlers that run server methods like `subscribeRepos` in separate threads ([snarfed/lexrpc#8](https://github.com/snarfed/lexrpc/issues/8)).
 * `did`:
   * Cache `resolve_plc`, `resolve_web`, and `resolve_handle` for 6h, up to 5000 total results per call.
+* `util`:
+  * `service_jwt`: add optional `aud` kwarg.
 
 ### 0.5 - 2024-03-16
 
