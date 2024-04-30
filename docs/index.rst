@@ -47,14 +47,14 @@ Here’s minimal example code for a multi-repo PDS on top of arroba and
    from arroba.datastore_storage import DatastoreStorage
    from arroba.xrpc_sync import send_new_commits
 
-   server.storage = DatastoreStorage()
+   # for Google Cloud Datastore
+   ndb_client = ndb.Client()
+
+   server.storage = DatastoreStorage(ndb_client=ndb_client)
    server.repo.callback = lambda _: send_new_commits()  # to subscribeRepos
 
    app = Flask('my-pds')
    init_flask(server.server, app)
-
-   # for Google Cloud Datastore
-   ndb_client = ndb.Client()
 
    def ndb_context_middleware(wsgi_app):
        def wrapper(environ, start_response):
@@ -148,6 +148,28 @@ XRPC handlers:
 
 Changelog
 ---------
+
+0.6 - unreleased
+~~~~~~~~~~~~~~~~
+
+*Breaking changes:*
+
+-  ``datastore_storage``:
+
+   -  ``DatastoreStorage``: add new required ``ndb_client`` kwarg to
+      constructor, used to get new context in lexrpc websocket
+      subscription handlers that run server methods like
+      ``subscribeRepos`` in separate threads
+      (`snarfed/lexrpc#8 <https://github.com/snarfed/lexrpc/issues/8>`__).
+
+-  ``did``:
+
+   -  Cache ``resolve_plc``, ``resolve_web``, and ``resolve_handle`` for
+      6h, up to 5000 total results per call.
+
+-  ``util``:
+
+   -  ``service_jwt``: add optional ``aud`` kwarg.
 
 0.5 - 2024-03-16
 ~~~~~~~~~~~~~~~~
