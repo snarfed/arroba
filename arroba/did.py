@@ -12,6 +12,7 @@ from datetime import timedelta
 import json
 import logging
 import os
+import re
 import urllib.parse
 
 from cachetools import cached, TTLCache
@@ -38,6 +39,10 @@ logger = logging.getLogger(__name__)
 
 CACHE_SIZE = 5000
 CACHE_TTL = timedelta(hours=6)
+
+# from https://atproto.com/specs/handle#handle-identifier-syntax
+HANDLE_RE = re.compile(
+    r'^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$')
 
 
 def resolve(did, **kwargs):
