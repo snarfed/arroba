@@ -65,6 +65,6 @@ six==1.16.0
 typing-extensions==4.9.0
 typing-validation==1.2.10.post4
 urllib3==2.2.1
-Werkzeug==3.0.1
+Werkzeug==3.0.3
 wsproto==1.2.0
 zipp==3.19.1
