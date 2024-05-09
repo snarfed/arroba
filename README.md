@@ -83,9 +83,10 @@ Configure arroba with these environment variables:
 * `PLC_HOST`, default `plc.bsky-sandbox.dev`
 * `PDS_HOST`, where you're running your PDS
 
-Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_repo) and [com.atproto.server](https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_server) XRPC handlers:
+Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_repo), [.server](https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_server), and [.sync](https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_sync) XRPC handlers:
 
 * `REPO_TOKEN`, static token to use as both `accessJwt` and `refreshJwt`, defaults to contents of `repo_token` file. Not required to be an actual JWT. If not set, XRPC methods that require auth will return HTTP 501 Not Implemented.
+* `ROLLBACK_WINDOW`, number of commits to serve in the [`subscribeRepos` rollback window](https://atproto.com/specs/event-stream#sequence-numbers). Defaults to no limit.
 
 <!-- Only used in app.py:
 * `REPO_DID`, repo user's DID, defaults to contents of `repo_did` file
@@ -108,6 +109,8 @@ _Breaking changes:_
   * Add `HANDLE_RE` regexp for handle validation.
 * `util`:
   * `service_jwt`: add optional `aud` kwarg.
+* `xrpc_sync`:
+  * Add `ROLLBACK_WINDOW` environment variable to limit size of [rollback window served by `subscribeRepos`](https://atproto.com/specs/event-stream#sequence-numbers). Defaults to no limit.
 
 ### 0.5 - 2024-03-16
 

@@ -7,7 +7,7 @@ TODO:
 """
 from datetime import timedelta
 import logging
-from queue import Queue
+import os
 from threading import Condition
 
 from carbox import car
@@ -25,6 +25,10 @@ logger = logging.getLogger(__name__)
 # used by subscribe_repos and send_new_commits
 NEW_COMMITS_TIMEOUT = timedelta(seconds=60)
 new_commits = Condition()
+
+ROLLBACK_WINDOW = None
+if 'ROLLBACK_WINDOW' in os.environ:
+    ROLLBACK_WINDOW = int(os.environ['ROLLBACK_WINDOW'])
 
 
 @server.server.method('com.atproto.sync.getCheckout')
@@ -132,25 +136,29 @@ def subscribe_repos(cursor=None):
     if cursor is not None:
         assert cursor >= 0
 
-    # fetch existing commits
     last_seq = server.storage.last_seq(SUBSCRIBE_REPOS_NSID)
     if cursor is not None:
-        logger.info(f'subscribeRepos: fetching existing commits from seq {cursor}')
+        # validate cursor
         if cursor > last_seq:
-            yield ({
-                'op': -1,
-            }, {
-                'error': 'FutureCursor',
-                'message': f'Cursor {cursor} is past current sequence number {last_seq}',
-            })
+            msg = f'Cursor {cursor} is past our current sequence number {last_seq}'
+            logger.warning(msg)
+            yield ({'op': -1}, {'error': 'FutureCursor', 'message': msg})
             return
 
+        if ROLLBACK_WINDOW is not None:
+            rollback_start = max(last_seq - ROLLBACK_WINDOW - 1, 0)
+            if cursor < rollback_start:
+                logger.warning(f'Cursor {cursor} is before our rollback window; starting at {rollback_start}')
+                yield ({'op': 1, 't': '#info'}, {'name': 'OutdatedCursor'})
+                cursor = rollback_start
+
+        logger.info(f'fetching existing commits from seq {cursor}')
         for commit_data in server.storage.read_commits_by_seq(start=cursor):
             yield header_payload(commit_data)
             last_seq = commit_data.commit.seq
 
     # serve new commits as they happen
-    logger.info(f'subscribeRepos: serving new commits')
+    logger.info(f'serving new commits')
     while True:
         with new_commits:
             new_commits.wait(NEW_COMMITS_TIMEOUT.total_seconds())

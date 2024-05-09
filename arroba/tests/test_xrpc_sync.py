@@ -7,6 +7,7 @@ TODO:
 from io import BytesIO
 from threading import Semaphore, Thread
 from unittest import skip
+from unittest.mock import patch
 
 from carbox.car import Block, read_car
 import dag_cbor
@@ -421,7 +422,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         self.repo.callback = lambda commit_data: xrpc_sync.send_new_commits()
 
     def subscribe(self, received, delivered=None, limit=None, cursor=None):
-        """subscribeRepos websocket client. Run in a thread.
+        """subscribeRepos websocket client. May be run in a thread.
 
         Args:
           received: list, each received message will be appended
@@ -570,10 +571,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             commit_cids.append(self.repo.head.cid)
 
         received = []
-        subscriber = Thread(target=self.subscribe, args=[received],
-                            kwargs={'limit': 4, 'cursor': 0})
-        subscriber.start()
-        subscriber.join()
+        self.subscribe(received, limit=4, cursor=0)
 
         self.assertEqual(5, server.storage.allocate_seq(SUBSCRIBE_REPOS_NSID))
 
@@ -590,8 +588,30 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         self.subscribe(received, cursor=999)
         self.assertEqual([({
             'error': 'FutureCursor',
-            'message': 'Cursor 999 is past current sequence number 1',
+            'message': 'Cursor 999 is past our current sequence number 1',
         })], received)
+
+    @patch('arroba.xrpc_sync.ROLLBACK_WINDOW', 2)
+    def test_subscribe_repos_cursor_before_rollback_window(self):
+        while seq := server.storage.allocate_seq(SUBSCRIBE_REPOS_NSID):
+            if seq >= 5:
+                break
+        assert seq == 5
+
+        write = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})
+        prev = self.repo.head.cid
+        self.repo.apply_writes([write])
+
+        sub = iter(xrpc_sync.subscribe_repos(cursor=2))
+
+        header, payload = next(sub)
+        self.assertEqual({'op': 1, 't': '#info'}, header)
+        self.assertEqual({'name': 'OutdatedCursor'}, payload)
+
+        header, payload = next(sub)
+        self.assertEqual({'op': 1, 't': '#commit'}, header)
+        self.assertCommitMessage(payload, {'foo': 'bar'}, write=write, seq=6,
+                                 cur=self.repo.head.cid, prev=prev)
 
 
 class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
@@ -619,7 +639,7 @@ class DatastoreSubscribeReposTest(SubscribeReposTest, testutil.DatastoreTest):
             ndb.context.get_context()
             super().subscribe(*args, **kwargs)
         except ContextError:
-            # we're in a separate thread; make a new ndb context
+            # we may be in a separate thread; make a new ndb context
             with self.ndb_client.context():
                 super().subscribe(*args, **kwargs)
 
