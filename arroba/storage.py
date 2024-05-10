@@ -59,14 +59,15 @@ class Block:
     Based on :class:`carbox.car.Block`.
 
     Attributes:
+      repo (str): DID. Not guaranteed to be set!
       cid (CID): lazy-loaded (dynamic property)
       decoded (dict): decoded object (dynamic property)
       encoded (bytes): DAG-CBOR encoded data (dynamic property)
       seq (int): ``com.atproto.sync.subscribeRepos`` sequence number
       ops (list): :class:`CommitOp`\s if this is a commit, otherwise None
     """
-    def __init__(self, *, cid=None, decoded=None, encoded=None, seq=None,
-                 ops=None):
+    def __init__(self, *, repo=None, cid=None, decoded=None, encoded=None,
+                 seq=None, ops=None):
         """Constructor.
 
         Args:
@@ -75,6 +76,7 @@ class Block:
           encoded (bytes): optional
         """
         assert encoded or decoded
+        self.repo = repo
         self._cid = cid
         self._encoded = encoded
         self._decoded = decoded
@@ -174,10 +176,12 @@ class Storage:
         """
         raise NotImplementedError()
 
-    def read_blocks_by_seq(self, start=0):
+    def read_blocks_by_seq(self, repo=None, start=0):
         """Batch read blocks from storage by ``subscribeRepos`` sequence number.
 
         Args:
+          repo (str): optional DID of repo to read blocks from. Defaults to all
+            repos.
           seq (int): optional ``subscribeRepos`` sequence number to start from.
             Defaults to 0.
 
@@ -187,10 +191,12 @@ class Storage:
         """
         raise NotImplementedError()
 
-    def read_commits_by_seq(self, start=0):
+    def read_commits_by_seq(self, repo=None, start=0):
         """Batch read commits from storage by ``subscribeRepos`` sequence number.
 
         Args:
+          repo (str): optional DID of repo to read blocks from. Defaults to all
+            repos.
           seq (int): optional ``subscribeRepos`` sequence number to start from,
             inclusive. Defaults to 0.
 
@@ -202,7 +208,7 @@ class Storage:
 
         seq = commit_block = blocks = None
 
-        for block in self.read_blocks_by_seq(start=start):
+        for block in self.read_blocks_by_seq(repo=repo, start=start):
             assert block.seq
             if block.seq != seq:  # switching to a new commit's blocks
                 if commit_block:
@@ -330,16 +336,19 @@ class MemoryStorage(Storage):
             assert len(found) == len(cids), (len(found), len(cids))
         return found
 
-    def read_blocks_by_seq(self, start=0):
+    def read_blocks_by_seq(self, repo=None, start=0):
         assert start >= 0
-        return sorted((b for b in self.blocks.values() if b.seq >= start),
-                      key=lambda b: b.seq)
+        blocks = [b for b in self.blocks.values()
+                  if b.seq >= start and (not repo or b.repo == repo)]
+        blocks.sort(key=lambda b: b.seq)
+        return blocks
 
     def has(self, cid):
         return cid in self.blocks
 
     def write(self, repo_did, obj):
-        block = Block(decoded=obj, seq=self.allocate_seq(SUBSCRIBE_REPOS_NSID))
+        block = Block(repo=repo_did, decoded=obj,
+                      seq=self.allocate_seq(SUBSCRIBE_REPOS_NSID))
         if block not in self.blocks:
             self.blocks.add(block)
         return block.cid

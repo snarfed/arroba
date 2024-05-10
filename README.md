@@ -109,6 +109,8 @@ _Breaking changes:_
   * Add `HANDLE_RE` regexp for handle validation.
 * `util`:
   * `service_jwt`: add optional `aud` kwarg.
+* `storage`:
+  * Add new `repo` kwarg to `read_blocks_by_seq` and `repo` attribute to `Block` (not always guaranteed to be set). This allows reading an individual repo's blocks from a specific sequence number. Will be used to implement `getRepo`'s `since` parameter.
 * `xrpc_sync`:
   * Add `ROLLBACK_WINDOW` environment variable to limit size of [rollback window served by `subscribeRepos`](https://atproto.com/specs/event-stream#sequence-numbers). Defaults to no limit.
 

@@ -32,6 +32,19 @@ CIDS = [
 
 
 class DatastoreStorageTest(DatastoreTest):
+    def store_writes(self, did):
+        cids = []
+        seq = AtpSequence.allocate(SUBSCRIBE_REPOS_NSID)
+        cids.append(self.storage.write(repo_did=did, obj={'foo': seq}))
+        seq = AtpSequence.allocate(SUBSCRIBE_REPOS_NSID)
+        cids.append(self.storage.write(repo_did=did, obj={'bar': seq}))
+        cids.append(self.storage.write(repo_did=did, obj={'baz': seq}))
+        return cids
+
+    def check_read_blocks(self, expected, **kwargs):
+        """expected is a sequence of CID."""
+        got = [b.cid for b in self.storage.read_blocks_by_seq(**kwargs)]
+        self.assertEqual(expected, got)
 
     def test_atpsequence_allocate_new(self):
         self.assertIsNone(AtpSequence.query().get())
@@ -135,19 +148,43 @@ class DatastoreStorageTest(DatastoreTest):
             self.storage.read_many(cids))
 
     def test_read_blocks_by_seq(self):
-        AtpSequence.allocate(SUBSCRIBE_REPOS_NSID)
-        foo = self.storage.write(repo_did='did:plc:123', obj={'foo': 2})  # seq 2
-        AtpSequence.allocate(SUBSCRIBE_REPOS_NSID)
-        bar = self.storage.write(repo_did='did:plc:123', obj={'bar': 4})  # seq 4
-        baz = self.storage.write(repo_did='did:plc:123', obj={'baz': 5})  # seq 5
+        cids = self.store_writes('did:plc:123')
 
-        self.assertEqual([foo, bar, baz],
-                         [b.cid for b in self.storage.read_blocks_by_seq()])
-        self.assertEqual([bar, baz],
-                         [b.cid for b in self.storage.read_blocks_by_seq(start=3)])
-        self.assertEqual([bar, baz],
-                         [b.cid for b in self.storage.read_blocks_by_seq(start=4)])
-        self.assertEqual([], [b.cid for b in self.storage.read_blocks_by_seq(start=6)])
+        self.check_read_blocks(cids)
+        self.check_read_blocks(cids[1:], start=3)
+        self.check_read_blocks(cids[1:], start=4)
+        self.check_read_blocks(cids[2:], start=5)
+        self.check_read_blocks([], start=6)
+
+    def test_read_blocks_by_repo(self):
+        alice_cids = self.store_writes('did:plc:alice')
+        self.check_read_blocks(alice_cids, repo='did:plc:alice')
+
+        bob_cids = self.store_writes('did:plc:bob')
+        self.check_read_blocks(alice_cids, repo='did:plc:alice')
+        self.check_read_blocks(bob_cids, repo='did:plc:bob')
+
+    def test_read_blocks_by_repo_seq(self):
+        alice_cids = self.store_writes('did:plc:alice')
+        self.check_read_blocks(alice_cids[1:], repo='did:plc:alice', start=3)
+        self.check_read_blocks([], repo='did:plc:alice', start=6)
+
+        bob_cids = self.store_writes('did:plc:bob')
+        self.check_read_blocks(alice_cids[1:], repo='did:plc:alice', start=3)
+        self.check_read_blocks(alice_cids[2:], repo='did:plc:alice', start=5)
+        self.check_read_blocks([], repo='did:plc:alice', start=6)
+
+        self.check_read_blocks(bob_cids[1:], repo='did:plc:bob', start=8)
+        self.check_read_blocks(bob_cids[2:], repo='did:plc:bob', start=10)
+        self.check_read_blocks([], repo='did:plc:bob', start=11)
+
+    def test_read_blocks_by_repo(self):
+        alice_cids = self.store_writes('did:plc:alice')
+        self.check_read_blocks(alice_cids, repo='did:plc:alice')
+
+        bob_cids = self.store_writes('did:plc:bob')
+        self.check_read_blocks(alice_cids, repo='did:plc:alice')
+        self.check_read_blocks(bob_cids, repo='did:plc:bob')
 
     def test_read_blocks_by_seq_no_ndb_context(self):
         AtpSequence.allocate(SUBSCRIBE_REPOS_NSID)

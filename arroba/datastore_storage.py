@@ -184,7 +184,8 @@ class AtpBlock(ndb.Model):
         ops = [storage.CommitOp(action=Action[op.action.upper()], path=op.path,
                                 cid=CID.decode(op.cid) if op.cid else None)
                for op in self.ops]
-        return Block(cid=self.cid, encoded=self.encoded, seq=self.seq, ops=ops)
+        return Block(repo=self.key.id(), cid=self.cid, encoded=self.encoded,
+                     seq=self.seq, ops=ops)
 
     @classmethod
     def from_block(cls, *, repo_did, block):
@@ -425,17 +426,19 @@ class DatastoreStorage(Storage):
                 for cid, block in got}
 
     # can't use @ndb_context because this is a generator, not a normal function
-    def read_blocks_by_seq(self, start=0):
+    def read_blocks_by_seq(self, repo=None, start=0):
         assert start >= 0
 
         context = get_context(raise_context_error=False)
 
+        # lexrpc event subscription handlers like subscribeRepos call this on a
+        # different thread, so if we're there, we need to create a new ndb
+        # context
         with context.use() if context else self.ndb_client.context() as cm:
-            # lexrpc event subscription handlers like subscribeRepos call this
-            # on a different thread, so if we're there, we need to create a new
-            # ndb context
-            for atp_block in AtpBlock.query(AtpBlock.seq >= start)\
-                                     .order(AtpBlock.seq):
+            query = AtpBlock.query().filter(AtpBlock.seq >= start).order(AtpBlock.seq)
+            if repo:
+                query = query.filter(AtpBlock.repo == AtpRepo(id=repo).key)
+            for atp_block in query:
                 yield atp_block.to_block()
 
     @ndb_context
