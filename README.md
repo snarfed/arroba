@@ -111,6 +111,7 @@ _Breaking changes:_
   * `service_jwt`: add optional `aud` kwarg.
 * `xrpc_sync`:
   * Add `ROLLBACK_WINDOW` environment variable to limit size of [rollback window served by `subscribeRepos`](https://atproto.com/specs/event-stream#sequence-numbers). Defaults to no limit.
+  * Start serving `getRepo` queries with the `since` parameter. `since` still isn't actually implemented, but we now serve the entire repo instead of returning an error.
 
 ### 0.5 - 2024-03-16
 

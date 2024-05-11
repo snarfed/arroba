@@ -48,9 +48,6 @@ def get_repo(input, did=None, since=None):
 
     TODO: implement ``since``
     """
-    if since:
-        raise ValueError('since is not implemented yet')
-
     repo = server.load_repo(did)
     return car.write_car(
         [repo.head.cid],
