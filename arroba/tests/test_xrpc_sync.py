@@ -1,9 +1,4 @@
-"""Unit tests for xrpc_sync.py.
-
-TODO:
-* getCheckout commit param
-* getRepo earliest, latest params
-"""
+"""Unit tests for xrpc_sync.py."""
 from io import BytesIO
 from threading import Semaphore, Thread
 from unittest import skip
@@ -14,6 +9,7 @@ import dag_cbor
 from google.cloud import ndb
 from google.cloud.ndb.exceptions import ContextError
 from lexrpc.server import Redirect
+from multiformats import CID
 
 from ..datastore_storage import AtpRemoteBlob, DatastoreStorage
 from ..repo import Repo, Write, writes_to_commit_ops
@@ -69,7 +65,19 @@ class XrpcSyncTest(testutil.XrpcTestCase):
     def test_get_repo(self):
         resp = xrpc_sync.get_repo({}, did='did:web:user.com')
         roots, blocks = read_car(resp)
-        self.assertEqual(self.data, load(blocks))
+
+        # first block is repo head commit
+        commit = blocks[0].decoded
+        assert isinstance(commit.pop('data'), CID)
+        assert isinstance(commit.pop('prev'), CID)
+        assert isinstance(commit.pop('sig'), bytes)
+        self.assertEqual({
+            'version': 3,
+            'did': 'did:web:user.com',
+            'rev': '2222222222422',
+        }, commit)
+
+        self.assertEqual(self.data, load(blocks[0:]))
 
     @skip
     def test_lists_hosted_repos_in_order_of_creation(self):

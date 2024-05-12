@@ -106,12 +106,17 @@ _Breaking changes:_
   * `DatastoreStorage`: add new required `ndb_client` kwarg to constructor, used to get new context in lexrpc websocket subscription handlers that run server methods like `subscribeRepos` in separate threads ([snarfed/lexrpc#8](https://github.com/snarfed/lexrpc/issues/8)).
 * `did`:
   * Cache `resolve_plc`, `resolve_web`, and `resolve_handle` for 6h, up to 5000 total results per call.
+
+_Non-breaking changes:_
+
+* `did`:
   * Add `HANDLE_RE` regexp for handle validation.
 * `util`:
   * `service_jwt`: add optional `aud` kwarg.
 * `xrpc_sync`:
   * Add `ROLLBACK_WINDOW` environment variable to limit size of [rollback window served by `subscribeRepos`](https://atproto.com/specs/event-stream#sequence-numbers). Defaults to no limit.
   * Start serving `getRepo` queries with the `since` parameter. `since` still isn't actually implemented, but we now serve the entire repo instead of returning an error.
+  * `getRepo` bug fix: include the repo head commit block.
 
 ### 0.5 - 2024-03-16
 

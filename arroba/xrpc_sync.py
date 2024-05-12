@@ -6,6 +6,7 @@ TODO:
 * blobs
 """
 from datetime import timedelta
+import itertools
 import logging
 import os
 from threading import Condition
@@ -51,7 +52,8 @@ def get_repo(input, did=None, since=None):
     repo = server.load_repo(did)
     return car.write_car(
         [repo.head.cid],
-        (car.Block(cid=cid, data=data) for cid, data in repo.mst.load_all()))
+        (car.Block(cid=cid, data=data) for cid, data in itertools.chain(
+            [(repo.head.cid, repo.head.encoded)], repo.mst.load_all())))
 
 
 # @server.server.method('com.atproto.sync.listRepos')
