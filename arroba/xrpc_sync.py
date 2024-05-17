@@ -5,7 +5,7 @@ TODO:
 * getBlocks?
 * blobs
 """
-from datetime import timedelta
+from datetime import timedelta, timezone
 import itertools
 import logging
 import os
@@ -123,7 +123,7 @@ def subscribe_repos(cursor=None):
             } for op in (commit_data.commit.ops or [])],
             'commit': commit_data.commit.cid,
             'blocks': car.write_car([commit_data.commit.cid], car_blocks),
-            'time': util.now().isoformat(),
+            'time': commit_data.commit.time.replace(tzinfo=timezone.utc).isoformat(),
             'seq': commit_data.commit.seq,
             'rev': util.int_to_tid(commit_data.commit.seq, clock_id=0),
             'since': None,  # TODO: load commit_data.commit['prev']'s CID

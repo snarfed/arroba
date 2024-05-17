@@ -11,6 +11,7 @@ from google.cloud.ndb.exceptions import ContextError
 from lexrpc.server import Redirect
 from multiformats import CID
 
+from .. import datastore_storage
 from ..datastore_storage import AtpRemoteBlob, DatastoreStorage
 from ..repo import Repo, Write, writes_to_commit_ops
 from .. import server
@@ -515,7 +516,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         if record:
             self.assertIn(record, msg_records)
 
-    def test_subscribe_repos(self):
+    def test_subscribe_repos(self, *_):
         received_a = []
         delivered_a = Semaphore(value=0)
         subscriber_a = Thread(target=self.subscribe,
@@ -567,7 +568,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         subscriber_b.join()
 
-    def test_subscribe_repos_cursor_zero(self):
+    def test_subscribe_repos_cursor_zero(self, *_):
         commit_cids = [self.repo.head.cid]
         writes = [None]
         tid = next_tid()
@@ -591,7 +592,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
                 received[i], {'foo': val}, cur=commit_cids[i], write=writes[i],
                 prev=commit_cids[i - 1], seq=i + 1)
 
-    def test_subscribe_repos_cursor_past_current_seq(self):
+    def test_subscribe_repos_cursor_past_current_seq(self, *_):
         received = []
         self.subscribe(received, cursor=999)
         self.assertEqual([({
@@ -600,7 +601,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         })], received)
 
     @patch('arroba.xrpc_sync.ROLLBACK_WINDOW', 2)
-    def test_subscribe_repos_cursor_before_rollback_window(self):
+    def test_subscribe_repos_cursor_before_rollback_window(self, *_):
         while seq := server.storage.allocate_seq(SUBSCRIBE_REPOS_NSID):
             if seq >= 5:
                 break
@@ -639,8 +640,15 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
             resp = xrpc_sync.get_blob({}, did='did:web:user.com', cid='nope')
 
 
+@patch('arroba.datastore_storage.AtpBlock.created._now',
+       return_value=testutil.NOW.replace(tzinfo=None))
 class DatastoreSubscribeReposTest(SubscribeReposTest, testutil.DatastoreTest):
     STORAGE_CLS = DatastoreStorage
+
+    @patch('arroba.datastore_storage.AtpBlock.created._now',
+           return_value=testutil.NOW.replace(tzinfo=None))
+    def setUp(self, _):
+        super().setUp()
 
     def subscribe(self, *args, **kwargs):
         try:

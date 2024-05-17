@@ -1,4 +1,5 @@
 """Google Cloud Datastore implementation of repo storage."""
+from datetime import timezone
 from functools import wraps
 import json
 import logging
@@ -184,7 +185,8 @@ class AtpBlock(ndb.Model):
         ops = [storage.CommitOp(action=Action[op.action.upper()], path=op.path,
                                 cid=CID.decode(op.cid) if op.cid else None)
                for op in self.ops]
-        return Block(cid=self.cid, encoded=self.encoded, seq=self.seq, ops=ops)
+        return Block(cid=self.cid, encoded=self.encoded, seq=self.seq, ops=ops,
+                     time=self.created)
 
     @classmethod
     def from_block(cls, *, repo_did, block):
@@ -200,8 +202,10 @@ class AtpBlock(ndb.Model):
         ops = [CommitOp(action=op.action.name.lower(), path=op.path,
                         cid=op.cid.encode('base32') if op.cid else None)
                for op in (block.ops or [])]
+        created = block.time.astimezone(timezone.utc).replace(tzinfo=None)
         return AtpBlock(id=block.cid.encode('base32'), encoded=block.encoded,
-                        repo=ndb.Key(AtpRepo, repo_did), seq=block.seq, ops=ops)
+                        repo=ndb.Key(AtpRepo, repo_did), seq=block.seq, ops=ops,
+                        created=created)
 
 
 class AtpSequence(ndb.Model):

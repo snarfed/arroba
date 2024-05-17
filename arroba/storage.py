@@ -9,6 +9,7 @@ from enum import auto, Enum
 import dag_cbor
 from multiformats import CID, multicodec, multihash
 
+from . import util
 from .util import dag_cbor_cid, tid_to_int
 
 SUBSCRIBE_REPOS_NSID = 'com.atproto.sync.subscribeRepos'
@@ -64,9 +65,10 @@ class Block:
       encoded (bytes): DAG-CBOR encoded data (dynamic property)
       seq (int): ``com.atproto.sync.subscribeRepos`` sequence number
       ops (list): :class:`CommitOp`\s if this is a commit, otherwise None
+      time (datetime): when this block was first created
     """
     def __init__(self, *, cid=None, decoded=None, encoded=None, seq=None,
-                 ops=None):
+                 ops=None, time=None):
         """Constructor.
 
         Args:
@@ -80,6 +82,7 @@ class Block:
         self._decoded = decoded
         self.seq = seq
         self.ops = ops
+        self.time = time or util.now()
 
     def __str__(self):
         return f'<Block: {self.cid}>'

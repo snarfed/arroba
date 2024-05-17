@@ -114,7 +114,9 @@ _Non-breaking changes:_
 * `util`:
   * `service_jwt`: add optional `aud` kwarg.
 * `xrpc_sync`:
-  * Add `ROLLBACK_WINDOW` environment variable to limit size of [rollback window served by `subscribeRepos`](https://atproto.com/specs/event-stream#sequence-numbers). Defaults to no limit.
+  * `subscribeRepos`:
+    * Add `ROLLBACK_WINDOW` environment variable to limit size of [rollback window](https://atproto.com/specs/event-stream#sequence-numbers). Defaults to no limit.
+    * Bug fix, populate the time each commit was created in `time` instead of the current time ([snarfed/bridgy-fed#1015](https://github.com/snarfed/bridgy-fed/issues/1015)).
   * Start serving `getRepo` queries with the `since` parameter. `since` still isn't actually implemented, but we now serve the entire repo instead of returning an error.
   * `getRepo` bug fix: include the repo head commit block.
 
