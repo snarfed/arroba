@@ -52,3 +52,27 @@ class StorageTest(TestCase):
                                        storage.read_commits_by_seq()])
         self.assertEqual(commit_cids[1:], [cd.commit.cid for cd in
                                            storage.read_commits_by_seq(start=2)])
+
+    def test_read_commits_by_seq_include_record_block_even_if_preexisting(self):
+        # https://github.com/snarfed/bridgy-fed/issues/1016#issuecomment-2109276344
+        commit_cids = []
+
+        storage = MemoryStorage()
+        repo = Repo.create(storage, 'did:web:user.com', signing_key=self.key)
+        commit_cids.append(repo.head.cid)
+
+        first = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})
+        commit_cid = repo.apply_writes([first])
+        commit_cids.append(repo.head.cid)
+
+        prev = repo.head.cid
+        second = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})
+        commit_cid = repo.apply_writes([second])
+
+        commits = list(storage.read_commits_by_seq(start=3))
+        self.assertEqual(1, len(commits))
+        self.assertEqual(repo.head.cid, commits[0].commit.cid)
+        self.assertEqual(prev, commits[0].prev)
+
+        record = Block(decoded={'foo': 'bar'})
+        self.assertEqual(record, commits[0].blocks[record.cid])

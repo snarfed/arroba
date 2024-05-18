@@ -205,13 +205,22 @@ class Storage:
 
         seq = commit_block = blocks = None
 
+        def make_commit():
+            for op in commit_block.ops:
+                if (op.action in (Action.CREATE, Action.UPDATE)
+                        and op.cid not in blocks):
+                    record = self.read(op.cid)
+                    assert record
+                    blocks[op.cid] = record
+            return CommitData(blocks=blocks, commit=commit_block,
+                              prev=commit_block.decoded.get('prev'))
+
+        seen = []  # CIDs
         for block in self.read_blocks_by_seq(start=start):
             assert block.seq
             if block.seq != seq:  # switching to a new commit's blocks
                 if commit_block:
-                    assert blocks
-                    yield CommitData(blocks=blocks, commit=commit_block,
-                                     prev=commit_block.decoded.get('prev'))
+                    yield make_commit()
                 else:
                     assert blocks is None  # only the first commit
                 seq = block.seq
@@ -226,8 +235,7 @@ class Storage:
         # final commit
         if blocks:
             assert blocks and commit_block
-            yield CommitData(blocks=blocks, commit=commit_block,
-                             prev=commit_block.decoded.get('prev'))
+            yield make_commit()
 
     def has(self, cid):
         """Checks if a given :class:`CID` is currently stored.

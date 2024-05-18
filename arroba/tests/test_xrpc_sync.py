@@ -622,6 +622,32 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         self.assertCommitMessage(payload, {'foo': 'bar'}, write=write, seq=6,
                                  cur=self.repo.head.cid, prev=prev)
 
+    def test_include_preexisting_record_block(self, *_):
+        # https://github.com/snarfed/bridgy-fed/issues/1016#issuecomment-2109276344
+
+        # preexisting {'foo': 'bar'} record
+        tid = next_tid()
+        first = Write(Action.CREATE, 'co.ll', tid, {'foo': 'bar'})
+        self.repo.apply_writes([first])
+
+        # start subscriber
+        received = []
+        delivered = Semaphore(value=0)
+        subscriber = Thread(target=self.subscribe, args=[received, delivered, 1])
+        subscriber.start()
+
+        # another create of the same record; subscribeRepos should include record block
+        prev = self.repo.head.cid
+        second = Write(Action.UPDATE, 'co.ll', tid, {'foo': 'bar'})
+        self.repo.apply_writes([second])
+        delivered.acquire()
+
+        self.assertEqual(1, len(received))
+        self.assertCommitMessage(received[0], {'foo': 'bar'}, write=second,
+                                 prev=prev, seq=3)
+
+        subscriber.join()
+
 
 class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
     STORAGE_CLS = DatastoreStorage
