@@ -17,7 +17,7 @@ from multiformats import CID, multicodec, multihash
 from .repo import Repo
 from . import storage
 from .storage import Action, Block, Storage, SUBSCRIBE_REPOS_NSID
-from .util import dag_cbor_cid, tid_to_int
+from .util import dag_cbor_cid, tid_to_int, TOMBSTONED, TombstonedRepo
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +80,7 @@ class CommitOp(ndb.Model):
 
     https://googleapis.dev/python/python-ndb/latest/model.html#google.cloud.ndb.model.StructuredProperty
     """
-    action = ndb.StringProperty(required=True, choices=['create', 'update', 'delete'])
+    action = ndb.StringProperty(required=True, choices=('create', 'update', 'delete'))
     path = ndb.StringProperty(required=True)
     cid = ndb.StringProperty()  # unset for deletes
 
@@ -96,6 +96,7 @@ class AtpRepo(ndb.Model):
     * head (str): CID
     * signing_key (str)
     * rotation_key (str)
+    * status (str)
     """
     handles = ndb.StringProperty(repeated=True)
     head = ndb.StringProperty(required=True)
@@ -107,6 +108,7 @@ class AtpRepo(ndb.Model):
     # TODO: rename this recovery_key_pem?
     # https://discord.com/channels/1097580399187738645/1098725036917002302/1153447354003894372
     rotation_key_pem = ndb.BlobProperty()
+    status = ndb.StringProperty(choices=(TOMBSTONED,))
 
     created = ndb.DateTimeProperty(auto_now_add=True)
     updated = ndb.DateTimeProperty(auto_now=True)
@@ -411,6 +413,8 @@ class DatastoreStorage(Storage):
         if not atp_repo:
             logger.info(f"Couldn't find repo for {did_or_handle}")
             return None
+        elif atp_repo.status == TOMBSTONED:
+            raise TombstonedRepo(f'{atp_repo.key} is tombstoned')
 
         logger.info(f'Loading repo {atp_repo.key}')
         self.head = CID.decode(atp_repo.head)
@@ -419,6 +423,19 @@ class DatastoreStorage(Storage):
         return Repo.load(self, cid=self.head, handle=handle,
                          signing_key=atp_repo.signing_key,
                          rotation_key=atp_repo.rotation_key)
+
+    @ndb_context
+    def tombstone_repo(self, repo):
+        @ndb.transactional()
+        def update():
+            atp_repo = AtpRepo.get_by_id(repo.did)
+            atp_repo.status = TOMBSTONED
+            atp_repo.put()
+
+        update()
+
+        if repo.callback:
+            repo.callback(None)  # TODO: format tombstone event
 
     @ndb_context
     def read(self, cid):

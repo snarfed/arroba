@@ -10,7 +10,7 @@ import dag_cbor
 from multiformats import CID, multicodec, multihash
 
 from . import util
-from .util import dag_cbor_cid, tid_to_int
+from .util import dag_cbor_cid, tid_to_int, TOMBSTONED, TombstonedRepo
 
 SUBSCRIBE_REPOS_NSID = 'com.atproto.sync.subscribeRepos'
 
@@ -151,6 +151,20 @@ class Storage:
 
         Returns:
           Repo, or None if the did or handle wasn't found:
+
+        Raises:
+          TombstonedRepo: if the repo is tombstoned
+        """
+        raise NotImplementedError()
+
+    def tombstone_repo(self, repo):
+        """Marks a repo as tombstoned.
+
+        After this, :meth:`load_repo` will raise :class:`TombstonedRepo` for
+        this repo.
+
+        Args:
+          repo (Repo)
         """
         raise NotImplementedError()
 
@@ -329,7 +343,12 @@ class MemoryStorage(Storage):
 
         for repo in self.repos:
             if did_or_handle in (repo.did, repo.handle):
+                if repo.status == TOMBSTONED:
+                    raise TombstonedRepo(f'{repo.did} is tombstoned')
                 return repo
+
+    def tombstone_repo(self, repo):
+        repo.status = TOMBSTONED
 
     def read(self, cid):
         return self.blocks.get(cid)

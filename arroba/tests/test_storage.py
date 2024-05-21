@@ -4,9 +4,9 @@ import os
 import dag_cbor
 from multiformats import CID
 
-from ..util import next_tid
 from ..repo import Repo, Write
 from ..storage import Action, Block, MemoryStorage
+from ..util import next_tid, TOMBSTONED, TombstonedRepo
 
 from .testutil import TestCase
 
@@ -76,3 +76,13 @@ class StorageTest(TestCase):
 
         record = Block(decoded={'foo': 'bar'})
         self.assertEqual(record, commits[0].blocks[record.cid])
+
+    def test_tombstone_repo(self):
+        storage = MemoryStorage()
+        repo = Repo.create(storage, 'did:user', signing_key=self.key)
+        storage.tombstone_repo(repo)
+
+        self.assertEqual(TOMBSTONED, repo.status)
+
+        with self.assertRaises(TombstonedRepo):
+            storage.load_repo('did:user')

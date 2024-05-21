@@ -126,6 +126,8 @@ _Non-breaking changes:_
 
 * Bug fix: base32-encode TIDs in record keys, `at://` URIs, commit `rev`s, etc. Before, we were using the integer UNIX timestamp directly, which happened to be the same 13 character length. Oops.
 * Switch from `BGS_HOST` environment variable to `RELAY_HOST`. `BGS_HOST` is still supported for backward compatibility.
+* `storage`:
+  * Add new `Storage.tombstone_repo` method, implement in `MemoryStorage` and `DatastoreStorage`. [Used to delete accounts.](https://github.com/bluesky-social/atproto/discussions/2503#discussioncomment-9502339) ([bridgy-fed#783](https://github.com/snarfed/bridgy-fed/issues/783))
 * `datastore_storage`:
   * Bug fix for `DatastoreStorage.last_seq`, handle new NSID.
   * Add new `AtpRemoteBlob` class for storing "remote" blobs, available at public HTTP URLs, that we don't store ourselves.

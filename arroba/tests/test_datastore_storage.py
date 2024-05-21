@@ -19,7 +19,7 @@ from ..datastore_storage import (
 )
 from ..repo import Action, Repo, Write
 from ..storage import Block, CommitData, MemoryStorage, SUBSCRIBE_REPOS_NSID
-from ..util import dag_cbor_cid, new_key, next_tid
+from ..util import dag_cbor_cid, new_key, next_tid, TOMBSTONED, TombstonedRepo
 
 from . import test_repo
 from .testutil import DatastoreTest, requests_response
@@ -80,9 +80,18 @@ class DatastoreStorageTest(DatastoreTest):
     def test_create_load_repo_no_handle(self):
         repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key,
                            rotation_key=self.key)
-        # self.storage.create_repo(repo)
         self.assertEqual([], AtpRepo.get_by_id('did:web:user.com').handles)
         self.assertIsNone(self.storage.load_repo('han.dull'))
+
+    def test_tombstone_repo(self):
+        repo = Repo.create(self.storage, 'did:user', signing_key=self.key)
+        self.assertIsNone(AtpRepo.get_by_id('did:user').status)
+
+        self.storage.tombstone_repo(repo)
+        self.assertEqual(TOMBSTONED, AtpRepo.get_by_id('did:user').status)
+
+        with self.assertRaises(TombstonedRepo):
+            self.storage.load_repo('did:user')
 
     def test_atp_block_create(self):
         data = {'foo': 'bar'}

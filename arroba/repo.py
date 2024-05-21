@@ -76,6 +76,7 @@ class Repo:
     callback = None
     signing_key = None
     rotation_key = None
+    status = None
 
     def __init__(self, *, storage=None, mst=None, head=None, handle=None,
                  callback=None, signing_key=None, rotation_key=None):
