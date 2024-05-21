@@ -5,10 +5,10 @@ import dag_cbor
 from multiformats import CID
 
 from ..repo import Repo, Write
-from ..storage import Action, Block, MemoryStorage
-from ..util import next_tid, TOMBSTONED, TombstonedRepo
+from ..storage import Action, Block, MemoryStorage, SUBSCRIBE_REPOS_NSID
+from ..util import dag_cbor_cid, next_tid, TOMBSTONED, TombstonedRepo
 
-from .testutil import TestCase
+from .testutil import NOW, TestCase
 
 DECODED = {'foo': 'bar'}
 ENCODED = b'\xa1cfoocbar'
@@ -78,11 +78,25 @@ class StorageTest(TestCase):
         self.assertEqual(record, commits[0].blocks[record.cid])
 
     def test_tombstone_repo(self):
+        seen = []
         storage = MemoryStorage()
         repo = Repo.create(storage, 'did:user', signing_key=self.key)
+        self.assertEqual(1, storage.last_seq(SUBSCRIBE_REPOS_NSID))
+
+        repo.callback = lambda event: seen.append(event)
         storage.tombstone_repo(repo)
 
         self.assertEqual(TOMBSTONED, repo.status)
+
+        self.assertEqual(2, storage.last_seq(SUBSCRIBE_REPOS_NSID))
+        expected = {
+            '$type': 'com.atproto.sync.subscribeRepos#tombstone',
+            'seq': 2,
+            'did': 'did:user',
+            'time': NOW.isoformat(),
+        }
+        self.assertEqual([expected], seen)
+        self.assertEqual(expected, storage.read(dag_cbor_cid(expected)).decoded)
 
         with self.assertRaises(TombstonedRepo):
             storage.load_repo('did:user')

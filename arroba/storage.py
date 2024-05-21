@@ -51,11 +51,15 @@ CommitOp = namedtuple('CommitOp', [  # for subscribeRepos
 
 
 class Block:
-    r"""An ATProto block: a record, :class:`MST` entry, or commit.
+    r"""An ATProto block: a record, :class:`MST` entry, commit, or other event.
 
     Can start from either encoded bytes or decoded object, with or without
     :class:`CID`. Decodes, encodes, and generates :class:`CID` lazily, on
     demand, on attribute access.
+
+    Events should have a fully-qualified ``$type`` field that's one of the
+    ``message`` types in ``com.atproto.sync.subscribeRepos``, eg
+    ``com.atproto.sync.subscribeRepos#tombstone``.
 
     Based on :class:`carbox.car.Block`.
 
@@ -160,8 +164,34 @@ class Storage:
     def tombstone_repo(self, repo):
         """Marks a repo as tombstoned.
 
+        * Stores a ``com.atproto.sync.subscribeRepos#tombstone`` block with its
+          own sequence number.
+        * If :attr:`Repo.callback` is populated, calls it with the
+          ``com.atproto.sync.subscribeRepos#tombstone`` message.
+        * Calls :meth:`_tombstone` to mark the repo as tombstoned in storage.
+
         After this, :meth:`load_repo` will raise :class:`TombstonedRepo` for
         this repo.
+
+        Args:
+          repo (Repo)
+        """
+        self._tombstone_repo(repo)
+
+        seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
+        message = {
+            '$type': 'com.atproto.sync.subscribeRepos#tombstone',
+            'seq': seq,
+            'did': repo.did,
+            'time': util.now().isoformat(),
+        }
+        self.write(repo.did, message, seq=seq)
+
+        if repo.callback:
+            repo.callback(message)
+
+    def _tombstone_repo(self, repo):
+        """Marks a repo as tombstoned in storage.
 
         Args:
           repo (Repo)
@@ -262,16 +292,17 @@ class Storage:
         """
         raise NotImplementedError()
 
-    def write(self, repo_did, obj):
+    def write(self, repo_did, obj, seq=None):
         """Writes a node to storage.
-
-        Generates new sequence number(s) as necessary for newly stored blocks.
 
         TODO: remove? This seems unused.
 
         Args:
           repo_did (str):
-          obj (dict): a record, commit, or serialized :class:`MST` node
+          obj (dict): a record, commit, serialized :class:`MST` node, or
+            `subscribeRepos` event/message
+          seq (int or None): sequence number. If not provided, a new one will be
+            allocated.
 
         Returns:
           CID:
@@ -347,7 +378,7 @@ class MemoryStorage(Storage):
                     raise TombstonedRepo(f'{repo.did} is tombstoned')
                 return repo
 
-    def tombstone_repo(self, repo):
+    def _tombstone_repo(self, repo):
         repo.status = TOMBSTONED
 
     def read(self, cid):
@@ -368,10 +399,13 @@ class MemoryStorage(Storage):
     def has(self, cid):
         return cid in self.blocks
 
-    def write(self, repo_did, obj):
-        block = Block(decoded=obj, seq=self.allocate_seq(SUBSCRIBE_REPOS_NSID))
+    def write(self, repo_did, obj, seq=None):
+        if seq is None:
+            seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
+
+        block = Block(decoded=obj, seq=seq)
         if block not in self.blocks:
-            self.blocks.add(block)
+            self.blocks[block.cid] = block
         return block.cid
 
     def apply_commit(self, commit_data):

@@ -428,7 +428,7 @@ class XrpcSyncTest(testutil.XrpcTestCase):
 class SubscribeReposTest(testutil.XrpcTestCase):
     def setUp(self):
         super().setUp()
-        self.repo.callback = lambda commit_data: xrpc_sync.send_new_commits()
+        self.repo.callback = lambda commit_data: xrpc_sync.send_events()
 
     def subscribe(self, received, delivered=None, limit=None, cursor=None):
         """subscribeRepos websocket client. May be run in a thread.

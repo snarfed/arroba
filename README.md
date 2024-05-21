@@ -30,13 +30,13 @@ from lexrpc.flask_server import init_flask
 
 from arroba import server
 from arroba.datastore_storage import DatastoreStorage
-from arroba.xrpc_sync import send_new_commits
+from arroba.xrpc_sync import send_events
 
 # for Google Cloud Datastore
 ndb_client = ndb.Client()
 
 server.storage = DatastoreStorage(ndb_client=ndb_client)
-server.repo.callback = lambda _: send_new_commits()  # to subscribeRepos
+server.repo.callback = lambda _: send_events()  # to subscribeRepos
 
 app = Flask('my-pds')
 init_flask(server.server, app)
@@ -107,11 +107,14 @@ _Breaking changes:_
   * `AtpRemoteBlob`: if the blob URL doesn't return the `Content-Type` header, infer type from the URL, or fall back to `application/octet-stream` ([bridgy-fed#1073](https://github.com/snarfed/bridgy-fed/issues/1073)).
 * `did`:
   * Cache `resolve_plc`, `resolve_web`, and `resolve_handle` for 6h, up to 5000 total results per call.
+* `xrpc_sync`: rename `send_new_commits` to `send_events` due to adding account tombstone support.
 
 _Non-breaking changes:_
 
 * `did`:
   * Add `HANDLE_RE` regexp for handle validation.
+* `storage`:
+  * Add new `Storage.tombstone_repo` method, implement in `MemoryStorage` and `DatastoreStorage`. [Used to delete accounts.](https://github.com/bluesky-social/atproto/discussions/2503#discussioncomment-9502339) ([bridgy-fed#783](https://github.com/snarfed/bridgy-fed/issues/783))
 * `util`:
   * `service_jwt`: add optional `aud` kwarg.
 * `xrpc_sync`:
@@ -126,8 +129,6 @@ _Non-breaking changes:_
 
 * Bug fix: base32-encode TIDs in record keys, `at://` URIs, commit `rev`s, etc. Before, we were using the integer UNIX timestamp directly, which happened to be the same 13 character length. Oops.
 * Switch from `BGS_HOST` environment variable to `RELAY_HOST`. `BGS_HOST` is still supported for backward compatibility.
-* `storage`:
-  * Add new `Storage.tombstone_repo` method, implement in `MemoryStorage` and `DatastoreStorage`. [Used to delete accounts.](https://github.com/bluesky-social/atproto/discussions/2503#discussioncomment-9502339) ([bridgy-fed#783](https://github.com/snarfed/bridgy-fed/issues/783))
 * `datastore_storage`:
   * Bug fix for `DatastoreStorage.last_seq`, handle new NSID.
   * Add new `AtpRemoteBlob` class for storing "remote" blobs, available at public HTTP URLs, that we don't store ourselves.

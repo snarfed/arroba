@@ -23,7 +23,7 @@ from . import xrpc_repo
 
 logger = logging.getLogger(__name__)
 
-# used by subscribe_repos and send_new_commits
+# used by subscribe_repos and send_events
 NEW_COMMITS_TIMEOUT = timedelta(seconds=60)
 new_commits = Condition()
 
@@ -72,7 +72,7 @@ def get_repo(input, did=None, since=None):
 #     }]
 
 
-def send_new_commits():
+def send_events():
     """Triggers ``subscribeRepos`` to deliver new commits from storage to subscribers.
     """
     logger.debug(f'Triggering subscribeRepos to look for new commits')
@@ -91,12 +91,12 @@ def subscribe_repos(cursor=None):
     choose how to register and serve it themselves, eg asyncio vs threads vs
     WSGI workers.
 
-    See :func:`send_new_commits` for an example thread-based callback to
+    See :func:`send_events` for an example thread-based callback to
     register with :class:`Repo` to deliver all new commits to subscribers.
     Here's how to register that callback and this XRPC method in a threaded
-    context::
+    context:
 
-        server.repo.callback = lambda commit_data: xrpc_sync.send_new_commits()
+        server.repo.callback = lambda commit_data: xrpc_sync.send_events()
         server.server.register('com.atproto.sync.subscribeRepos',
                                xrpc_sync.subscribe_repos)
 

@@ -128,9 +128,13 @@ class AtpRepo(ndb.Model):
 
 
 class AtpBlock(ndb.Model):
-    """A data record, MST node, or commit.
+    """A data record, MST node, repo commit, or other event.
 
     Key name is the DAG-CBOR base32 CID of the data.
+
+    Events should have a fully-qualified ``$type`` field that's one of the
+    ``message`` types in ``com.atproto.sync.subscribeRepos``, eg
+    ``com.atproto.sync.subscribeRepos#tombstone``.
 
     Properties:
     * encoded (bytes): DAG-CBOR encoded value
@@ -425,7 +429,7 @@ class DatastoreStorage(Storage):
                          rotation_key=atp_repo.rotation_key)
 
     @ndb_context
-    def tombstone_repo(self, repo):
+    def _tombstone_repo(self, repo):
         @ndb.transactional()
         def update():
             atp_repo = AtpRepo.get_by_id(repo.did)
@@ -469,8 +473,9 @@ class DatastoreStorage(Storage):
         return self.read(cid) is not None
 
     @ndb_context
-    def write(self, repo_did, obj):
-        seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
+    def write(self, repo_did, obj, seq=None):
+        if seq is None:
+            seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
         return AtpBlock.create(repo_did=repo_did, data=obj, seq=seq).cid
 
     @ndb_context

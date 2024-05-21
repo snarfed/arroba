@@ -66,8 +66,11 @@ class Repo:
       mst (MST)
       head (Block): head commit
       handle (str)
-      callback (callable: (CommitData) => None): called on new commits.
-        May be set directly by clients. None means no callback.
+      callback (callable: (CommitData | dict) => None): called on new commits
+        and other repo events. May be set directly by clients. None means no
+        callback. The parameter will be a :class:`CommitData` for commits, dict
+        record with ``$type`` for other ``com.atproto.sync.subscribeRepos``
+        messages.
     """
     storage = None
     mst = None
@@ -87,7 +90,7 @@ class Repo:
           mst (MST)
           commit (dict): head commit
           cid (CID): head CID
-          callback (callable, CommitData => None)
+          callback (callable, (CommitData | dict) => None)
           signing_key (ec.EllipticCurvePrivateKey): required
           rotation_key (ec.EllipticCurvePrivateKey)
         """
