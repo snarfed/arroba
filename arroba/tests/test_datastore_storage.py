@@ -232,3 +232,39 @@ class DatastoreStorageTest(DatastoreTest):
         got = AtpRemoteBlob.get_or_create(url='http://blob')
         self.assertEqual(blob, got)
         mock_get.assert_not_called()
+
+    def test_create_remote_blob_infer_mime_type_from_url(self):
+        mock_get = MagicMock(return_value=requests_response('blob contents'))
+        cid = CID.decode('bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq')
+
+        blob = AtpRemoteBlob.get_or_create(url='http://my/blob.png', get_fn=mock_get)
+        mock_get.assert_called_with('http://my/blob.png')
+        self.assertEqual({
+            '$type': 'blob',
+            'ref': cid,
+            'mimeType': 'image/png',
+            'size': 13,
+        }, blob.as_object())
+
+        mock_get.reset_mock()
+        got = AtpRemoteBlob.get_or_create(url='http://my/blob.png')
+        self.assertEqual(blob, got)
+        mock_get.assert_not_called()
+
+    def test_create_remote_blob_default_mime_type(self):
+        mock_get = MagicMock(return_value=requests_response('blob contents'))
+        cid = CID.decode('bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq')
+
+        blob = AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get)
+        mock_get.assert_called_with('http://blob')
+        self.assertEqual({
+            '$type': 'blob',
+            'ref': cid,
+            'mimeType': 'application/octet-stream',
+            'size': 13,
+        }, blob.as_object())
+
+        mock_get.reset_mock()
+        got = AtpRemoteBlob.get_or_create(url='http://blob')
+        self.assertEqual(blob, got)
+        mock_get.assert_not_called()

@@ -3,6 +3,7 @@ from datetime import timezone
 from functools import wraps
 import json
 import logging
+import mimetypes
 import requests
 
 from cryptography.hazmat.primitives import serialization
@@ -307,12 +308,16 @@ class AtpRemoteBlob(ndb.Model):
 
         resp = get_fn(url)
         resp.raise_for_status()
+        mime_type = resp.headers.get('Content-Type')
+        if not mime_type:
+            mime_type, _ = mimetypes.guess_type(url)
 
         digest = multihash.digest(resp.content, 'sha2-256')
         cid = CID('base58btc', 1, 'raw', digest).encode('base32')
+
         logger.info(f'Creating new AtpRemoteBlob for {url} CID {cid}')
-        blob = cls(id=url, cid=cid, mime_type=resp.headers.get('Content-Type'),
-                   size=len(resp.content))
+        mime_type_prop = {'mime_type': mime_type} if mime_type else {}
+        blob = cls(id=url, cid=cid, size=len(resp.content), **mime_type_prop)
         blob.put()
         return blob
 
