@@ -42,8 +42,9 @@ CURVE_ORDER = {
 
 TOMBSTONED = 'tombstoned'
 
-class TombstonedRepo(Exception):
-    pass
+class TombstonedRepo(ValueError):
+    def __init__(self, message='Repo is tombstoned', *args, **kwargs):
+        super().__init__(message, *args, **kwargs)
 
 
 def now(tz=timezone.utc, **kwargs):
