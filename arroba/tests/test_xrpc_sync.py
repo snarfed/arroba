@@ -445,6 +445,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
                 xrpc_sync.subscribe_repos(cursor=cursor)):
             self.assertIn(header, [
                 {'op': 1, 't': '#commit'},
+                {'op': 1, 't': '#tombstone'},
                 {'op': -1},
             ])
             received.append(payload)
@@ -647,6 +648,18 @@ class SubscribeReposTest(testutil.XrpcTestCase):
                                  prev=prev, seq=3)
 
         subscriber.join()
+
+    def test_tombstone(self, *_):
+        server.storage.tombstone_repo(self.repo)
+
+        seq = server.storage.last_seq(SUBSCRIBE_REPOS_NSID)
+        header, payload = next(iter(xrpc_sync.subscribe_repos(cursor=seq)))
+        self.assertEqual({'op': 1, 't': '#tombstone'}, header)
+        self.assertEqual({
+            'seq': seq,
+            'did': self.repo.did,
+            'time': testutil.NOW.isoformat(),
+        }, payload)
 
 
 class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):

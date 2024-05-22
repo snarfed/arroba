@@ -32,7 +32,7 @@ class StorageTest(TestCase):
     def test_block_hash(self):
         self.assertEqual(id(Block(decoded=DECODED)), id(Block(encoded=ENCODED)))
 
-    def test_read_commits_by_seq(self):
+    def test_read_events_by_seq(self):
         commit_cids = []
 
         storage = MemoryStorage()
@@ -49,11 +49,11 @@ class StorageTest(TestCase):
         commit_cids.append(repo.head.cid)
 
         self.assertEqual(commit_cids, [cd.commit.cid for cd in
-                                       storage.read_commits_by_seq()])
+                                       storage.read_events_by_seq()])
         self.assertEqual(commit_cids[1:], [cd.commit.cid for cd in
-                                           storage.read_commits_by_seq(start=2)])
+                                           storage.read_events_by_seq(start=2)])
 
-    def test_read_commits_by_seq_include_record_block_even_if_preexisting(self):
+    def test_read_events_by_seq_include_record_block_even_if_preexisting(self):
         # https://github.com/snarfed/bridgy-fed/issues/1016#issuecomment-2109276344
         commit_cids = []
 
@@ -69,7 +69,7 @@ class StorageTest(TestCase):
         second = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})
         commit_cid = repo.apply_writes([second])
 
-        commits = list(storage.read_commits_by_seq(start=3))
+        commits = list(storage.read_events_by_seq(start=3))
         self.assertEqual(1, len(commits))
         self.assertEqual(repo.head.cid, commits[0].commit.cid)
         self.assertEqual(prev, commits[0].prev)

@@ -151,18 +151,27 @@ def subscribe_repos(cursor=None):
                 yield ({'op': 1, 't': '#info'}, {'name': 'OutdatedCursor'})
                 cursor = rollback_start
 
-        logger.info(f'fetching existing commits from seq {cursor}')
-        for commit_data in server.storage.read_commits_by_seq(start=cursor):
-            yield header_payload(commit_data)
-            last_seq = commit_data.commit.seq
+        logger.info(f'fetching existing events from seq {cursor}')
+        for event in server.storage.read_events_by_seq(start=cursor):
+            if isinstance(event, CommitData):
+                yield header_payload(event)
+                last_seq = event.commit.seq
+            elif isinstance(event, dict):
+                type = event.pop('$type')
+                type_fragment = type.removeprefix('com.atproto.sync.subscribeRepos')
+                assert type_fragment != type, type
+                yield {'op': 1, 't': type_fragment}, event
+                last_seq = event['seq']
+            else:
+                raise RuntimeError(f'unexpected event type {event.__class__} {event}')
 
-    # serve new commits as they happen
-    logger.info(f'serving new commits')
+    # serve new events as they happen
+    logger.info(f'serving new events')
     while True:
         with new_commits:
             new_commits.wait(NEW_COMMITS_TIMEOUT.total_seconds())
 
-        for commit_data in server.storage.read_commits_by_seq(start=last_seq + 1):
+        for commit_data in server.storage.read_events_by_seq(start=last_seq + 1):
             yield header_payload(commit_data)
             last_seq = commit_data.commit.seq
 

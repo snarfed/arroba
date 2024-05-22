@@ -25,6 +25,7 @@ class Action(Enum):
     DELETE = auto()
 
 # TODO: Should this be a subclass of Block?
+# TODO: generalize to handle other events
 CommitData = namedtuple('CommitData', [
     'commit',  # Block
     'blocks',  # dict of CID to Block
@@ -119,7 +120,7 @@ class Block:
 
 
 class Storage:
-    """Abstract base class for storing nodes: records, MST entries, and commits.
+    """Abstract base class for storing nodes: records, MST entries, commits, etc.
 
     Concrete subclasses should implement this on top of physical storage,
     eg database, filesystem, in memory.
@@ -234,16 +235,17 @@ class Storage:
         """
         raise NotImplementedError()
 
-    def read_commits_by_seq(self, start=0):
-        """Batch read commits from storage by ``subscribeRepos`` sequence number.
+    def read_events_by_seq(self, start=0):
+        """Batch read commits and other events by ``subscribeRepos`` sequence number.
 
         Args:
           seq (int): optional ``subscribeRepos`` sequence number to start from,
             inclusive. Defaults to 0.
 
         Returns:
-          generator: generator of :class:`CommitData`, starting from ``seq``,
-          inclusive, in ascending ``seq`` order
+          generator: generator of :class:`CommitData` for commits and dict
+          messages for other events, starting from ``seq``, inclusive, in
+          ascending ``seq`` order
         """
         assert start >= 0
 
@@ -263,7 +265,10 @@ class Storage:
         for block in self.read_blocks_by_seq(start=start):
             assert block.seq
             if block.seq != seq:  # switching to a new commit's blocks
-                if commit_block:
+                if block.decoded.get('$type', '').startswith(
+                        'com.atproto.sync.subscribeRepos#'):
+                    yield block.decoded # non-commit message
+                elif commit_block:
                     yield make_commit()
                 else:
                     assert blocks is None  # only the first commit
