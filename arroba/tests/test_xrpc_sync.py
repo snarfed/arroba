@@ -455,15 +455,18 @@ class SubscribeReposTest(testutil.XrpcTestCase):
                 return
 
     def assertCommitMessage(self, commit_msg, record=None, write=None,
-                            cur=None, prev=None, seq=None):
-        cur = cur or self.repo.head.cid
+                            repo=None, cur=None, prev=None, seq=None):
+        if not repo:
+            repo = self.repo
+        if not cur:
+            cur = repo.head.cid
 
         blocks = commit_msg.pop('blocks')
         msg_roots, msg_blocks = read_car(blocks)
         self.assertEqual([cur], msg_roots)
 
         self.assertEqual({
-            'repo': 'did:web:user.com',
+            'repo': repo.did,
             'commit': cur,
             'ops': [{
                 'action': op.action.name.lower(),
@@ -502,7 +505,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         commit_record = {
             'version': 3,
-            'did': 'did:web:user.com',
+            'did': repo.did,
             'data': dag_cbor_cid(mst_entry),
             'rev': int_to_tid(seq, clock_id=0),
             'prev': prev,
@@ -650,16 +653,32 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         subscriber.join()
 
     def test_tombstone(self, *_):
+        # second repo
+        bob_repo = Repo.create(server.storage, 'did:web:bob',
+                               handle='bo.bb', signing_key=self.key)
+
+        # tombstone first repo
         server.storage.tombstone_repo(self.repo)
 
-        seq = server.storage.last_seq(SUBSCRIBE_REPOS_NSID)
-        header, payload = next(iter(xrpc_sync.subscribe_repos(cursor=seq)))
+        # write to second repo
+        prev = bob_repo.head.cid
+        write = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})
+        bob_repo.apply_writes([write])
+
+        # subscribe should serve both
+        subscribe = iter(xrpc_sync.subscribe_repos(cursor=3))
+        header, payload = next(subscribe)
         self.assertEqual({'op': 1, 't': '#tombstone'}, header)
         self.assertEqual({
-            'seq': seq,
-            'did': self.repo.did,
+            'seq': 3,
+            'did': 'did:web:user.com',
             'time': testutil.NOW.isoformat(),
         }, payload)
+
+        header, payload = next(subscribe)
+        self.assertEqual({'op': 1, 't': '#commit'}, header)
+        self.assertCommitMessage(payload, {'foo': 'bar'}, write=write,
+                                 repo=bob_repo, prev=prev, seq=4)
 
 
 class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):

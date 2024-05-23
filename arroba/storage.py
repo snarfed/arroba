@@ -265,16 +265,19 @@ class Storage:
         for block in self.read_blocks_by_seq(start=start):
             assert block.seq
             if block.seq != seq:  # switching to a new commit's blocks
-                if block.decoded.get('$type', '').startswith(
-                        'com.atproto.sync.subscribeRepos#'):
-                    yield block.decoded # non-commit message
-                elif commit_block:
+                if commit_block:
                     yield make_commit()
                 else:
-                    assert blocks is None  # only the first commit
+                    # we shouldn't have any dangling blocks that we don't serve
+                    assert not blocks
                 seq = block.seq
                 blocks = {}  # maps CID to Block
                 commit_block = None
+
+            if block.decoded.get('$type', '').startswith(
+                    'com.atproto.sync.subscribeRepos#'):  # non-commit message
+                yield block.decoded
+                continue
 
             blocks[block.cid] = block
             commit_fields = ['version', 'did', 'rev', 'prev', 'data', 'sig']
@@ -283,7 +286,8 @@ class Storage:
 
         # final commit
         if blocks:
-            assert blocks and commit_block
+            assert blocks
+            assert commit_block
             yield make_commit()
 
     def has(self, cid):
