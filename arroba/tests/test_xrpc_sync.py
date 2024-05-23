@@ -462,6 +462,8 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             cur = repo.head.cid
 
         header, payload = commit_msg
+        self.assertEqual({'op': 1, 't': '#commit'}, header)
+
         blocks = payload.pop('blocks')
         msg_roots, msg_blocks = read_car(blocks)
         self.assertEqual([cur], msg_roots)
@@ -600,12 +602,13 @@ class SubscribeReposTest(testutil.XrpcTestCase):
     def test_subscribe_repos_cursor_past_current_seq(self, *_):
         received = []
         self.subscribe(received, cursor=999)
-        self.assertEqual(
-            [({'op': -1},
-              {
-                  'error': 'FutureCursor',
-                  'message': 'Cursor 999 is past our current sequence number 1',
-              })], received)
+        self.assertEqual([
+            ({'op': -1},
+             {
+                 'error': 'FutureCursor',
+                 'message': 'Cursor 999 is past our current sequence number 1',
+             }),
+        ], received)
 
     @patch('arroba.xrpc_sync.ROLLBACK_WINDOW', 2)
     def test_subscribe_repos_cursor_before_rollback_window(self, *_):
@@ -624,9 +627,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         self.assertEqual({'op': 1, 't': '#info'}, header)
         self.assertEqual({'name': 'OutdatedCursor'}, payload)
 
-        header, payload = next(sub)
-        self.assertEqual({'op': 1, 't': '#commit'}, header)
-        self.assertCommitMessage((header, payload), {'foo': 'bar'}, write=write,
+        self.assertCommitMessage(next(sub), {'foo': 'bar'}, write=write,
                                  seq=6, cur=self.repo.head.cid, prev=prev)
 
     def test_include_preexisting_record_block(self, *_):
@@ -656,21 +657,34 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         subscriber.join()
 
     def test_tombstone(self, *_):
-        # second repo
-        bob_repo = Repo.create(server.storage, 'did:web:bob',
+        # second repo: bob
+        bob_repo = Repo.create(server.storage, 'did:bob',
                                handle='bo.bb', signing_key=self.key)
+        bob_repo.callback = lambda commit_data: xrpc_sync.send_events()
 
-        # tombstone first repo
+        # tombstone user
         server.storage.tombstone_repo(self.repo)
 
-        # write to second repo
+        # write to bob
         prev = bob_repo.head.cid
-        write = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})
+        tid = next_tid()
+        write = Write(Action.CREATE, 'co.ll', tid, {'foo': 'bar'})
         bob_repo.apply_writes([write])
 
-        # subscribe should serve both
-        subscribe = iter(xrpc_sync.subscribe_repos(cursor=3))
-        header, payload = next(subscribe)
+        # subscribe should serve both, from historical blocks
+        received = []
+        delivered = Semaphore(value=0)
+        subscriber = Thread(target=self.subscribe, args=[received, delivered],
+                            kwargs={'limit': 6, 'cursor': 0})
+        subscriber.start()
+
+        # first two events are initial commits for each repo
+        delivered.acquire()
+        delivered.acquire()
+
+        # tombstone
+        delivered.acquire()
+        header, payload = received[2]
         self.assertEqual({'op': 1, 't': '#tombstone'}, header)
         self.assertEqual({
             'seq': 3,
@@ -678,10 +692,29 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             'time': testutil.NOW.isoformat(),
         }, payload)
 
-        header, payload = next(subscribe)
-        self.assertEqual({'op': 1, 't': '#commit'}, header)
-        self.assertCommitMessage((header, payload), {'foo': 'bar'}, write=write,
+        # bob's write, now from streaming
+        delivered.acquire()
+        self.assertCommitMessage(received[3], {'foo': 'bar'}, write=write,
                                  repo=bob_repo, prev=prev, seq=4)
+
+        # another write to bob
+        prev = bob_repo.head.cid
+        write = Write(Action.DELETE, 'co.ll', tid)
+        bob_repo.apply_writes([write])
+        delivered.acquire()
+
+        # now tombstone bob, served from streaming
+        server.storage.tombstone_repo(bob_repo)
+        delivered.acquire()
+
+        self.assertEqual(6, len(received))
+        header, payload = received[5]
+        self.assertEqual({'op': 1, 't': '#tombstone'}, header)
+        self.assertEqual({
+            'seq': 6,
+            'did': 'did:bob',
+            'time': testutil.NOW.isoformat(),
+        }, payload)
 
 
 class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):

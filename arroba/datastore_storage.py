@@ -438,9 +438,6 @@ class DatastoreStorage(Storage):
 
         update()
 
-        if repo.callback:
-            repo.callback(None)  # TODO: format tombstone event
-
     @ndb_context
     def read(self, cid):
         block = AtpBlock.get_by_id(cid.encode('base32'))

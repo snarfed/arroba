@@ -24,8 +24,8 @@ from . import xrpc_repo
 logger = logging.getLogger(__name__)
 
 # used by subscribe_repos and send_events
-NEW_COMMITS_TIMEOUT = timedelta(seconds=60)
-new_commits = Condition()
+NEW_EVENTS_TIMEOUT = timedelta(seconds=1)
+new_events = Condition()
 
 ROLLBACK_WINDOW = None
 if 'ROLLBACK_WINDOW' in os.environ:
@@ -76,8 +76,8 @@ def send_events():
     """Triggers ``subscribeRepos`` to deliver new commits from storage to subscribers.
     """
     logger.debug(f'Triggering subscribeRepos to look for new commits')
-    with new_commits:
-        new_commits.notify_all()
+    with new_events:
+        new_events.notify_all()
 
 
 @server.server.method('com.atproto.sync.subscribeRepos')
@@ -106,11 +106,26 @@ def subscribe_repos(cursor=None):
     Returns:
       (dict, dict) tuple: (header, payload)
     """
-    def header_payload(commit_data):
-        commit = commit_data.commit.decoded
+    last_seq = server.storage.last_seq(SUBSCRIBE_REPOS_NSID)
+
+    def handle(event):
+        nonlocal last_seq
+
+        if isinstance(event, dict):  # non-commit event
+            last_seq = event['seq']
+            type = event.pop('$type')
+            type_fragment = type.removeprefix('com.atproto.sync.subscribeRepos')
+            assert type_fragment != type, type
+            return ({'op': 1, 't': type_fragment}, event)
+
+        assert isinstance(event, CommitData), \
+            f'unexpected event type {event.__class__} {event}'
+
+        last_seq = event.commit.seq
+        commit = event.commit.decoded
         car_blocks = [car.Block(cid=block.cid, data=block.encoded,
                                 decoded=block.decoded)
-                      for block in commit_data.blocks.values()]
+                      for block in event.blocks.values()]
         return ({  # header
           'op': 1,
           't': '#commit',
@@ -120,13 +135,13 @@ def subscribe_repos(cursor=None):
                 'action': op.action.name.lower(),
                 'path': op.path,
                 'cid': op.cid,
-            } for op in (commit_data.commit.ops or [])],
-            'commit': commit_data.commit.cid,
-            'blocks': car.write_car([commit_data.commit.cid], car_blocks),
-            'time': commit_data.commit.time.replace(tzinfo=timezone.utc).isoformat(),
-            'seq': commit_data.commit.seq,
-            'rev': util.int_to_tid(commit_data.commit.seq, clock_id=0),
-            'since': None,  # TODO: load commit_data.commit['prev']'s CID
+            } for op in (event.commit.ops or [])],
+            'commit': event.commit.cid,
+            'blocks': car.write_car([event.commit.cid], car_blocks),
+            'time': event.commit.time.replace(tzinfo=timezone.utc).isoformat(),
+            'seq': event.commit.seq,
+            'rev': util.int_to_tid(event.commit.seq, clock_id=0),
+            'since': None,  # TODO: load event.commit['prev']'s CID
             'rebase': False,
             'tooBig': False,
             'blobs': [],
@@ -135,7 +150,6 @@ def subscribe_repos(cursor=None):
     if cursor is not None:
         assert cursor >= 0
 
-    last_seq = server.storage.last_seq(SUBSCRIBE_REPOS_NSID)
     if cursor is not None:
         # validate cursor
         if cursor > last_seq:
@@ -153,27 +167,16 @@ def subscribe_repos(cursor=None):
 
         logger.info(f'fetching existing events from seq {cursor}')
         for event in server.storage.read_events_by_seq(start=cursor):
-            if isinstance(event, CommitData):
-                yield header_payload(event)
-                last_seq = event.commit.seq
-            elif isinstance(event, dict):
-                type = event.pop('$type')
-                type_fragment = type.removeprefix('com.atproto.sync.subscribeRepos')
-                assert type_fragment != type, type
-                yield {'op': 1, 't': type_fragment}, event
-                last_seq = event['seq']
-            else:
-                raise RuntimeError(f'unexpected event type {event.__class__} {event}')
+            yield handle(event)
 
     # serve new events as they happen
     logger.info(f'serving new events')
     while True:
-        with new_commits:
-            new_commits.wait(NEW_COMMITS_TIMEOUT.total_seconds())
+        with new_events:
+            new_events.wait(NEW_EVENTS_TIMEOUT.total_seconds())
 
         for commit_data in server.storage.read_events_by_seq(start=last_seq + 1):
-            yield header_payload(commit_data)
-            last_seq = commit_data.commit.seq
+            yield handle(commit_data)
 
 
 # @server.server.method('com.atproto.sync.getBlocks')
