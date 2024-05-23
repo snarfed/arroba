@@ -434,7 +434,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         """subscribeRepos websocket client. May be run in a thread.
 
         Args:
-          received: list, each received message will be appended
+          received: list, each received (header, payload) tuple will be appended
           delivered: :class:`Semaphore`, optional, released once after receiving
             each message
           limit: integer, optional. If set, returns after receiving this many
@@ -448,7 +448,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
                 {'op': 1, 't': '#tombstone'},
                 {'op': -1},
             ])
-            received.append(payload)
+            received.append((header, payload))
             if delivered:
                 delivered.release()
             if limit and i == limit - 1:
@@ -461,7 +461,8 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         if not cur:
             cur = repo.head.cid
 
-        blocks = commit_msg.pop('blocks')
+        header, payload = commit_msg
+        blocks = payload.pop('blocks')
         msg_roots, msg_blocks = read_car(blocks)
         self.assertEqual([cur], msg_roots)
 
@@ -481,7 +482,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             'rebase': False,
             'tooBig': False,
             'blobs': [],
-        }, commit_msg)
+        }, payload)
 
         if record:
             record_cid = dag_cbor_cid(record)
@@ -599,10 +600,12 @@ class SubscribeReposTest(testutil.XrpcTestCase):
     def test_subscribe_repos_cursor_past_current_seq(self, *_):
         received = []
         self.subscribe(received, cursor=999)
-        self.assertEqual([({
-            'error': 'FutureCursor',
-            'message': 'Cursor 999 is past our current sequence number 1',
-        })], received)
+        self.assertEqual(
+            [({'op': -1},
+              {
+                  'error': 'FutureCursor',
+                  'message': 'Cursor 999 is past our current sequence number 1',
+              })], received)
 
     @patch('arroba.xrpc_sync.ROLLBACK_WINDOW', 2)
     def test_subscribe_repos_cursor_before_rollback_window(self, *_):
@@ -623,8 +626,8 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         header, payload = next(sub)
         self.assertEqual({'op': 1, 't': '#commit'}, header)
-        self.assertCommitMessage(payload, {'foo': 'bar'}, write=write, seq=6,
-                                 cur=self.repo.head.cid, prev=prev)
+        self.assertCommitMessage((header, payload), {'foo': 'bar'}, write=write,
+                                 seq=6, cur=self.repo.head.cid, prev=prev)
 
     def test_include_preexisting_record_block(self, *_):
         # https://github.com/snarfed/bridgy-fed/issues/1016#issuecomment-2109276344
@@ -677,7 +680,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         header, payload = next(subscribe)
         self.assertEqual({'op': 1, 't': '#commit'}, header)
-        self.assertCommitMessage(payload, {'foo': 'bar'}, write=write,
+        self.assertCommitMessage((header, payload), {'foo': 'bar'}, write=write,
                                  repo=bob_repo, prev=prev, seq=4)
 
 
