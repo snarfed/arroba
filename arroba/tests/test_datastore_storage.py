@@ -165,6 +165,19 @@ class DatastoreStorageTest(DatastoreTest):
         self.ndb_context.__exit__(None, None, None)
         self.assertEqual([block], [b.cid for b in self.storage.read_blocks_by_seq()])
 
+    def test_read_blocks_by_seq_ndb_context_closes_while_running(self):
+        AtpSequence.allocate(SUBSCRIBE_REPOS_NSID)
+        blocks = [
+            self.storage.write(repo_did='did:plc:123', obj={'foo': 2}),
+            self.storage.write(repo_did='did:plc:123', obj={'bar': 3}),
+        ]
+
+        call = self.storage.read_blocks_by_seq()
+        self.assertEqual(blocks[0], next(call).cid)
+
+        self.ndb_context.__exit__(None, None, None)
+        self.assertEqual([], list(call))
+
     def assert_same_seq(self, cids):
         """
         Args:

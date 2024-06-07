@@ -12,6 +12,7 @@ import dag_cbor
 import dag_json
 from google.cloud import ndb
 from google.cloud.ndb.context import get_context
+from google.cloud.ndb.exceptions import ContextError
 from multiformats import CID, multicodec, multihash
 
 from .repo import Repo
@@ -373,10 +374,6 @@ class DatastoreStorage(Storage):
             with context.use() if context else self.ndb_client.context():
                 ret = fn(self, *args, **kwargs)
 
-                # cargo-culted from ndb.Client.context(): finish any work left to do
-                if context:
-                    context.eventloop.run()
-
             return ret
 
         return decorated
@@ -461,9 +458,13 @@ class DatastoreStorage(Storage):
             # lexrpc event subscription handlers like subscribeRepos call this
             # on a different thread, so if we're there, we need to create a new
             # ndb context
-            for atp_block in AtpBlock.query(AtpBlock.seq >= start)\
-                                     .order(AtpBlock.seq):
-                yield atp_block.to_block()
+            try:
+                for atp_block in AtpBlock.query(AtpBlock.seq >= start)\
+                                         .order(AtpBlock.seq):
+                    yield atp_block.to_block()
+            except ContextError as e:
+                logging.warning(f'lost ndb context! client may have disconnected? "{e}"')
+                return
 
     @ndb_context
     def has(self, cid):
