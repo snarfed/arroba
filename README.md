@@ -127,6 +127,8 @@ _Non-breaking changes:_
     * Bug fix, populate the time each commit was created in `time` instead of the current time ([snarfed/bridgy-fed#1015](https://github.com/snarfed/bridgy-fed/issues/1015)).
   * Start serving `getRepo` queries with the `since` parameter. `since` still isn't actually implemented, but we now serve the entire repo instead of returning an error.
   * `getRepo` bug fix: include the repo head commit block.
+* `xrpc_*`: return `RepoNotFound` and `RepoDeactivated` errors when appropriate ([snarfed/bridgy-fed#1083](https://github.com/snarfed/bridgy-fed/issues/1083)).
+
 
 ### 0.5 - 2024-03-16
 

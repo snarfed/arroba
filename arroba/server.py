@@ -2,9 +2,10 @@
 import os
 
 from flask import request
+from lexrpc.base import XrpcError
 from lexrpc.server import Server
 
-from .util import parse_at_uri
+from .util import parse_at_uri, TombstonedRepo
 
 
 # XRPC server
@@ -30,7 +31,12 @@ def load_repo(did_or_at_uri):
     else:
         did_or_handle = did_or_at_uri
 
-    repo = storage.load_repo(did_or_handle)
+    try:
+        repo = storage.load_repo(did_or_handle)
+    except TombstonedRepo:
+        raise XrpcError(f'Repo {did_or_handle} is tombstoned', name='RepoDeactivated')
+
     if not repo:
-        raise ValueError(f'Repo {repo} not found')
+        raise XrpcError(f'Repo {did_or_handle} not found', name='RepoNotFound')
+
     return repo

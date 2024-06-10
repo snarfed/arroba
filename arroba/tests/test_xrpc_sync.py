@@ -8,6 +8,7 @@ from carbox.car import Block, read_car
 import dag_cbor
 from google.cloud import ndb
 from google.cloud.ndb.exceptions import ContextError
+from lexrpc.base import XrpcError
 from lexrpc.server import Redirect
 from multiformats import CID
 
@@ -79,6 +80,20 @@ class XrpcSyncTest(testutil.XrpcTestCase):
         }, commit)
 
         self.assertEqual(self.data, load(blocks[0:]))
+
+    def test_get_repo_not_found(self):
+        with self.assertRaises(XrpcError) as cm:
+            xrpc_sync.get_repo({}, did='did:unknown')
+
+        self.assertEqual('RepoNotFound', cm.exception.name)
+
+    def test_get_repo_tombstoned(self):
+        server.storage.tombstone_repo(self.repo)
+
+        with self.assertRaises(XrpcError) as cm:
+            xrpc_sync.get_repo({}, did='did:web:user.com')
+
+        self.assertEqual('RepoDeactivated', cm.exception.name)
 
     @skip
     def test_lists_hosted_repos_in_order_of_creation(self):
