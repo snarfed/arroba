@@ -14,6 +14,9 @@ from arroba import xrpc_repo
 from werkzeug.exceptions import HTTPException
 
 from ..datastore_storage import DatastoreStorage
+from ..repo import Repo, Write
+from .. import server
+from ..storage import Action
 from .. import util
 from . import testutil
 
@@ -75,6 +78,44 @@ class XrpcRepoTest(testutil.XrpcTestCase):
                 '$type': 'app.bsky.feed.post',
                 'text': 'Hello, world!',
                 'createdAt': testutil.NOW.isoformat(),
+            },
+        }, resp)
+
+    def test_get_record_encodes_cids_blobs(self):
+        [(_, cid)] = self.random_keys_and_cids(1)
+        cid_str = cid.encode('base32')
+
+        repo = server.load_repo('did:web:user.com')
+        repo.apply_writes([Write(
+            action=Action.CREATE,
+            collection='test.coll',
+            rkey='self',
+            record={
+            'cid': cid,
+                'blob': {
+                    '$type': 'blob',
+                    'ref': cid,
+                    'mimeType': 'foo/bar',
+                    'size': 13,
+                },
+            })])
+
+        resp = xrpc_repo.get_record({},
+            repo='at://did:web:user.com',
+            collection='test.coll',
+            rkey='self',
+        )
+        self.assertEqual({
+            'uri': 'at://did:web:user.com/test.coll/self',
+            'cid': 'bafyreigvoaq3peqtfbqi2fouk7a626y7ft2ez7wrfjd6bdwlzfnbmqle5e',
+            'value': {
+                'cid': {'$link': cid_str},
+                'blob': {
+                    '$type': 'blob',
+                    'ref': {'$link': cid_str},
+                    'mimeType': 'foo/bar',
+                    'size': 13,
+                },
             },
         }, resp)
 

@@ -1,7 +1,9 @@
 """``com.atproto.repo.*`` XRPC methods."""
+import json
 import logging
 import os
 
+import dag_json
 from flask import abort, make_response
 from lexrpc import Client
 from requests import HTTPError
@@ -49,11 +51,11 @@ def get_record(input, repo=None, collection=None, rkey=None, cid=None):
         repo = server.load_repo(input['repo'])
         record = repo.get_record(collection, rkey)
         if record is not None:
-            return {
+            return json.loads(dag_json.encode({
                 'uri': at_uri(repo.did, collection, rkey),
                 'cid': dag_cbor_cid(record).encode('base32'),
                 'value': record,
-            }
+            }, dialect='atproto'))
     except ValueError as e:
         logger.info(e)
         pass
