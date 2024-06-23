@@ -127,6 +127,7 @@ _Non-breaking changes:_
     * For commits with create or update operations, always include the record block, even if it already existed in the repo beforehand ([snarfed/bridgy-fed#1016](https://github.com/snarfed/bridgy-fed/issues/1016)).
     * Bug fix, populate the time each commit was created in `time` instead of the current time ([snarfed/bridgy-fed#1015](https://github.com/snarfed/bridgy-fed/issues/1015)).
   * Start serving `getRepo` queries with the `since` parameter. `since` still isn't actually implemented, but we now serve the entire repo instead of returning an error.
+  * implement `getRepoStatus` method.
   * `getRepo` bug fix: include the repo head commit block.
 * `xrpc_repo`:
   * `getRecord`: encoded returned records correctly as [ATProto-flavored DAG-JSON](https://atproto.com/specs/data-model).

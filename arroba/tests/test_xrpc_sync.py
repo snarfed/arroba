@@ -95,6 +95,29 @@ class XrpcSyncTest(testutil.XrpcTestCase):
 
         self.assertEqual('RepoDeactivated', cm.exception.name)
 
+    def test_get_repo_status(self):
+        resp = xrpc_sync.get_repo_status({}, did='did:web:user.com')
+        self.assertEqual({
+            'did': 'did:web:user.com',
+            'active': True,
+        }, resp)
+
+    def test_get_repo_status_not_found(self):
+        with self.assertRaises(XrpcError) as cm:
+            xrpc_sync.get_repo_status({}, did='did:unknown')
+
+        self.assertEqual('RepoNotFound', cm.exception.name)
+
+    def test_get_repo_status_tombstoned(self):
+        server.storage.tombstone_repo(self.repo)
+
+        resp = xrpc_sync.get_repo_status({}, did='did:web:user.com')
+        self.assertEqual({
+            'did': 'did:web:user.com',
+            'active': False,
+            'status': 'deactivated',
+        }, resp)
+
     @skip
     def test_lists_hosted_repos_in_order_of_creation(self):
         resp = xrpc_sync.list_repos({})

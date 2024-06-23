@@ -13,6 +13,7 @@ from threading import Condition
 
 from carbox import car
 import dag_cbor
+from lexrpc.base import XrpcError
 from lexrpc.server import Redirect
 
 from . import server
@@ -55,6 +56,25 @@ def get_repo(input, did=None, since=None):
         (car.Block(cid=cid, data=data) for cid, data in itertools.chain(
             [(repo.head.cid, repo.head.encoded)], repo.mst.load_all())))
 
+
+@server.server.method('com.atproto.sync.getRepoStatus')
+def get_repo_status(input, did=None):
+    """Handler for ``com.atproto.sync.getRepoStatus`` XRPC method."""
+    try:
+        repo = server.load_repo(did)
+    except XrpcError as e:
+        if e.name == 'RepoDeactivated':
+            return {
+                'did': did,
+                'active': False,
+                'status': 'deactivated',
+            }
+        raise
+
+    return {
+        'did': did,
+        'active': True,
+    }
 
 # @server.server.method('com.atproto.sync.listRepos')
 # def list_repos(input, limit=None, cursor=None):
