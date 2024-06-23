@@ -99,7 +99,7 @@ def delete_record(input):
 
 
 @server.server.method('com.atproto.repo.listRecords')
-def list_records(input, repo=None, collection=None, limit=100, cursor=None,
+def list_records(input, repo=None, collection=None, limit=50, cursor=None,
                  reverse=None,
                  # DEPRECATED
                  rkeyStart=None, rkeyEnd=None):

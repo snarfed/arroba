@@ -89,7 +89,7 @@ class Repo:
         Args:
           storage (Storage): required
           mst (MST)
-          commit (dict): head commit
+          head (dict): head commit
           cid (CID): head CID
           callback (callable, (CommitData | dict) => None)
           signing_key (ec.EllipticCurvePrivateKey): required

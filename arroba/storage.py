@@ -5,6 +5,7 @@ https://github.com/bluesky-social/atproto/blob/main/packages/repo/src/storage/re
 """
 from collections import namedtuple
 from enum import auto, Enum
+import itertools
 
 import dag_cbor
 from multiformats import CID, multicodec, multihash
@@ -159,6 +160,21 @@ class Storage:
 
         Raises:
           TombstonedRepo: if the repo is tombstoned
+        """
+        raise NotImplementedError()
+
+    def load_repos(self, from_=None, limit=500):
+        """Loads multiple repos from storage.
+
+        Repos are returned in lexicographic order of their DIDs, ascending.
+        Tombstoned repos are included.
+
+        Args:
+          from_ (str): optional DID to start at, inclusive
+          limit (int): maximum number of repos to return
+
+        Returns:
+          sequence of Repo:
         """
         raise NotImplementedError()
 
@@ -386,6 +402,14 @@ class MemoryStorage(Storage):
                 if repo.status == TOMBSTONED:
                     raise TombstonedRepo(f'{repo.did} is tombstoned')
                 return repo
+
+    def load_repos(self, from_=None, limit=500):
+        it = iter(sorted(self.repos, key=lambda repo: repo.did))
+
+        if from_:
+            it = itertools.dropwhile(lambda repo: repo.did < from_, it)
+
+        return list(itertools.islice(it, limit))
 
     def _tombstone_repo(self, repo):
         repo.status = TOMBSTONED

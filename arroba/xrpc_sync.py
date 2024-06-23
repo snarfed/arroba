@@ -251,7 +251,7 @@ def get_record(input, did=None, collection=None, rkey=None, commit=None):
 
 @server.server.method('com.atproto.sync.getBlob')
 def get_blob(input, did=None, cid=None):
-    r"""Handler for ``com.atproto.sync.getBlob`` XRPC method.
+    """Handler for ``com.atproto.sync.getBlob`` XRPC method.
 
     Right now only supports redirecting to "remote" blobs based on stored
     :class:`AtpRemoteBlob`\s.
@@ -264,6 +264,10 @@ def get_blob(input, did=None, cid=None):
 
 
 # @server.server.method('com.atproto.sync.listBlobs')
-# def list_blobs(input, did=None, earliest=None, latest=None):
-#     """Handler for ``com.atproto.sync.listBlobs`` XRPC method."""
+# def list_blobs(input, did=None, since=None, limit=500):
+#     """Handler for ``com.atproto.sync.listBlobs`` XRPC method.
+#
+#     TODO. The difficulty with this one is that AtpRemoteBlob is
+#     repo-independent. Hrm.
+#     """
 #     # output: {'cids': [CID, ...]}

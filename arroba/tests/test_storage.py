@@ -99,6 +99,58 @@ class StorageTest(TestCase):
         self.assertEqual(bob.head.cid, events[2].commit.cid)
         self.assertEqual(3, events[2].commit.seq)
 
+    def test_load_repo(self):
+        storage = MemoryStorage()
+        created = Repo.create(storage, 'did:web:user.com', signing_key=self.key)
+
+        got = storage.load_repo('did:web:user.com')
+        self.assertEqual('did:web:user.com', got.did)
+        self.assertEqual(created.head, got.head)
+        self.assertIsNone(got.status)
+
+    def test_load_repos(self):
+        storage = MemoryStorage()
+        alice = Repo.create(storage, 'did:web:alice', signing_key=self.key)
+        bob = Repo.create(storage, 'did:plc:bob', signing_key=self.key)
+        storage.tombstone_repo(bob)
+
+        got_bob, got_alice = storage.load_repos()
+        self.assertEqual('did:web:alice', got_alice.did)
+        self.assertEqual(alice.head, got_alice.head)
+        self.assertIsNone(got_alice.status)
+
+        self.assertEqual('did:plc:bob', got_bob.did)
+        self.assertEqual(bob.head, got_bob.head)
+        self.assertEqual('tombstoned', got_bob.status)
+
+    def test_load_repos_from(self):
+        storage = MemoryStorage()
+        Repo.create(storage, 'did:web:alice', signing_key=self.key)
+        Repo.create(storage, 'did:plc:bob', signing_key=self.key)
+
+        got = storage.load_repos(from_='did:web:alice')
+        self.assertEqual(1, len(got))
+        self.assertEqual('did:web:alice', got[0].did)
+
+        got = storage.load_repos(from_='did:web:a')
+        self.assertEqual(1, len(got))
+        self.assertEqual('did:web:alice', got[0].did)
+
+        got = storage.load_repos(from_='did:web:eve')
+        self.assertEqual([], got)
+
+    def test_load_repos_limit(self):
+        storage = MemoryStorage()
+        Repo.create(storage, 'did:web:alice', signing_key=self.key)
+        Repo.create(storage, 'did:plc:bob', signing_key=self.key)
+
+        got = storage.load_repos(limit=2)
+        self.assertEqual(2, len(got))
+
+        got = storage.load_repos(limit=1)
+        self.assertEqual(1, len(got))
+        self.assertEqual('did:plc:bob', got[0].did)
+
     def test_tombstone_repo(self):
         seen = []
         storage = MemoryStorage()
