@@ -34,6 +34,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
 
     # based on atproto/packages/pds/tests/crud.test.ts
     def test_create_record(self):
+        self.prepare_auth()
         resp = xrpc_repo.create_record({
             'repo': 'at://did:web:user.com',
             'collection': 'app.bsky.feed.post',
@@ -143,6 +144,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         self.assertEqual({'my': 'err'}, resp.json)
 
     def test_delete_record(self):
+        self.prepare_auth()
         self.test_create_record()
 
         xrpc_repo.delete_record({
@@ -165,6 +167,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         self.assertEqual([], resp['records'])
 
     def test_delete_nonexistent_record(self):
+        self.prepare_auth()
         # noop
         xrpc_repo.delete_record({
             'repo': 'at://did:web:user.com',
@@ -173,6 +176,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         })
 
     def test_writes_without_auth_fail(self):
+        self.prepare_auth()
         del request.headers['Authorization']
 
         input = {  # union of all inputs
@@ -196,6 +200,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
             xrpc_repo.put_record(input)
 
     def test_authed_writes_without_repo_token_return_not_implemented(self):
+        self.prepare_auth()
         del os.environ['REPO_TOKEN']
 
         input = {
@@ -212,6 +217,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
             xrpc_repo.put_record(input)
 
     def test_put_new_record(self):
+        self.prepare_auth()
         resp = xrpc_repo.put_record({
             'repo': 'at://did:web:user.com',
             'collection': 'app.bsky.actor.profile',
@@ -229,6 +235,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         self.assertEqual({'displayName': 'Ms. Alice'}, resp['value'])
 
     def test_put_update_existing_record(self):
+        self.prepare_auth()
         self.test_put_new_record()
 
         resp = xrpc_repo.put_record({

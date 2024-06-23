@@ -24,13 +24,13 @@ def validate(input, **params):
     if not input.get('repo'):
         raise ValueError('Missing repo param')
 
-    server.auth()
-
 
 @server.server.method('com.atproto.repo.createRecord')
 def create_record(input):
     """Handler for ``com.atproto.repo.createRecord`` XRPC method."""
     validate(input)
+    server.auth()
+
     repo = server.load_repo(input['repo'])
     input.setdefault('rkey', next_tid())
     return put_record(input)
@@ -41,6 +41,7 @@ def get_record(input, repo=None, collection=None, rkey=None, cid=None):
     """Handler for `com.atproto.repo.getRecord` XRPC method."""
     # Largely duplicates xrpc_sync.get_record
     validate(input, repo=repo, collection=collection, rkey=rkey, cid=cid)
+
     if cid:
         raise ValueError(f'cid not supported yet')
 
@@ -81,8 +82,9 @@ def get_record(input, repo=None, collection=None, rkey=None, cid=None):
 def delete_record(input):
     """Handler for ``com.atproto.repo.deleteRecord`` XRPC method."""
     validate(input)
-    repo = server.load_repo(input['repo'])
+    server.auth()
 
+    repo = server.load_repo(input['repo'])
     record = repo.get_record(input['collection'], input['rkey'])
     if record is None:
         return  # noop
@@ -120,8 +122,9 @@ def list_records(input, repo=None, collection=None, limit=None, cursor=None,
 def put_record(input):
     """Handler for ``com.atproto.repo.putRecord`` XRPC method."""
     validate(input)
-    repo = server.load_repo(input['repo'])
+    server.auth()
 
+    repo = server.load_repo(input['repo'])
     existing = repo.get_record(input['collection'], input['rkey'])
 
     repo.apply_writes([Write(
@@ -147,11 +150,9 @@ def describe_repo(input, repo=None):
         'did': repo.did,
         'handle': repo.handle,
         'didDoc': {'TODO': 'TODO'},
-        # TODO
         'collections': [
             'app.bsky.actor.profile',
-            'app.bsky.feed.posts',
-            'app.bsky.feed.likes',
+            'TODO',
         ],
         'handleIsCorrect': True,
     }
@@ -161,6 +162,7 @@ def describe_repo(input, repo=None):
 def apply_writes(input):
     """Handler for ``com.atproto.repo.applyWrites`` XRPC method."""
     validate(input)
+    server.auth()
     return 'Not implemented yet', 501
 
 
@@ -169,4 +171,5 @@ def upload_blob(input):
     """Handler for ``com.atproto.repo.uploadBlob`` XRPC method."""
     # input: binary
     validate({})
+    server.auth()
     return 'Not implemented yet', 501

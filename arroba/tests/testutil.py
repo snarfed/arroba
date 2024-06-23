@@ -175,6 +175,8 @@ class XrpcTestCase(TestCase):
         self.request_context = self.app.test_request_context('/')
         self.request_context.push()
 
+    @staticmethod
+    def prepare_auth():
         os.environ.update({
             'REPO_PASSWORD': 'sooper-sekret',
             'REPO_TOKEN': 'towkin',

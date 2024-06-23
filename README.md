@@ -110,6 +110,7 @@ _Breaking changes:_
   * Cache `resolve_plc`, `resolve_web`, and `resolve_handle` for 6h, up to 5000 total results per call.
 * `storage`: rename `Storage.read_commits_by_seq` to `read_events_by_seq` for new account tombstone support.
 * `xrpc_sync`: rename `send_new_commits` to `send_events`, ditto.
+* `xrpc_repo`: stop requiring auth for read methods: `getRecord`, `listRecords`, `describeRepo`.
 
 _Non-breaking changes:_
 
