@@ -109,11 +109,13 @@ def list_records(input, repo=None, collection=None, limit=None, cursor=None,
         raise ValueError(f'rkeyStart/rkeyEnd not supported')
     repo = server.load_repo(input['repo'])
 
-    records = [{
-        'uri': at_uri(repo.did, collection, rkey),
-        'cid': dag_cbor_cid(record).encode('base32'),
-        'value': record,
-    } for rkey, record in repo.get_contents()[collection].items()]
+    records = [
+        json.loads(dag_json.encode({
+            'uri': at_uri(repo.did, collection, rkey),
+            'cid': dag_cbor_cid(record).encode('base32'),
+            'value': record,
+        }, dialect='atproto'))
+        for rkey, record in repo.get_contents()[collection].items()]
     if reverse:
         records.reverse()
 

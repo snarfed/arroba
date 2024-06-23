@@ -4,13 +4,14 @@ TODO:
 
 * paging, cursors
 """
-from flask import request
 import itertools
 import os
 from urllib.parse import urlencode
 from unittest.mock import patch
 
 from arroba import xrpc_repo
+from flask import request
+from multiformats import CID
 from werkzeug.exceptions import HTTPException
 
 from ..datastore_storage import DatastoreStorage
@@ -19,6 +20,11 @@ from .. import server
 from ..storage import Action
 from .. import util
 from . import testutil
+
+CID1 = CID.decode('bafyreiblaotetvwobe7cu2uqvnddr6ew2q3cu75qsoweulzku2egca4dxq')
+CID2 = CID.decode('bafyreie7xn4ec3mhapvf7gefkxo7ktko5xkdijm7l7qn54tk3hda633wxy')
+CID1_STR = CID1.encode('base32')
+CID2_STR = CID2.encode('base32')
 
 
 class XrpcRepoTest(testutil.XrpcTestCase):
@@ -63,6 +69,34 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         self.assertEqual(1, len(resp['records']))
         self.assertEqual('Hello, world!', resp['records'][0]['value']['text'])
 
+    def test_list_records_encodes_cids_blobs(self):
+        repo = server.load_repo('did:web:user.com')
+
+        repo.apply_writes([
+            Write(action=Action.CREATE,
+                  collection=coll,
+                  rkey=str(i),
+                  record=record)
+            for i, (coll, record) in enumerate([
+                ('test.coll', {'cid': CID1}),
+                ('test.coll', {'blob': {'$type': 'blob', 'ref': CID2}}),
+                ('test.other_coll', {'foo': 'bar'}),
+            ])])
+
+        resp = xrpc_repo.list_records({}, repo='at://did:web:user.com',
+                                      collection='test.coll')
+        self.assertEqual({
+            'records': [{
+                'uri': 'at://did:web:user.com/test.coll/0',
+                'cid': 'bafyreiebpz6rwjafxxc3ed4r6ukq54ioctdrgj4r5ejr3eestqecypzeja',
+                'value': {'cid': {'$link': CID1_STR}},
+            }, {
+                'uri': 'at://did:web:user.com/test.coll/1',
+                'cid': 'bafyreig6osigu5lx7oi7nlwx6oi6jjgnwwpjislog7dd34j2m6mt47wspm',
+                'value': {'blob': {'$type': 'blob', 'ref': {'$link': CID2_STR}}},
+            }],
+        }, resp)
+
     def test_get_record(self):
         self.test_create_record()
 
@@ -82,19 +116,16 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         }, resp)
 
     def test_get_record_encodes_cids_blobs(self):
-        [(_, cid)] = self.random_keys_and_cids(1)
-        cid_str = cid.encode('base32')
-
         repo = server.load_repo('did:web:user.com')
         repo.apply_writes([Write(
             action=Action.CREATE,
             collection='test.coll',
             rkey='self',
             record={
-            'cid': cid,
+            'cid': CID1,
                 'blob': {
                     '$type': 'blob',
-                    'ref': cid,
+                    'ref': CID2,
                     'mimeType': 'foo/bar',
                     'size': 13,
                 },
@@ -107,12 +138,12 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         )
         self.assertEqual({
             'uri': 'at://did:web:user.com/test.coll/self',
-            'cid': 'bafyreigvoaq3peqtfbqi2fouk7a626y7ft2ez7wrfjd6bdwlzfnbmqle5e',
+            'cid': 'bafyreibnpyb6kyzty7i67aunjykm56jgjzb3cfqzmcnkkvoa46ztzqt2ka',
             'value': {
-                'cid': {'$link': cid_str},
+                'cid': {'$link': CID1_STR},
                 'blob': {
                     '$type': 'blob',
-                    'ref': {'$link': cid_str},
+                    'ref': {'$link': CID2_STR},
                     'mimeType': 'foo/bar',
                     'size': 13,
                 },
