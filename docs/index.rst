@@ -45,13 +45,13 @@ Here’s minimal example code for a multi-repo PDS on top of arroba and
 
    from arroba import server
    from arroba.datastore_storage import DatastoreStorage
-   from arroba.xrpc_sync import send_new_commits
+   from arroba.xrpc_sync import send_events
 
    # for Google Cloud Datastore
    ndb_client = ndb.Client()
 
    server.storage = DatastoreStorage(ndb_client=ndb_client)
-   server.repo.callback = lambda _: send_new_commits()  # to subscribeRepos
+   server.repo.callback = lambda _: send_events()  # to subscribeRepos
 
    app = Flask('my-pds')
    init_flask(server.server, app)
@@ -127,15 +127,20 @@ Configure arroba with these environment variables:
 -  ``PDS_HOST``, where you’re running your PDS
 
 Optional, only used in
-`com.atproto.repo <https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_repo>`__
+`com.atproto.repo <https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_repo>`__,
+`.server <https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_server>`__,
 and
-`com.atproto.server <https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_server>`__
+`.sync <https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_sync>`__
 XRPC handlers:
 
 -  ``REPO_TOKEN``, static token to use as both ``accessJwt`` and
    ``refreshJwt``, defaults to contents of ``repo_token`` file. Not
    required to be an actual JWT. If not set, XRPC methods that require
    auth will return HTTP 501 Not Implemented.
+-  ``ROLLBACK_WINDOW``, number of events to serve in the
+   `subscribeRepos`` rollback
+   window <https://atproto.com/specs/event-stream#sequence-numbers>`__.
+   Defaults to no limit.
 
 .. raw:: html
 
@@ -149,7 +154,7 @@ XRPC handlers:
 Changelog
 ---------
 
-0.6 - unreleased
+0.6 - 2024-06-24
 ~~~~~~~~~~~~~~~~
 
 *Breaking changes:*
@@ -161,15 +166,82 @@ Changelog
       subscription handlers that run server methods like
       ``subscribeRepos`` in separate threads
       (`snarfed/lexrpc#8 <https://github.com/snarfed/lexrpc/issues/8>`__).
+   -  ``DatastoreStorage.read_blocks_by_seq``: if the ndb context gets
+      closed while we’re still running, log a warning and return. (This
+      can happen in eg ``flask_server`` if the websocket client
+      disconnects early.)
+   -  ``AtpRemoteBlob``: if the blob URL doesn’t return the
+      ``Content-Type`` header, infer type from the URL, or fall back to
+      ``application/octet-stream``
+      (`bridgy-fed#1073 <https://github.com/snarfed/bridgy-fed/issues/1073>`__).
 
 -  ``did``:
 
    -  Cache ``resolve_plc``, ``resolve_web``, and ``resolve_handle`` for
       6h, up to 5000 total results per call.
 
+-  ``storage``: rename ``Storage.read_commits_by_seq`` to
+   ``read_events_by_seq`` for new account tombstone support.
+-  ``xrpc_sync``: rename ``send_new_commits`` to ``send_events``, ditto.
+-  ``xrpc_repo``: stop requiring auth for read methods: ``getRecord``,
+   ``listRecords``, ``describeRepo``.
+
+*Non-breaking changes:*
+
+-  ``did``:
+
+   -  Add ``HANDLE_RE`` regexp for handle validation.
+
+-  ``storage``:
+
+   -  Add new ``Storage.tombstone_repo`` method, implemented in
+      ``MemoryStorage`` and ``DatastoreStorage``. `Used to delete
+      accounts. <https://github.com/bluesky-social/atproto/discussions/2503#discussioncomment-9502339>`__
+      (`bridgy-fed#783 <https://github.com/snarfed/bridgy-fed/issues/783>`__)
+   -  Add new ``Storage.load_repos`` method, implemented in
+      ``MemoryStorage`` and ``DatastoreStorage``. Used for
+      ``com.atproto.sync.listRepos``.
+
 -  ``util``:
 
    -  ``service_jwt``: add optional ``aud`` kwarg.
+
+-  ``xrpc_sync``:
+
+   -  ``subscribeRepos``:
+
+      -  Add support for non-commit events, starting with account
+         tombstones.
+      -  Add ``ROLLBACK_WINDOW`` environment variable to limit size of
+         `rollback
+         window <https://atproto.com/specs/event-stream#sequence-numbers>`__.
+         Defaults to no limit.
+      -  For commits with create or update operations, always include
+         the record block, even if it already existed in the repo
+         beforehand
+         (`snarfed/bridgy-fed#1016 <https://github.com/snarfed/bridgy-fed/issues/1016>`__).
+      -  Bug fix, populate the time each commit was created in ``time``
+         instead of the current time
+         (`snarfed/bridgy-fed#1015 <https://github.com/snarfed/bridgy-fed/issues/1015>`__).
+
+   -  Start serving ``getRepo`` queries with the ``since`` parameter.
+      ``since`` still isn’t actually implemented, but we now serve the
+      entire repo instead of returning an error.
+   -  Implement ``getRepoStatus`` method.
+   -  Implement ``listRepos`` method.
+   -  ``getRepo`` bug fix: include the repo head commit block.
+
+-  ``xrpc_repo``:
+
+   -  ``getRecord``: encoded returned records correctly as
+      `ATProto-flavored
+      DAG-JSON <https://atproto.com/specs/data-model>`__.
+
+-  ``xrpc_*``: return ``RepoNotFound`` and ``RepoDeactivated`` errors
+   when appropriate
+   (`snarfed/bridgy-fed#1083 <https://github.com/snarfed/bridgy-fed/issues/1083>`__).
+
+.. _section-1:
 
 0.5 - 2024-03-16
 ~~~~~~~~~~~~~~~~
@@ -210,7 +282,7 @@ Changelog
    -  Implement ``getBlob``, right now only based on “remote” blobs
       stored in ``AtpRemoteBlob``\ s in datastore storage.
 
-.. _section-1:
+.. _section-2:
 
 0.4 - 2023-09-19
 ~~~~~~~~~~~~~~~~
@@ -251,7 +323,7 @@ Changelog
    -  Drop bundled ``app.bsky``/``com.atproto`` lexicons, use
       `lexrpc <https://lexrpc.readthedocs.io/>`__\ ’s instead.
 
-.. _section-2:
+.. _section-3:
 
 0.3 - 2023-08-29
 ~~~~~~~~~~~~~~~~
@@ -269,7 +341,7 @@ minimal demo code needed to wrap arroba in a fully functional PDS.
 
 -  …and much more.
 
-.. _section-3:
+.. _section-4:
 
 0.2 - 2023-05-18
 ~~~~~~~~~~~~~~~~
@@ -279,7 +351,7 @@ storage. This completes the first pass at all PDS data structures. Next
 release will include initial implementations of the
 ``com.atproto.sync.*`` XRPC methods.
 
-.. _section-4:
+.. _section-5:
 
 0.1 - 2023-04-30
 ~~~~~~~~~~~~~~~~
@@ -298,7 +370,7 @@ Here’s how to package, test, and ship a new release.
     .. code:: sh
 
        source local/bin/activate.csh
-       python3 -m unittest discover
+       python -m unittest discover
 
 2.  Bump the version number in ``pyproject.toml`` and ``docs/conf.py``.
     ``git grep`` the old version number to make sure it only appears in
@@ -319,7 +391,7 @@ Here’s how to package, test, and ship a new release.
 
     .. code:: sh
 
-       python3 -m build
+       python -m build
        twine upload -r pypitest dist/arroba-$ver*
 
 6.  Install from test.pypi.org.
@@ -327,12 +399,12 @@ Here’s how to package, test, and ship a new release.
     .. code:: sh
 
        cd /tmp
-       python3 -m venv local
+       python -m venv local
        source local/bin/activate.csh
        # make sure we force pip to use the uploaded version
-       pip3 uninstall arroba
-       pip3 install --upgrade pip
-       pip3 install -i https://test.pypi.org/simple --extra-index-url https://pypi.org/simple arroba==$ver
+       pip uninstall arroba
+       pip install --upgrade pip
+       pip install -i https://test.pypi.org/simple --extra-index-url https://pypi.org/simple arroba==$ver
        deactivate
 
 7.  Smoke test that the code trivially loads and runs.
@@ -340,7 +412,7 @@ Here’s how to package, test, and ship a new release.
     .. code:: sh
 
        source local/bin/activate.csh
-       python3
+       python
        # TODO: test code
        deactivate
 

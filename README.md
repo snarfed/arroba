@@ -98,7 +98,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 
 ## Changelog
 
-### 0.6 - unreleased
+### 0.6 - 2024-06-24
 
 _Breaking changes:_
 
@@ -196,7 +196,7 @@ Here's how to package, test, and ship a new release.
 
     ```sh
     source local/bin/activate.csh
-    python3 -m unittest discover
+    python -m unittest discover
     ```
 1. Bump the version number in `pyproject.toml` and `docs/conf.py`. `git grep` the old version number to make sure it only appears in the changelog. Change the current changelog entry in `README.md` for this new version from _unreleased_ to the current date.
 1. Build the docs. If you added any new modules, add them to the appropriate file(s) in `docs/source/`. Then run `./docs/build.sh`. Check that the generated HTML looks fine by opening `docs/_build/html/index.html` and looking around.
@@ -207,26 +207,26 @@ Here's how to package, test, and ship a new release.
 1. Upload to [test.pypi.org](https://test.pypi.org/) for testing.
 
     ```sh
-    python3 -m build
+    python -m build
     twine upload -r pypitest dist/arroba-$ver*
     ```
 1. Install from test.pypi.org.
 
     ```sh
     cd /tmp
-    python3 -m venv local
+    python -m venv local
     source local/bin/activate.csh
     # make sure we force pip to use the uploaded version
-    pip3 uninstall arroba
-    pip3 install --upgrade pip
-    pip3 install -i https://test.pypi.org/simple --extra-index-url https://pypi.org/simple arroba==$ver
+    pip uninstall arroba
+    pip install --upgrade pip
+    pip install -i https://test.pypi.org/simple --extra-index-url https://pypi.org/simple arroba==$ver
     deactivate
     ```
 1. Smoke test that the code trivially loads and runs.
 
     ```sh
     source local/bin/activate.csh
-    python3
+    python
     # TODO: test code
     deactivate
     ```
