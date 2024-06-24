@@ -1,4 +1,5 @@
 """``com.atproto.repo.*`` XRPC methods."""
+import itertools
 import json
 import logging
 import os
@@ -9,6 +10,7 @@ from lexrpc import Client
 from requests import HTTPError
 
 from .repo import Repo, Write
+from . import server
 from .storage import Action
 from . import server
 from .util import at_uri, dag_cbor_cid, next_tid, USER_AGENT
@@ -103,23 +105,45 @@ def list_records(input, repo=None, collection=None, limit=50, cursor=None,
                  reverse=None,
                  # DEPRECATED
                  rkeyStart=None, rkeyEnd=None):
-    """Handler for `com.atproto.repo.listRecords` XRPC method."""
+    """Handler for `com.atproto.repo.listRecords` XRPC method.
+
+    KNOWN ISSUE: cursor is interpreted as inclusive, so whenever a cursor is
+    used, the response includes the last record returned in the previous
+    response.
+    """
     validate(input, repo=repo, collection=collection, limit=limit, cursor=cursor)
+
     if rkeyStart or rkeyEnd:
         raise ValueError(f'rkeyStart/rkeyEnd not supported')
+    elif reverse:
+        raise ValueError(f'reverse not supported yet')
+    elif not collection:
+        raise ValueError(f'collection is required')
+
     repo = server.load_repo(input['repo'])
+
+    start = cursor or f'{collection}/'
+    entries = list(itertools.islice(
+        itertools.takewhile(lambda entry: entry.key.startswith(f'{collection}/'),
+                            repo.mst.walk_leaves_from(key=start)),
+        limit))
+    blocks = server.storage.read_many([e.value for e in entries])
+    records = [blocks[e.value].decoded for e in entries]
+
 
     records = [
         json.loads(dag_json.encode({
-            'uri': at_uri(repo.did, collection, rkey),
+            'uri': at_uri(repo.did, *entry.key.split('/', 2)),  # collection, rkey
             'cid': dag_cbor_cid(record).encode('base32'),
             'value': record,
         }, dialect='atproto'))
-        for rkey, record in repo.get_contents()[collection].items()]
-    if reverse:
-        records.reverse()
+        for entry, record in zip(entries, records)]
 
-    return {'records': records}
+    ret = {'records': records}
+    if len(entries) == limit:
+        ret['cursor'] = entries[-1].key
+
+    return ret
 
 
 @server.server.method('com.atproto.repo.putRecord')

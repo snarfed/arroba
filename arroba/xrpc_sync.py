@@ -16,8 +16,8 @@ import dag_cbor
 from lexrpc.base import XrpcError
 from lexrpc.server import Redirect
 
-from . import server
 from .datastore_storage import AtpRemoteBlob
+from . import server
 from .storage import CommitData, SUBSCRIBE_REPOS_NSID
 from . import util
 from . import xrpc_repo
@@ -89,9 +89,7 @@ def list_repos(input, limit=500, cursor=None):
         'status': STATUSES.get(repo.status),
     } for repo in server.storage.load_repos(limit=limit, after=cursor)]
 
-    ret = {
-        'repos': repos,
-    }
+    ret = {'repos': repos}
     if len(repos) == limit:
         ret['cursor'] = repos[-1]['did']
 
