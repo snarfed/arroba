@@ -15,6 +15,7 @@ from google.cloud.ndb.context import get_context
 from google.cloud.ndb.exceptions import ContextError
 from multiformats import CID, multicodec, multihash
 
+from .mst import MST
 from .repo import Repo
 from . import storage
 from .storage import Action, Block, Storage, SUBSCRIBE_REPOS_NSID
@@ -424,6 +425,27 @@ class DatastoreStorage(Storage):
         return Repo.load(self, cid=self.head, handle=handle,
                          signing_key=atp_repo.signing_key,
                          rotation_key=atp_repo.rotation_key)
+
+    @ndb_context
+    def load_repos(self, from_=None, limit=500):
+        query = AtpRepo.query()
+        if from_:
+            query = query.filter(AtpRepo.key >= AtpRepo(id=from_).key)
+
+        # duplicates parts of Repo.load but batches reading blocks from storage
+        atp_repos = query.fetch(limit=limit)
+
+        cids = [CID.decode(r.head) for r in atp_repos]
+        blocks = self.read_many(cids)  # dict mapping CID to block
+        heads = [blocks[cid] for cid in cids]
+
+        # MST.load doesn't read from storage
+        msts = [MST.load(storage=self, cid=block.decoded['data']) for block in heads]
+        return [Repo(storage=self, mst=mst, head=head, status=atp_repo.status,
+                     handle=atp_repo.handles[0] if atp_repo.handles else None,
+                     signing_key=atp_repo.signing_key,
+                     rotation_key=atp_repo.rotation_key)
+                for atp_repo, head, mst in zip(atp_repos, heads, msts)]
 
     @ndb_context
     def _tombstone_repo(self, repo):

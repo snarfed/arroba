@@ -93,6 +93,46 @@ class DatastoreStorageTest(DatastoreTest):
         with self.assertRaises(TombstonedRepo):
             self.storage.load_repo('did:user')
 
+    def test_load_repos(self):
+        alice = Repo.create(self.storage, 'did:web:alice', signing_key=self.key)
+        bob = Repo.create(self.storage, 'did:plc:bob', signing_key=self.key)
+        self.storage.tombstone_repo(bob)
+
+        got_bob, got_alice = self.storage.load_repos()
+        self.assertEqual('did:web:alice', got_alice.did)
+        self.assertEqual(alice.head, got_alice.head)
+        self.assertIsNone(got_alice.status)
+
+        self.assertEqual('did:plc:bob', got_bob.did)
+        self.assertEqual(bob.head, got_bob.head)
+        self.assertEqual('tombstoned', got_bob.status)
+
+    def test_load_repos_from(self):
+        Repo.create(self.storage, 'did:web:alice', signing_key=self.key)
+        Repo.create(self.storage, 'did:plc:bob', signing_key=self.key)
+
+        got = self.storage.load_repos(from_='did:web:alice')
+        self.assertEqual(1, len(got))
+        self.assertEqual('did:web:alice', got[0].did)
+
+        got = self.storage.load_repos(from_='did:web:a')
+        self.assertEqual(1, len(got))
+        self.assertEqual('did:web:alice', got[0].did)
+
+        got = self.storage.load_repos(from_='did:web:eve')
+        self.assertEqual([], got)
+
+    def test_load_repos_limit(self):
+        Repo.create(self.storage, 'did:web:alice', signing_key=self.key)
+        Repo.create(self.storage, 'did:plc:bob', signing_key=self.key)
+
+        got = self.storage.load_repos(limit=2)
+        self.assertEqual(2, len(got))
+
+        got = self.storage.load_repos(limit=1)
+        self.assertEqual(1, len(got))
+        self.assertEqual('did:plc:bob', got[0].did)
+
     def test_atp_block_create(self):
         data = {'foo': 'bar'}
         AtpBlock.create(repo_did='did:web:user.com', data=data, seq=1)

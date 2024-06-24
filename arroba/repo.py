@@ -83,14 +83,15 @@ class Repo:
     status = None
 
     def __init__(self, *, storage=None, mst=None, head=None, handle=None,
-                 callback=None, signing_key=None, rotation_key=None):
+                 status=None, callback=None, signing_key=None, rotation_key=None):
         """Constructor.
 
         Args:
           storage (Storage): required
           mst (MST)
           head (dict): head commit
-          cid (CID): head CID
+          handle (str)
+          status (str): None (if active) or ``'tombstoned'``
           callback (callable, (CommitData | dict) => None)
           signing_key (ec.EllipticCurvePrivateKey): required
           rotation_key (ec.EllipticCurvePrivateKey)
@@ -102,6 +103,7 @@ class Repo:
         self.mst = mst
         self.head = head
         self.handle = handle
+        self.status = status
         self.callback = callback
         self.signing_key = signing_key
         self.rotation_key = rotation_key
