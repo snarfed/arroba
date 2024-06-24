@@ -177,6 +177,34 @@ class XrpcSyncTest(testutil.XrpcTestCase):
             resp = xrpc_sync.get_record({}, did='did:web:user.com',
                                         collection='com.example.posts', rkey='9999')
 
+    def test_get_blocks_empty(self):
+        resp = xrpc_sync.get_blocks({}, did='did:web:user.com', cids=[])
+        roots, blocks = read_car(resp)
+        self.assertEqual([], blocks)
+
+    def test_get_blocks(self):
+        cids = [dag_cbor_cid(record).encode('base32')
+                for record in self.data.values()]
+        resp = xrpc_sync.get_blocks({}, did='did:web:user.com', cids=cids)
+        roots, blocks = read_car(resp)
+        self.assertCountEqual(self.data.values(), [b.decoded for b in blocks])
+
+    def test_get_blocks_not_found(self):
+        cid = dag_cbor_cid(next(iter(self.data.values()))).encode('base32')
+
+        with self.assertRaises(XrpcError) as cm:
+            xrpc_sync.get_blocks({}, did='did:web:user.com', cids=[cid, 'nope'])
+
+        self.assertEqual('BlockNotFound', cm.exception.name)
+
+    def test_get_blocks_repo_tombstoned(self):
+        server.storage.tombstone_repo(self.repo)
+
+        with self.assertRaises(XrpcError) as cm:
+            xrpc_sync.get_blocks({}, did='did:web:user.com', cids=[])
+
+        self.assertEqual('RepoDeactivated', cm.exception.name)
+
     # based on atproto/packages/pds/tests/sync/sync.test.ts
     # def test_get_repo_creates_and_deletes(self):
     #     ADD_COUNT = 10

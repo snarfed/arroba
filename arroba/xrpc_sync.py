@@ -15,6 +15,8 @@ from carbox import car
 import dag_cbor
 from lexrpc.base import XrpcError
 from lexrpc.server import Redirect
+from multiformats import CID
+from multiformats.multibase import MultibaseKeyError, MultibaseValueError
 
 from .datastore_storage import AtpRemoteBlob
 from . import server
@@ -203,11 +205,27 @@ def subscribe_repos(cursor=None):
             yield handle(commit_data)
 
 
-# @server.server.method('com.atproto.sync.getBlocks')
-# def get_blocks(input, did=None, cids=None):
-#     """Handler for ``com.atproto.sync.getBlocks`` XRPC method."""
-#     # TODO
-#     return b''
+@server.server.method('com.atproto.sync.getBlocks')
+def get_blocks(input, did=None, cids=()):
+    """Handler for ``com.atproto.sync.getBlocks`` XRPC method."""
+    repo = server.load_repo(did)
+
+    try:
+        cids = [CID.decode(cid) for cid in cids]
+    except (MultibaseKeyError, MultibaseValueError):
+        raise XrpcError('Invalid CID', name='BlockNotFound')
+
+    car_blocks = []
+    blocks = server.storage.read_many(cids)
+
+    for cid in cids:
+        block = blocks[cid]
+        if block is None:
+            raise XrpcError(f'No block found for CID {cid.encode("base32")}',
+                            name='BlockNotFound')
+        car_blocks.append(car.Block(cid=block.cid, data=block.encoded))
+
+    return car.write_car([server.storage.head], car_blocks)
 
 
 @server.server.method('com.atproto.sync.getHead')
