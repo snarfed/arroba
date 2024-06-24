@@ -118,12 +118,23 @@ class XrpcSyncTest(testutil.XrpcTestCase):
             'status': 'deactivated',
         }, resp)
 
-    @skip
-    def test_lists_hosted_repos_in_order_of_creation(self):
+    def test_list_repos(self):
+        eve = Repo.create(server.storage, 'did:plc:eve', signing_key=self.key)
+        server.storage.tombstone_repo(eve)
+
         resp = xrpc_sync.list_repos({})
         self.assertEqual([{
+            'did': 'did:plc:eve',
+            'head': eve.head.cid.encode('base32'),
+            'rev': eve.head.seq,
+            'active': False,
+            'status': 'deactivated',
+        }, {
             'did': 'did:web:user.com',
             'head': self.repo.head.cid.encode('base32'),
+            'rev': self.repo.head.seq,
+            'active': True,
+            'status': None,
         }], resp)
 
     def test_get_head(self):

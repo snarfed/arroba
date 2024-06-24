@@ -117,7 +117,8 @@ _Non-breaking changes:_
 * `did`:
   * Add `HANDLE_RE` regexp for handle validation.
 * `storage`:
-  * Add new `Storage.tombstone_repo` method, implement in `MemoryStorage` and `DatastoreStorage`. [Used to delete accounts.](https://github.com/bluesky-social/atproto/discussions/2503#discussioncomment-9502339) ([bridgy-fed#783](https://github.com/snarfed/bridgy-fed/issues/783))
+  * Add new `Storage.tombstone_repo` method, implemented in `MemoryStorage` and `DatastoreStorage`. [Used to delete accounts.](https://github.com/bluesky-social/atproto/discussions/2503#discussioncomment-9502339) ([bridgy-fed#783](https://github.com/snarfed/bridgy-fed/issues/783))
+  * Add new `Storage.load_repos` method, implemented in `MemoryStorage` and `DatastoreStorage`. Used for `com.atproto.sync.listRepos`.
 * `util`:
   * `service_jwt`: add optional `aud` kwarg.
 * `xrpc_sync`:
@@ -127,7 +128,8 @@ _Non-breaking changes:_
     * For commits with create or update operations, always include the record block, even if it already existed in the repo beforehand ([snarfed/bridgy-fed#1016](https://github.com/snarfed/bridgy-fed/issues/1016)).
     * Bug fix, populate the time each commit was created in `time` instead of the current time ([snarfed/bridgy-fed#1015](https://github.com/snarfed/bridgy-fed/issues/1015)).
   * Start serving `getRepo` queries with the `since` parameter. `since` still isn't actually implemented, but we now serve the entire repo instead of returning an error.
-  * implement `getRepoStatus` method.
+  * Implement `getRepoStatus` method.
+  * Implement `listRepos` method.
   * `getRepo` bug fix: include the repo head commit block.
 * `xrpc_repo`:
   * `getRecord`: encoded returned records correctly as [ATProto-flavored DAG-JSON](https://atproto.com/specs/data-model).
