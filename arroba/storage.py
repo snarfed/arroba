@@ -163,14 +163,14 @@ class Storage:
         """
         raise NotImplementedError()
 
-    def load_repos(self, from_=None, limit=500):
+    def load_repos(self, after=None, limit=500):
         """Loads multiple repos from storage.
 
         Repos are returned in lexicographic order of their DIDs, ascending.
         Tombstoned repos are included.
 
         Args:
-          from_ (str): optional DID to start at, inclusive
+          after (str): optional DID to start at, *exclusive*
           limit (int): maximum number of repos to return
 
         Returns:
@@ -403,11 +403,11 @@ class MemoryStorage(Storage):
                     raise TombstonedRepo(f'{repo.did} is tombstoned')
                 return repo
 
-    def load_repos(self, from_=None, limit=500):
+    def load_repos(self, after=None, limit=500):
         it = iter(sorted(self.repos, key=lambda repo: repo.did))
 
-        if from_:
-            it = itertools.dropwhile(lambda repo: repo.did < from_, it)
+        if after:
+            it = itertools.dropwhile(lambda repo: repo.did <= after, it)
 
         return list(itertools.islice(it, limit))
 

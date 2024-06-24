@@ -77,20 +77,25 @@ def get_repo_status(input, did=None):
     }
 
 @server.server.method('com.atproto.sync.listRepos')
-def list_repos(input, limit=None, cursor=None):
+def list_repos(input, limit=500, cursor=None):
     """Handler for ``com.atproto.sync.listRepos`` XRPC method."""
-    if cursor:
-        raise ValueError('cursor is not implemented yet')
-
     STATUSES = {'tombstoned': 'deactivated'}
 
-    return [{
+    repos = [{
         'did': repo.did,
         'head': repo.head.cid.encode('base32'),
         'rev': repo.head.seq,
         'active': repo.status is None,
         'status': STATUSES.get(repo.status),
-    } for repo in server.storage.load_repos(limit=limit)]
+    } for repo in server.storage.load_repos(limit=limit, after=cursor)]
+
+    ret = {
+        'repos': repos,
+    }
+    if len(repos) == limit:
+        ret['cursor'] = repos[-1]['did']
+
+    return ret
 
 
 def send_events():

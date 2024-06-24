@@ -427,10 +427,10 @@ class DatastoreStorage(Storage):
                          rotation_key=atp_repo.rotation_key)
 
     @ndb_context
-    def load_repos(self, from_=None, limit=500):
+    def load_repos(self, after=None, limit=500):
         query = AtpRepo.query()
-        if from_:
-            query = query.filter(AtpRepo.key >= AtpRepo(id=from_).key)
+        if after:
+            query = query.filter(AtpRepo.key > AtpRepo(id=after).key)
 
         # duplicates parts of Repo.load but batches reading blocks from storage
         atp_repos = query.fetch(limit=limit)

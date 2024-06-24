@@ -107,19 +107,19 @@ class DatastoreStorageTest(DatastoreTest):
         self.assertEqual(bob.head, got_bob.head)
         self.assertEqual('tombstoned', got_bob.status)
 
-    def test_load_repos_from(self):
+    def test_load_repos_after(self):
         Repo.create(self.storage, 'did:web:alice', signing_key=self.key)
         Repo.create(self.storage, 'did:plc:bob', signing_key=self.key)
 
-        got = self.storage.load_repos(from_='did:web:alice')
+        got = self.storage.load_repos(after='did:plc:bob')
         self.assertEqual(1, len(got))
         self.assertEqual('did:web:alice', got[0].did)
 
-        got = self.storage.load_repos(from_='did:web:a')
+        got = self.storage.load_repos(after='did:web:a')
         self.assertEqual(1, len(got))
         self.assertEqual('did:web:alice', got[0].did)
 
-        got = self.storage.load_repos(from_='did:web:eve')
+        got = self.storage.load_repos(after='did:web:alice')
         self.assertEqual([], got)
 
     def test_load_repos_limit(self):

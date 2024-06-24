@@ -123,20 +123,20 @@ class StorageTest(TestCase):
         self.assertEqual(bob.head, got_bob.head)
         self.assertEqual('tombstoned', got_bob.status)
 
-    def test_load_repos_from(self):
+    def test_load_repos_after(self):
         storage = MemoryStorage()
         Repo.create(storage, 'did:web:alice', signing_key=self.key)
         Repo.create(storage, 'did:plc:bob', signing_key=self.key)
 
-        got = storage.load_repos(from_='did:web:alice')
+        got = storage.load_repos(after='did:plc:bob')
         self.assertEqual(1, len(got))
         self.assertEqual('did:web:alice', got[0].did)
 
-        got = storage.load_repos(from_='did:web:a')
+        got = storage.load_repos(after='did:web:a')
         self.assertEqual(1, len(got))
         self.assertEqual('did:web:alice', got[0].did)
 
-        got = storage.load_repos(from_='did:web:eve')
+        got = storage.load_repos(after='did:web:alice')
         self.assertEqual([], got)
 
     def test_load_repos_limit(self):

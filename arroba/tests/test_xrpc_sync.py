@@ -122,20 +122,33 @@ class XrpcSyncTest(testutil.XrpcTestCase):
         eve = Repo.create(server.storage, 'did:plc:eve', signing_key=self.key)
         server.storage.tombstone_repo(eve)
 
-        resp = xrpc_sync.list_repos({})
-        self.assertEqual([{
+        expected_eve = {
             'did': 'did:plc:eve',
             'head': eve.head.cid.encode('base32'),
             'rev': eve.head.seq,
             'active': False,
             'status': 'deactivated',
-        }, {
+        }
+        expected_user = {
             'did': 'did:web:user.com',
             'head': self.repo.head.cid.encode('base32'),
             'rev': self.repo.head.seq,
             'active': True,
             'status': None,
-        }], resp)
+        }
+
+        self.assertEqual(
+            {'repos': [expected_eve, expected_user]},
+            xrpc_sync.list_repos({}))
+        self.assertEqual(
+            {'repos': [expected_eve], 'cursor': 'did:plc:eve'},
+            xrpc_sync.list_repos({}, limit=1))
+        self.assertEqual(
+            {'repos': [expected_user]},
+            xrpc_sync.list_repos({}, cursor='did:plc:eve'))
+        self.assertEqual(
+            {'repos': []},
+            xrpc_sync.list_repos({}, cursor='did:web:user.com'))
 
     def test_get_head(self):
         resp = xrpc_sync.get_head({}, did='did:web:user.com')
