@@ -52,6 +52,14 @@ def get_repo(input, did=None, since=None):
 
     TODO: implement ``since``
     """
+    # HACK, TODO: remove
+    if did in (
+            'did:plc:2ixmtcwjcnp4dh5drqxegvac',
+            'did:plc:expkm6j5nfdzwhvrzhjjm5fm',
+            'did:plc:tdcbyc2ccsidtqtpue723zl5',
+    ):
+        raise XrpcError("This repo is big! We need to implement `since` first, then we'll be able to handle it", name='Other')
+
     repo = server.load_repo(did)
     return car.write_car(
         [repo.head.cid],
