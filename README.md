@@ -98,6 +98,11 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 
 ## Changelog
 
+### 0.7 - unreleased
+
+* `xrpc_sync`:
+  * Switch `getBlob` from returning HTTP 302 to 301.
+
 ### 0.6 - 2024-06-24
 
 _Breaking changes:_

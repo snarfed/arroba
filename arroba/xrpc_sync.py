@@ -288,7 +288,7 @@ def get_blob(input, did=None, cid=None):
     """
     blob = AtpRemoteBlob.query(AtpRemoteBlob.cid == cid).get()
     if blob:
-        raise Redirect(to=blob.key.id())
+        raise Redirect(to=blob.key.id(), status=301)
 
     raise ValueError(f'No blob found for CID {cid}')
 

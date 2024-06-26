@@ -817,6 +817,7 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
         with self.assertRaises(Redirect) as r:
             resp = xrpc_sync.get_blob({}, did='did:web:user.com', cid=cid)
 
+        self.assertEqual(301, r.exception.status)
         self.assertEqual('http://blob', r.exception.to)
 
     def test_get_blob_missing(self):
