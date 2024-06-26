@@ -58,6 +58,23 @@ def get_repo(input, did=None, since=None):
     probably should be. :(
     https://github.com/snarfed/bridgy-fed/issues/1016#issuecomment-2118374522
     """
+    # HACK, TODO: remove
+    # https://github.com/snarfed/bridgy-fed/issues/1151
+    if did in (
+            'did:plc:2ixmtcwjcnp4dh5drqxegvac',
+            'did:plc:expkm6j5nfdzwhvrzhjjm5fm',
+            'did:plc:tdcbyc2ccsidtqtpue723zl5',
+    ):
+        import json
+        from werkzeug.exceptions import TooManyRequests
+        from werkzeug.wrappers import Response
+
+        resp = Response(content_type='application/json', response=json.dumps({
+            'error': 'Other',
+            'message': "This repo is big! We're still working on properly implementing `since` to handle it."
+        }))
+        raise TooManyRequests(response=resp)
+
     repo = server.load_repo(did)
 
     if since and isinstance(server.storage, DatastoreStorage):
