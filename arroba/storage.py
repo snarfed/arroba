@@ -255,7 +255,7 @@ class Storage:
         """Batch read commits and other events by ``subscribeRepos`` sequence number.
 
         Args:
-          seq (int): optional ``subscribeRepos`` sequence number to start from,
+          start (int): optional ``subscribeRepos`` sequence number to start from,
             inclusive. Defaults to 0.
 
         Returns:

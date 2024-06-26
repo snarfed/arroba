@@ -866,7 +866,7 @@ class MST:
 #     Sync Protocol
 
     def load_all(self):
-        """Generator. Used in :func:`xrpc_sync.get_checkout`.
+        """Generator. Used in :func:`xrpc_sync.get_repo`.
 
         (The bluesky-social/atproto TS code calls this ``writeToCarStream``.)
 

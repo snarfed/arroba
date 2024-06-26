@@ -102,6 +102,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 
 * `xrpc_sync`:
   * Switch `getBlob` from returning HTTP 302 to 301.
+  * Implement `since` param in `getRepo`, currently only for `DatastoreStorage`.
 
 ### 0.6 - 2024-06-24
 

@@ -79,7 +79,7 @@ class XrpcSyncTest(testutil.XrpcTestCase):
             'rev': '2222222222422',
         }, commit)
 
-        self.assertEqual(self.data, load(blocks[0:]))
+        self.assertEqual(self.data, load(blocks))
 
     def test_get_repo_not_found(self):
         with self.assertRaises(XrpcError) as cm:
@@ -810,6 +810,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
     STORAGE_CLS = DatastoreStorage
 
+    # getBlob depends on DatastoreStorage
     def test_get_blob(self):
         cid = 'bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq'
         AtpRemoteBlob(id='http://blob', cid=cid, size=13).put()
@@ -823,6 +824,21 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
     def test_get_blob_missing(self):
         with self.assertRaises(ValueError):
             resp = xrpc_sync.get_blob({}, did='did:web:user.com', cid='nope')
+
+    # getRepo with since param depends on DatastoreStorage
+    def test_get_repo_since(self):
+        since = self.repo.head.seq
+
+        # create a record
+        create = Write(Action.CREATE, 'co.ll', '123', {'foo': 'bar'})
+        cur = self.repo.apply_writes([create])
+
+        resp = xrpc_sync.get_repo({}, did='did:web:user.com', since=since)
+        roots, blocks = read_car(resp)
+
+        decoded = [b.decoded for b in blocks]
+        self.assertIn(cur.head.decoded, decoded)
+        self.assertIn({'foo': 'bar'}, decoded)
 
 
 @patch('arroba.datastore_storage.AtpBlock.created._now',
@@ -843,4 +859,3 @@ class DatastoreSubscribeReposTest(SubscribeReposTest, testutil.DatastoreTest):
             # we may be in a separate thread; make a new ndb context
             with self.ndb_client.context():
                 super().subscribe(*args, **kwargs)
-

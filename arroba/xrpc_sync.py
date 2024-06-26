@@ -18,7 +18,7 @@ from lexrpc.server import Redirect
 from multiformats import CID
 from multiformats.multibase import MultibaseKeyError, MultibaseValueError
 
-from .datastore_storage import AtpRemoteBlob
+from .datastore_storage import AtpBlock, AtpRemoteBlob, AtpRepo, DatastoreStorage
 from . import server
 from .storage import CommitData, SUBSCRIBE_REPOS_NSID
 from . import util
@@ -50,21 +50,28 @@ def get_checkout(input, did=None):
 def get_repo(input, did=None, since=None):
     """Handler for ``com.atproto.sync.getRepo`` XRPC method.
 
-    TODO: implement ``since``
-    """
-    # HACK, TODO: remove
-    if did in (
-            'did:plc:2ixmtcwjcnp4dh5drqxegvac',
-            'did:plc:expkm6j5nfdzwhvrzhjjm5fm',
-            'did:plc:tdcbyc2ccsidtqtpue723zl5',
-    ):
-        raise XrpcError("This repo is big! We need to implement `since` first, then we'll be able to handle it", name='Other')
+    Note that ``since`` is only implemented for
+    :class:`datastore_storage.DatastoreStorage`!
 
+    Known possible issue: if a repo uses a block after since that was originally
+    created by another repo, before since, it won't be included here. It
+    probably should be. :(
+    https://github.com/snarfed/bridgy-fed/issues/1016#issuecomment-2118374522
+    """
     repo = server.load_repo(did)
-    return car.write_car(
-        [repo.head.cid],
-        (car.Block(cid=cid, data=data) for cid, data in itertools.chain(
-            [(repo.head.cid, repo.head.encoded)], repo.mst.load_all())))
+
+    if since and isinstance(server.storage, DatastoreStorage):
+        # I originally considered using MST diff here, but it currently only
+        # returns changed records, not MST or commit blocks
+        query = AtpBlock.query(AtpBlock.repo == AtpRepo(id=did).key,
+                               AtpBlock.seq > since)
+        blocks = (car.Block(cid=block.cid, data=block.encoded) for block in query)
+    else:
+        blocks = itertools.chain(
+            [car.Block(repo.head.cid, repo.head.encoded)],
+            (car.Block(cid=cid, data=data) for cid, data in repo.mst.load_all()))
+
+    return car.write_car([repo.head.cid], blocks)
 
 
 @server.server.method('com.atproto.sync.getRepoStatus')
@@ -85,6 +92,7 @@ def get_repo_status(input, did=None):
         'did': did,
         'active': True,
     }
+
 
 @server.server.method('com.atproto.sync.listRepos')
 def list_repos(input, limit=500, cursor=None):
