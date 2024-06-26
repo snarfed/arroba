@@ -833,7 +833,8 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
         create = Write(Action.CREATE, 'co.ll', '123', {'foo': 'bar'})
         cur = self.repo.apply_writes([create])
 
-        resp = xrpc_sync.get_repo({}, did='did:web:user.com', since=since)
+        resp = xrpc_sync.get_repo({}, did='did:web:user.com',
+                                  since=util.int_to_tid(since))
         roots, blocks = read_car(resp)
 
         decoded = [b.decoded for b in blocks]

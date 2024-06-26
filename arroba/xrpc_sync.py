@@ -64,7 +64,7 @@ def get_repo(input, did=None, since=None):
         # I originally considered using MST diff here, but it currently only
         # returns changed records, not MST or commit blocks
         query = AtpBlock.query(AtpBlock.repo == AtpRepo(id=did).key,
-                               AtpBlock.seq > since)
+                               AtpBlock.seq > util.tid_to_int(since))
         blocks = (car.Block(cid=block.cid, data=block.encoded) for block in query)
     else:
         blocks = itertools.chain(
