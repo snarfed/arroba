@@ -72,9 +72,13 @@ class Block:
       seq (int): ``com.atproto.sync.subscribeRepos`` sequence number
       ops (list): :class:`CommitOp`\s if this is a commit, otherwise None
       time (datetime): when this block was first created
+      repo (str): DID of a repo that includes this block. Occasionally, blocks
+        may be included in more than one repo, so this may be *any* repo that
+        includes it. In practice, it's often the first or last repo that
+        included it.
     """
     def __init__(self, *, cid=None, decoded=None, encoded=None, seq=None,
-                 ops=None, time=None):
+                 ops=None, time=None, repo=None):
         """Constructor.
 
         Args:
@@ -89,6 +93,7 @@ class Block:
         self.seq = seq
         self.ops = ops
         self.time = time or util.now()
+        self.repo = repo
 
     def __str__(self):
         return f'<Block: {self.cid}>'
@@ -238,12 +243,13 @@ class Storage:
         """
         raise NotImplementedError()
 
-    def read_blocks_by_seq(self, start=0):
+    def read_blocks_by_seq(self, start=0, repo=None):
         """Batch read blocks from storage by ``subscribeRepos`` sequence number.
 
         Args:
           seq (int): optional ``subscribeRepos`` sequence number to start from.
             Defaults to 0.
+          repo (str): optional repo DID. If not provided, all repos are included.
 
         Returns:
           iterable or generator: all :class:`Block` s starting from ``seq``,
@@ -251,12 +257,13 @@ class Storage:
         """
         raise NotImplementedError()
 
-    def read_events_by_seq(self, start=0):
+    def read_events_by_seq(self, start=0, repo=None):
         """Batch read commits and other events by ``subscribeRepos`` sequence number.
 
         Args:
           start (int): optional ``subscribeRepos`` sequence number to start from,
             inclusive. Defaults to 0.
+          repo (str): optional repo DID. If not provided, all repos are included.
 
         Returns:
           generator: generator of :class:`CommitData` for commits and dict
@@ -278,7 +285,7 @@ class Storage:
                               prev=commit_block.decoded.get('prev'))
 
         seen = []  # CIDs
-        for block in self.read_blocks_by_seq(start=start):
+        for block in self.read_blocks_by_seq(start=start, repo=repo):
             assert block.seq
             if block.seq != seq:  # switching to a new commit's blocks
                 if commit_block:
@@ -424,9 +431,10 @@ class MemoryStorage(Storage):
             assert len(found) == len(cids), (len(found), len(cids))
         return found
 
-    def read_blocks_by_seq(self, start=0):
+    def read_blocks_by_seq(self, start=0, repo=None):
         assert start >= 0
-        return sorted((b for b in self.blocks.values() if b.seq >= start),
+        return sorted((b for b in self.blocks.values()
+                       if b.seq >= start and (not repo or b.repo == repo)),
                       key=lambda b: b.seq)
 
     def has(self, cid):
@@ -436,7 +444,7 @@ class MemoryStorage(Storage):
         if seq is None:
             seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
 
-        block = Block(decoded=obj, seq=seq)
+        block = Block(decoded=obj, seq=seq, repo=repo_did)
         if block not in self.blocks:
             self.blocks[block.cid] = block
         return block.cid

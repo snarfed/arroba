@@ -139,6 +139,7 @@ class AtpBlock(ndb.Model):
     ``com.atproto.sync.subscribeRepos#tombstone``.
 
     Properties:
+    * repo (str): DID of the first repo that included this block
     * encoded (bytes): DAG-CBOR encoded value
     * data (dict): DAG-JSON value, only used for human debugging
     * seq (int): sequence number for the subscribeRepos event stream
@@ -195,7 +196,7 @@ class AtpBlock(ndb.Model):
                                 cid=CID.decode(op.cid) if op.cid else None)
                for op in self.ops]
         return Block(cid=self.cid, encoded=self.encoded, seq=self.seq, ops=ops,
-                     time=self.created)
+                     time=self.created, repo=self.repo)
 
     @classmethod
     def from_block(cls, *, repo_did, block):
@@ -471,7 +472,7 @@ class DatastoreStorage(Storage):
                 for cid, block in got}
 
     # can't use @ndb_context because this is a generator, not a normal function
-    def read_blocks_by_seq(self, start=0):
+    def read_blocks_by_seq(self, start=0, repo=None):
         assert start >= 0
 
         context = get_context(raise_context_error=False)
@@ -481,8 +482,10 @@ class DatastoreStorage(Storage):
             # on a different thread, so if we're there, we need to create a new
             # ndb context
             try:
-                for atp_block in AtpBlock.query(AtpBlock.seq >= start)\
-                                         .order(AtpBlock.seq):
+                query = AtpBlock.query(AtpBlock.seq >= start).order(AtpBlock.seq)
+                if repo:
+                    query = query.filter(AtpBlock.repo == AtpRepo(id=repo).key)
+                for atp_block in query:
                     yield atp_block.to_block()
             except ContextError as e:
                 logging.warning(f'lost ndb context! client may have disconnected? "{e}"')

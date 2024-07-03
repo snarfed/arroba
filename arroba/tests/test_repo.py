@@ -55,6 +55,7 @@ class RepoTest(TestCase):
 
         for block in commit_data.blocks.values():
             self.assertEqual(seq, block.seq)
+            self.assertEqual('did:web:user.com', block.repo)
 
     def test_metadata(self):
         self.assertEqual(3, self.repo.version)

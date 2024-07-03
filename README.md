@@ -100,6 +100,8 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 
 ### 0.7 - unreleased
 
+* `storage`:
+  * Add new optional `repo` kwarg to `read_blocks_by_seq` and `read_events_by_seq` to limit returned results to a single repo.
 * `xrpc_sync`:
   * Switch `getBlob` from returning HTTP 302 to 301.
   * Implement `since` param in `getRepo`, currently only for `DatastoreStorage`.

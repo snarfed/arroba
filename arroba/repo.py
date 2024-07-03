@@ -278,7 +278,7 @@ class Repo:
                 mst = mst.delete(data_key)
                 continue
 
-            block = Block(decoded=write.record)
+            block = Block(decoded=write.record, repo=repo_did)
             commit_blocks[block.cid] = block
             if write.action == Action.CREATE:
                 mst = mst.add(data_key, block.cid)
@@ -287,6 +287,8 @@ class Repo:
                 mst = mst.update(data_key, block.cid)
 
         root, unstored_blocks = mst.get_unstored_blocks()
+        for block in unstored_blocks.values():
+            block.repo = repo_did
         commit_blocks.update(unstored_blocks)
 
         # ensure we're not missing any blocks that were removed and then
@@ -306,7 +308,8 @@ class Repo:
             'prev': cur_head,
             'data': root,
         }, signing_key)
-        commit_block = Block(decoded=commit, ops=writes_to_commit_ops(writes))
+        commit_block = Block(decoded=commit, ops=writes_to_commit_ops(writes),
+                             repo=repo_did)
         commit_blocks[commit_block.cid] = commit_block
 
         if repo:

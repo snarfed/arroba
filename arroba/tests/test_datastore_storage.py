@@ -198,6 +198,25 @@ class DatastoreStorageTest(DatastoreTest):
                          [b.cid for b in self.storage.read_blocks_by_seq(start=4)])
         self.assertEqual([], [b.cid for b in self.storage.read_blocks_by_seq(start=6)])
 
+    def test_read_blocks_by_seq_repo(self):
+        foo = self.storage.write(repo_did='did:plc:123', obj={'foo': 2})
+        bar = self.storage.write(repo_did='did:plc:456', obj={'bar': 3})
+        baz = self.storage.write(repo_did='did:plc:123', obj={'baz': 4})
+
+        self.assertEqual(
+            [foo, baz],
+            [b.cid for b in self.storage.read_blocks_by_seq(repo='did:plc:123')])
+        self.assertEqual(
+            [baz],
+            [b.cid for b in self.storage.read_blocks_by_seq(repo='did:plc:123',
+                                                            start=3)])
+        self.assertEqual(
+            [bar],
+            [b.cid for b in self.storage.read_blocks_by_seq(repo='did:plc:456')])
+        self.assertEqual(
+            [],
+            [b.cid for b in self.storage.read_blocks_by_seq(repo='did:plc:789')])
+
     def test_read_blocks_by_seq_no_ndb_context(self):
         AtpSequence.allocate(SUBSCRIBE_REPOS_NSID)
         block = self.storage.write(repo_did='did:plc:123', obj={'foo': 2})
