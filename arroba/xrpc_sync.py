@@ -58,37 +58,19 @@ def get_repo(input, did=None, since=None):
     probably should be. :(
     https://github.com/snarfed/bridgy-fed/issues/1016#issuecomment-2118374522
     """
-    # HACK, TODO: remove
-    # https://github.com/snarfed/bridgy-fed/issues/1151
-    if did in (
-            'did:plc:2ixmtcwjcnp4dh5drqxegvac',
-            'did:plc:expkm6j5nfdzwhvrzhjjm5fm',
-            'did:plc:tdcbyc2ccsidtqtpue723zl5',
-    ):
-        import json
-        from werkzeug.exceptions import TooManyRequests
-        from werkzeug.wrappers import Response
-
-        resp = Response(content_type='application/json', response=json.dumps({
-            'error': 'Other',
-            'message': "This repo is big! We're still working on properly implementing `since` to handle it."
-        }))
-        raise TooManyRequests(response=resp)
-
     repo = server.load_repo(did)
 
-    if since and isinstance(server.storage, DatastoreStorage):
-        # I originally considered using MST diff here, but it currently only
-        # returns changed records, not MST or commit blocks
-        query = AtpBlock.query(AtpBlock.repo == AtpRepo(id=did).key,
-                               AtpBlock.seq > util.tid_to_int(since))
-        blocks = (car.Block(cid=block.cid, data=block.encoded) for block in query)
-    else:
-        blocks = itertools.chain(
-            [car.Block(repo.head.cid, repo.head.encoded)],
-            (car.Block(cid=cid, data=data) for cid, data in repo.mst.load_all()))
+    start = util.tid_to_int(since) if since else 0
 
-    return car.write_car([repo.head.cid], blocks)
+    blocks = itertools.chain.from_iterable(
+        [car.Block(cid=block.cid, data=block.encoded)
+         for block in [commit.commit] + list(commit.blocks.values())]
+        for commit in server.storage.read_events_by_seq(repo=did, start=start))
+
+    blocks_and_head = itertools.chain([car.Block(repo.head.cid, repo.head.encoded)],
+                                      blocks)
+
+    return car.write_car([repo.head.cid], blocks_and_head)
 
 
 @server.server.method('com.atproto.sync.getRepoStatus')
