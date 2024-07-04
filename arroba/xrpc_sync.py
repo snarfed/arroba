@@ -48,16 +48,7 @@ def get_checkout(input, did=None):
 
 @server.server.method('com.atproto.sync.getRepo')
 def get_repo(input, did=None, since=None):
-    """Handler for ``com.atproto.sync.getRepo`` XRPC method.
-
-    Note that ``since`` is only implemented for
-    :class:`datastore_storage.DatastoreStorage`!
-
-    Known possible issue: if a repo uses a block after since that was originally
-    created by another repo, before since, it won't be included here. It
-    probably should be. :(
-    https://github.com/snarfed/bridgy-fed/issues/1016#issuecomment-2118374522
-    """
+    """Handler for ``com.atproto.sync.getRepo`` XRPC method."""
     repo = server.load_repo(did)
 
     start = util.tid_to_int(since) if since else 0
