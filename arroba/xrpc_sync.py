@@ -49,30 +49,7 @@ def get_checkout(input, did=None):
 @server.server.method('com.atproto.sync.getRepo')
 def get_repo(input, did=None, since=None):
     """Handler for ``com.atproto.sync.getRepo`` XRPC method."""
-
-    # HACK, TODO: remove
-    # https://github.com/snarfed/bridgy-fed/issues/1151
-    if did in (
-            # 'did:plc:2ixmtcwjcnp4dh5drqxegvac',
-            'did:plc:expkm6j5nfdzwhvrzhjjm5fm',
-            'did:plc:lxf6nbzgcphkzhbjzdhz24wa',
-            'did:plc:rcalkk4q6f6b7vrr7ib6a3om',
-            'did:plc:s73ruhnbvdumlqsrx7qxkpfp',
-            'did:plc:tdcbyc2ccsidtqtpue723zl5',
-            'did:plc:wsnriqelojaz3bzrlhy6jols',
-    ):
-        import json
-        from werkzeug.exceptions import TooManyRequests
-        from werkzeug.wrappers import Response
-
-        resp = Response(content_type='application/json', response=json.dumps({
-            'error': 'Other',
-            'message': "This repo is big! We're still working on properly implementing `since` to handle it."
-        }))
-        raise TooManyRequests(response=resp)
-
     repo = server.load_repo(did)
-
     start = util.tid_to_int(since) if since else 0
 
     blocks_and_head = itertools.chain(
