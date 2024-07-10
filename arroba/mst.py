@@ -865,10 +865,14 @@ class MST:
 
 #     Sync Protocol
 
-    def load_all(self):
+    def load_all(self, start=0):
         """Generator. Used in :func:`xrpc_sync.get_repo`.
 
         (The bluesky-social/atproto TS code calls this ``writeToCarStream``.)
+
+        Args:
+          start (int): optional ``subscribeRepos`` sequence number to start from,
+            inclusive. Defaults to 0.
 
         Returns:
           generator of (CID, bytes) tuples
@@ -885,6 +889,9 @@ class MST:
             to_fetch.clear()
 
             for cid, block in blocks.items():
+                if block.seq < start:
+                    continue
+
                 yield cid, block.encoded
                 entries = deserialize_node_data(storage=self.storage,
                                                 data=Data(**block.decoded))

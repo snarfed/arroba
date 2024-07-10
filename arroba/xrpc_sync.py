@@ -53,7 +53,7 @@ def get_repo(input, did=None, since=None):
     # HACK, TODO: remove
     # https://github.com/snarfed/bridgy-fed/issues/1151
     if did in (
-            'did:plc:2ixmtcwjcnp4dh5drqxegvac',
+            # 'did:plc:2ixmtcwjcnp4dh5drqxegvac',
             'did:plc:expkm6j5nfdzwhvrzhjjm5fm',
             'did:plc:lxf6nbzgcphkzhbjzdhz24wa',
             'did:plc:rcalkk4q6f6b7vrr7ib6a3om',
@@ -75,13 +75,9 @@ def get_repo(input, did=None, since=None):
 
     start = util.tid_to_int(since) if since else 0
 
-    blocks = itertools.chain.from_iterable(
-        [car.Block(cid=block.cid, data=block.encoded)
-         for block in [commit.commit] + list(commit.blocks.values())]
-        for commit in server.storage.read_events_by_seq(repo=did, start=start))
-
-    blocks_and_head = itertools.chain([car.Block(repo.head.cid, repo.head.encoded)],
-                                      blocks)
+    blocks_and_head = itertools.chain(
+        [car.Block(repo.head.cid, repo.head.encoded)],
+        (car.Block(cid, data) for cid, data in repo.mst.load_all(start=start)))
 
     return car.write_car([repo.head.cid], blocks_and_head)
 
