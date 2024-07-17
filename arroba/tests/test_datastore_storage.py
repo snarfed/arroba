@@ -264,7 +264,11 @@ class DatastoreStorageTest(DatastoreTest):
 
         # new repo with initial commit
         repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
-        self.assert_same_seq(b.key.id() for b in AtpBlock.query())
+        self.assert_same_seq(b.key.id() for b in AtpBlock.query()
+                             if b.decoded.get('$type') not in (
+                                 'com.atproto.sync.subscribeRepos#account',
+                                 'com.atproto.sync.subscribeRepos#identity'
+                             ))
 
         # new commit
         writes = [Write(Action.CREATE, 'coll', next_tid(), obj) for obj in objs]

@@ -170,6 +170,10 @@ class Repo:
         Returns:
           Repo:
         """
+        did = commit_data.commit.repo
+        storage.write_event(repo_did=did, type='identity', handle=kwargs.get('handle'))
+        storage.write_event(repo_did=did, type='account', active=True)
+
         storage.apply_commit(commit_data)
 
         # avoid reading from storage, since if we're in a transaction, those
@@ -183,6 +187,7 @@ class Repo:
         storage.create_repo(repo, signing_key=signing_key, rotation_key=rotation_key)
         if repo.callback:
             repo.callback(commit_data)
+
         return repo
 
     @classmethod

@@ -76,7 +76,7 @@ class XrpcSyncTest(testutil.XrpcTestCase):
         self.assertEqual({
             'version': 3,
             'did': 'did:web:user.com',
-            'rev': '2222222222422',
+            'rev': '2222222222622',
         }, commit)
 
         self.assertEqual(self.data, load(blocks))
@@ -173,7 +173,7 @@ class XrpcSyncTest(testutil.XrpcTestCase):
         resp = xrpc_sync.get_latest_commit({}, did='did:web:user.com')
         self.assertEqual({
             'cid': self.repo.head.cid.encode('base32'),
-            'rev': '2222222222422',
+            'rev': '2222222222622',
         }, resp)
 
     def test_get_record(self):
@@ -549,7 +549,9 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         for i, (header, payload) in enumerate(
                 xrpc_sync.subscribe_repos(cursor=cursor)):
             self.assertIn(header, [
+                {'op': 1, 't': '#account'},
                 {'op': 1, 't': '#commit'},
+                {'op': 1, 't': '#identity'},
                 {'op': 1, 't': '#tombstone'},
                 {'op': -1},
             ])
@@ -644,7 +646,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         self.assertEqual(1, len(received_a))
         self.assertCommitMessage(received_a[0], {'foo': 'bar'}, write=create,
-                                 prev=prev, seq=2)
+                                 prev=prev, seq=4)
 
         # update, subscriber_a and subscriber_b
         received_b = []
@@ -661,10 +663,10 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         self.assertEqual(2, len(received_a))
         self.assertCommitMessage(received_a[1], {'foo': 'baz'}, write=update,
-                                 prev=prev, seq=3)
+                                 prev=prev, seq=5)
         self.assertEqual(1, len(received_b))
         self.assertCommitMessage(received_b[0], {'foo': 'baz'}, write=update,
-                                 prev=prev, seq=3)
+                                 prev=prev, seq=5)
 
         subscriber_a.join()
 
@@ -676,7 +678,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         self.assertEqual(2, len(received_a))
         self.assertEqual(2, len(received_b))
-        self.assertCommitMessage(received_b[1], write=delete, prev=prev, seq=4)
+        self.assertCommitMessage(received_b[1], write=delete, prev=prev, seq=6)
 
         subscriber_b.join()
 
@@ -688,21 +690,21 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             write = Write(Action.CREATE if val == 'bar' else Action.UPDATE,
                           'co.ll', tid, {'foo': val})
             writes.append(write)
-            commit_cid = self.repo.apply_writes([write])
+            self.repo.apply_writes([write])
             commit_cids.append(self.repo.head.cid)
 
         received = []
-        self.subscribe(received, limit=4, cursor=0)
+        self.subscribe(received, limit=6, cursor=0)
 
-        self.assertEqual(5, server.storage.allocate_seq(SUBSCRIBE_REPOS_NSID))
+        self.assertEqual(7, server.storage.allocate_seq(SUBSCRIBE_REPOS_NSID))
 
         self.assertCommitMessage(
             received[0], record=None, cur=commit_cids[0], prev=None, seq=1)
 
         for i, val in enumerate(['bar', 'baz', 'biff'], start=1):
             self.assertCommitMessage(
-                received[i], {'foo': val}, cur=commit_cids[i], write=writes[i],
-                prev=commit_cids[i - 1], seq=i + 1)
+                received[i + 2], {'foo': val}, cur=commit_cids[i], write=writes[i],
+                prev=commit_cids[i - 1], seq=i + 3)
 
     def test_subscribe_repos_cursor_past_current_seq(self, *_):
         received = []
@@ -711,7 +713,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             ({'op': -1},
              {
                  'error': 'FutureCursor',
-                 'message': 'Cursor 999 is past our current sequence number 1',
+                 'message': 'Cursor 999 is past our current sequence number 3',
              }),
         ], received)
 
@@ -731,6 +733,9 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         header, payload = next(sub)
         self.assertEqual({'op': 1, 't': '#info'}, header)
         self.assertEqual({'name': 'OutdatedCursor'}, payload)
+
+        header, _ = next(sub)
+        self.assertEqual({'op': 1, 't': '#account'}, header)
 
         self.assertCommitMessage(next(sub), {'foo': 'bar'}, write=write,
                                  seq=6, cur=self.repo.head.cid, prev=prev)
@@ -757,7 +762,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         self.assertEqual(1, len(received))
         self.assertCommitMessage(received[0], {'foo': 'bar'}, write=second,
-                                 prev=prev, seq=3)
+                                 prev=prev, seq=5)
 
         subscriber.join()
 
@@ -780,27 +785,27 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         received = []
         delivered = Semaphore(value=0)
         subscriber = Thread(target=self.subscribe, args=[received, delivered],
-                            kwargs={'limit': 6, 'cursor': 0})
+                            kwargs={'limit': 10, 'cursor': 0})
         subscriber.start()
 
-        # first two events are initial commits for each repo
-        delivered.acquire()
-        delivered.acquire()
+        # first six events are initial commits and events for each repo
+        for i in range(6):
+            delivered.acquire()
 
         # tombstone
         delivered.acquire()
-        header, payload = received[2]
+        header, payload = received[6]
         self.assertEqual({'op': 1, 't': '#tombstone'}, header)
         self.assertEqual({
-            'seq': 3,
+            'seq': 7,
             'did': 'did:web:user.com',
             'time': testutil.NOW.isoformat(),
         }, payload)
 
         # bob's write, now from streaming
         delivered.acquire()
-        self.assertCommitMessage(received[3], {'foo': 'bar'}, write=write,
-                                 repo=bob_repo, prev=prev, seq=4)
+        self.assertCommitMessage(received[7], {'foo': 'bar'}, write=write,
+                                 repo=bob_repo, prev=prev, seq=8)
 
         # another write to bob
         prev = bob_repo.head.cid
@@ -812,11 +817,11 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         server.storage.tombstone_repo(bob_repo)
         delivered.acquire()
 
-        self.assertEqual(6, len(received))
-        header, payload = received[5]
+        self.assertEqual(10, len(received))
+        header, payload = received[9]
         self.assertEqual({'op': 1, 't': '#tombstone'}, header)
         self.assertEqual({
-            'seq': 6,
+            'seq': 10,
             'did': 'did:bob',
             'time': testutil.NOW.isoformat(),
         }, payload)

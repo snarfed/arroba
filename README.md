@@ -109,6 +109,8 @@ _Non-breaking changes:_
 
 * `mst`:
   * Add new optional `start` kwarg to `load_all`.
+* `repo`:
+  * [Emit new `#identity` and `#account` events](https://github.com/snarfed/bridgy-fed/issues/1119) to `subscribeRepos` when creating new repos.
 * `storage`:
   * Add new `write_event` method.
   * Add new optional `repo` kwarg to `read_blocks_by_seq` and `read_events_by_seq` to limit returned results to a single repo.
