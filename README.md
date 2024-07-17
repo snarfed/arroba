@@ -109,9 +109,8 @@ _Non-breaking changes:_
 
 * `mst`:
   * Add new optional `start` kwarg to `load_all`.
-* `repo`:
-  * Add new `write_event` method.
 * `storage`:
+  * Add new `write_event` method.
   * Add new optional `repo` kwarg to `read_blocks_by_seq` and `read_events_by_seq` to limit returned results to a single repo.
 * `xrpc_sync`:
   * Switch `getBlob` from returning HTTP 302 to 301.

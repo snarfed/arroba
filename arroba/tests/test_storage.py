@@ -196,3 +196,17 @@ class StorageTest(TestCase):
 
         with self.assertRaises(TombstonedRepo):
             storage.load_repo('did:user')
+
+    def test_write_event(self):
+        storage = MemoryStorage()
+        block = storage.write_event(repo_did='did:user', type='identity',
+                                    active=False, status='foo')
+        self.assertEqual({
+            '$type': 'com.atproto.sync.subscribeRepos#identity',
+            'seq': 1,
+            'did': 'did:user',
+            'time': NOW.isoformat(),
+            'active': False,
+            'status': 'foo',
+        }, block.decoded)
+        self.assertEqual(block, storage.read(block.cid))

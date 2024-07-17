@@ -199,7 +199,9 @@ class Storage:
           repo (Repo)
         """
         self._tombstone_repo(repo)
-        repo.write_event('tombstone')
+        block = self.write_event(repo_did=repo.did, type='tombstone')
+        if repo.callback:
+            repo.callback(block.decoded)
 
     def _tombstone_repo(self, repo):
         """Marks a repo as tombstoned in storage.
@@ -335,6 +337,28 @@ class Storage:
           Block:
         """
         raise NotImplementedError()
+
+    def write_event(self, repo_did, type, **kwargs):
+        """Writes a ``subscribeRepos`` event to storage.
+
+        Args:
+          repo_did (str):
+          type (str): ``account`` or ``identity``
+          kwargs: included in the event, eg ``active``, `status``
+
+        Returns:
+          CID:
+        """
+        assert type in ('account', 'identity', 'tombstone'), type
+
+        seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
+        return self.write(repo_did, {
+            '$type': f'com.atproto.sync.subscribeRepos#{type}',
+            'seq': seq,
+            'did': repo_did,
+            'time': util.now().isoformat(),
+            **kwargs,
+        }, seq=seq)
 
     def apply_commit(self, commit_data):
         """Writes a commit to storage.
