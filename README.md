@@ -102,6 +102,8 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 
 * `mst`:
   * Add new optional `start` kwarg to `load_all`.
+* `repo`:
+  * Add new `write_event` method.
 * `storage`:
   * Add new optional `repo` kwarg to `read_blocks_by_seq` and `read_events_by_seq` to limit returned results to a single repo.
 * `xrpc_sync`:

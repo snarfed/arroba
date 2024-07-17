@@ -347,3 +347,30 @@ class Repo:
         commit_data = Repo.format_commit(repo=self, writes=writes)
         self.apply_commit(commit_data)
         return self
+
+    def write_event(self, type, **kwargs):
+        """Writes a ``subscribeRepos`` event to storage.
+
+        Args:
+          type (str): ``account`` or ``identity``
+          kwargs: included in the event, eg ``active``, `status``
+
+        Returns:
+          CID:
+        """
+        assert type in ('account', 'identity', 'tombstone'), type
+
+        seq = self.storage.allocate_seq(SUBSCRIBE_REPOS_NSID)
+        event = {
+            '$type': f'com.atproto.sync.subscribeRepos#{type}',
+            'seq': seq,
+            'did': self.did,
+            'time': util.now().isoformat(),
+            **kwargs
+        }
+        cid = self.storage.write(self.did, event, seq=seq)
+
+        if self.callback:
+            self.callback(event)
+
+        return cid

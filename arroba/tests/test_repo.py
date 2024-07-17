@@ -191,6 +191,32 @@ class RepoTest(TestCase):
         self.assertEqual(1, len(seen))
         self.assertCommitIs(seen[0], create, 2)
 
+    def test_write_event(self):
+        cid = self.repo.write_event('identity', active=False, status='foo')
+        assert cid
+        self.assertEqual({
+            '$type': 'com.atproto.sync.subscribeRepos#identity',
+            'seq': 2,
+            'did': 'did:web:user.com',
+            'time': NOW.isoformat(),
+            'active': False,
+            'status': 'foo',
+        }, self.storage.read(cid).decoded)
+
+    def test_write_event_callback(self):
+        seen = []
+        self.repo.callback = lambda event: seen.append(event)
+
+        cid = self.repo.write_event('account')
+        block = self.storage.read(cid)
+        self.assertEqual({
+            '$type': 'com.atproto.sync.subscribeRepos#account',
+            'seq': 2,
+            'did': 'did:web:user.com',
+            'time': NOW.isoformat(),
+        }, block.decoded)
+        self.assertEqual([block.decoded], seen)
+
 
 class DatastoreRepoTest(RepoTest, DatastoreTest):
     """Run all of RepoTest's tests with DatastoreStorage."""

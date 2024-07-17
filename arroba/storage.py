@@ -199,18 +199,7 @@ class Storage:
           repo (Repo)
         """
         self._tombstone_repo(repo)
-
-        seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
-        message = {
-            '$type': 'com.atproto.sync.subscribeRepos#tombstone',
-            'seq': seq,
-            'did': repo.did,
-            'time': util.now().isoformat(),
-        }
-        self.write(repo.did, message, seq=seq)
-
-        if repo.callback:
-            repo.callback(message)
+        repo.write_event('tombstone')
 
     def _tombstone_repo(self, repo):
         """Marks a repo as tombstoned in storage.
@@ -334,8 +323,6 @@ class Storage:
 
     def write(self, repo_did, obj, seq=None):
         """Writes a node to storage.
-
-        TODO: remove? This seems unused.
 
         Args:
           repo_did (str):
