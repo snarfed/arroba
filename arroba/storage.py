@@ -332,7 +332,7 @@ class Storage:
             allocated.
 
         Returns:
-          CID:
+          Block:
         """
         raise NotImplementedError()
 
@@ -442,7 +442,7 @@ class MemoryStorage(Storage):
         block = Block(decoded=obj, seq=seq, repo=repo_did)
         if block not in self.blocks:
             self.blocks[block.cid] = block
-        return block.cid
+        return block
 
     def apply_commit(self, commit_data):
         seq = tid_to_int(commit_data.commit.decoded['rev'])

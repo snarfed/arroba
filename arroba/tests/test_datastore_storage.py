@@ -166,9 +166,9 @@ class DatastoreStorageTest(DatastoreTest):
         self.assertFalse(self.storage.has(CIDS[0]))
 
         data = {'foo': 'bar'}
-        cid = self.storage.write(repo_did='did:web:user.com', obj=data)
-        self.assertEqual(data, self.storage.read(cid).decoded)
-        self.assertTrue(self.storage.has(cid))
+        block = self.storage.write(repo_did='did:web:user.com', obj=data)
+        self.assertEqual(data, self.storage.read(block.cid).decoded)
+        self.assertTrue(self.storage.has(block.cid))
 
     def test_read_many(self):
         self.assertEqual({cid: None for cid in CIDS},
@@ -178,7 +178,7 @@ class DatastoreStorageTest(DatastoreTest):
         stored = [self.storage.write(repo_did='did:web:user.com', obj=d)
                   for d in data]
 
-        cids = [stored[0], CIDS[0], stored[1]]
+        cids = [stored[0].cid, CIDS[0], stored[1].cid]
         self.assertEqual(
             {dag_cbor_cid(d): Block(decoded=d) for d in data} | {CIDS[0]: None},
             self.storage.read_many(cids))
@@ -190,11 +190,11 @@ class DatastoreStorageTest(DatastoreTest):
         bar = self.storage.write(repo_did='did:plc:123', obj={'bar': 4})  # seq 4
         baz = self.storage.write(repo_did='did:plc:123', obj={'baz': 5})  # seq 5
 
-        self.assertEqual([foo, bar, baz],
+        self.assertEqual([foo.cid, bar.cid, baz.cid],
                          [b.cid for b in self.storage.read_blocks_by_seq()])
-        self.assertEqual([bar, baz],
+        self.assertEqual([bar.cid, baz.cid],
                          [b.cid for b in self.storage.read_blocks_by_seq(start=3)])
-        self.assertEqual([bar, baz],
+        self.assertEqual([bar.cid, baz.cid],
                          [b.cid for b in self.storage.read_blocks_by_seq(start=4)])
         self.assertEqual([], [b.cid for b in self.storage.read_blocks_by_seq(start=6)])
 
@@ -204,14 +204,14 @@ class DatastoreStorageTest(DatastoreTest):
         baz = self.storage.write(repo_did='did:plc:123', obj={'baz': 4})
 
         self.assertEqual(
-            [foo, baz],
+            [foo.cid, baz.cid],
             [b.cid for b in self.storage.read_blocks_by_seq(repo='did:plc:123')])
         self.assertEqual(
-            [baz],
+            [baz.cid],
             [b.cid for b in self.storage.read_blocks_by_seq(repo='did:plc:123',
                                                             start=3)])
         self.assertEqual(
-            [bar],
+            [bar.cid],
             [b.cid for b in self.storage.read_blocks_by_seq(repo='did:plc:456')])
         self.assertEqual(
             [],
@@ -222,7 +222,8 @@ class DatastoreStorageTest(DatastoreTest):
         block = self.storage.write(repo_did='did:plc:123', obj={'foo': 2})
 
         self.ndb_context.__exit__(None, None, None)
-        self.assertEqual([block], [b.cid for b in self.storage.read_blocks_by_seq()])
+        self.assertEqual([block.cid],
+                         [b.cid for b in self.storage.read_blocks_by_seq()])
 
     def test_read_blocks_by_seq_ndb_context_closes_while_running(self):
         AtpSequence.allocate(SUBSCRIBE_REPOS_NSID)
@@ -232,7 +233,7 @@ class DatastoreStorageTest(DatastoreTest):
         ]
 
         call = self.storage.read_blocks_by_seq()
-        self.assertEqual(blocks[0], next(call).cid)
+        self.assertEqual(blocks[0].cid, next(call).cid)
 
         self.ndb_context.__exit__(None, None, None)
         self.assertEqual([], list(call))

@@ -499,7 +499,7 @@ class DatastoreStorage(Storage):
     def write(self, repo_did, obj, seq=None):
         if seq is None:
             seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
-        return AtpBlock.create(repo_did=repo_did, data=obj, seq=seq).cid
+        return AtpBlock.create(repo_did=repo_did, data=obj, seq=seq).to_block()
 
     @ndb_context
     @ndb.transactional()

@@ -100,6 +100,13 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 
 ### 0.7 - unreleased
 
+_Breaking changes:_
+
+* `storage`:
+  * Switch `Storage.write` to return `Block` instead of `CID`.
+
+_Non-breaking changes:_
+
 * `mst`:
   * Add new optional `start` kwarg to `load_all`.
 * `repo`:

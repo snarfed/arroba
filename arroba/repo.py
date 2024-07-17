@@ -368,9 +368,9 @@ class Repo:
             'time': util.now().isoformat(),
             **kwargs
         }
-        cid = self.storage.write(self.did, event, seq=seq)
+        block = self.storage.write(self.did, event, seq=seq)
 
         if self.callback:
             self.callback(event)
 
-        return cid
+        return block.cid
