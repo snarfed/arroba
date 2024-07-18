@@ -130,6 +130,23 @@ class StorageTest(TestCase):
         self.assertEqual(bob.head.cid, events[4].commit.cid)
         self.assertEqual(5, events[4].commit.seq)
 
+    def test_read_events_commit_then_tombstone(self):
+        storage = MemoryStorage()
+        alice = Repo.create(storage, 'did:alice', signing_key=self.key)
+        storage.tombstone_repo(alice)
+
+        events = list(storage.read_events_by_seq())
+        self.assertEqual(4, len(events))
+        self.assertEqual(alice.head.cid, events[0].commit.cid)
+        self.assertEqual(1, events[0].commit.seq)
+
+        self.assertEqual({
+            '$type': 'com.atproto.sync.subscribeRepos#tombstone',
+            'seq': 4,
+            'did': 'did:alice',
+            'time': NOW.isoformat(),
+        }, events[3])
+
     def test_load_repo(self):
         storage = MemoryStorage()
         created = Repo.create(storage, 'did:web:user.com', signing_key=self.key)
