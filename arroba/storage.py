@@ -264,22 +264,14 @@ class Storage:
         assert start >= 0
 
         seq = commit_block = blocks = None
-        last = util.now()
-        seen_records = set()
 
         def make_commit():
-            nonlocal last
             for op in commit_block.ops:
                 if (op.action in (Action.CREATE, Action.UPDATE)
-                        and op.cid not in seen_records):
+                        and op.cid not in blocks):
                     record = self.read(op.cid)
                     assert record
                     blocks[op.cid] = record
-                    seen_records.add(op.cid)
-
-            now = util.now()
-            last = now
-
             return CommitData(blocks=blocks, commit=commit_block,
                               prev=commit_block.decoded.get('prev'))
 

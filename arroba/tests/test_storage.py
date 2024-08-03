@@ -92,6 +92,7 @@ class StorageTest(TestCase):
         repo = Repo.create(storage, 'did:web:user.com', signing_key=self.key)
         commit_cids.append(repo.head.cid)
 
+        prev_prev = repo.head.cid
         first = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})
         commit_cid = repo.apply_writes([first])
         commit_cids.append(repo.head.cid)
@@ -100,13 +101,17 @@ class StorageTest(TestCase):
         second = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})
         commit_cid = repo.apply_writes([second])
 
-        commits = list(storage.read_events_by_seq(start=5))
-        self.assertEqual(1, len(commits))
-        self.assertEqual(repo.head.cid, commits[0].commit.cid)
-        self.assertEqual(prev, commits[0].prev)
+        commits = list(storage.read_events_by_seq(start=4))
+        self.assertEqual(2, len(commits))
 
         record = Block(decoded={'foo': 'bar'})
+        self.assertEqual(prev, commits[0].commit.cid)
+        self.assertEqual(prev_prev, commits[0].prev)
         self.assertEqual(record, commits[0].blocks[record.cid])
+
+        self.assertEqual(repo.head.cid, commits[1].commit.cid)
+        self.assertEqual(prev, commits[1].prev)
+        self.assertEqual(record, commits[1].blocks[record.cid])
 
     def test_read_events_tombstone_then_commit(self):
         storage = MemoryStorage()
