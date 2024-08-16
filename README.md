@@ -117,6 +117,8 @@ _Non-breaking changes:_
 * `xrpc_sync`:
   * Switch `getBlob` from returning HTTP 302 to 301.
   * Implement `since` param in `getRepo`.
+* `util`:
+  * `service_jwt`: add new `**claims` parameter for additional JWT claims, [eg `lxm`](https://github.com/bluesky-social/atproto/discussions/2687).
 
 ### 0.6 - 2024-06-24
 

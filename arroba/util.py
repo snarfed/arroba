@@ -351,7 +351,7 @@ def verify_sig(obj, public_key):
 
 
 def service_jwt(host, repo_did, privkey, expiration=timedelta(minutes=10),
-                aud=None):
+                aud=None, **claims):
     """Generates an inter-service JWT, eg for a relay or AppView.
 
     https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification
@@ -363,6 +363,7 @@ def service_jwt(host, repo_did, privkey, expiration=timedelta(minutes=10),
       expiration (timedelta): length of time this JWT will be valid, defaults to 10m
       aud (str): JWT audience. Default is ``did:web:[host]``, which works for relays
         and AppViews, but others (eg mod services) have ``did:plc``s instead.
+      claims (dict): additional claims to include in the JWT, eg ``lxm``
 
     Returns:
       str: JWT
@@ -375,6 +376,7 @@ def service_jwt(host, repo_did, privkey, expiration=timedelta(minutes=10),
         'aud': aud or f'did:web:{host}',
         'alg': 'ES256K',  # k256
         'exp': int((now() + expiration).timestamp()),
+        **claims,
     }
     logger.info(f'Generating ATProto inter-service JWT: {data}')
     return jwt.encode(data, privkey, algorithm='ES256K')
