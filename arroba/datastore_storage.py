@@ -324,6 +324,8 @@ class AtpRemoteBlob(ndb.Model):
         digest = multihash.digest(resp.content, 'sha2-256')
         cid = CID('base58btc', 1, 'raw', digest).encode('base32')
 
+        # note that if the initial URL redirects, we still store it in the
+        # AtpRemoteBlob, not the final resolved URL after redirects.
         logger.info(f'Creating new AtpRemoteBlob for {url} CID {cid}')
         mime_type_prop = {'mime_type': mime_type} if mime_type else {}
         blob = cls(id=url, cid=cid, size=len(resp.content), **mime_type_prop)
