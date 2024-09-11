@@ -315,12 +315,14 @@ class AtpRemoteBlob(ndb.Model):
         if existing:
             return existing
 
+        logger.info(f'{get_fn} {url}')
         resp = get_fn(url)
         resp.raise_for_status()
         mime_type = resp.headers.get('Content-Type')
         if not mime_type:
             mime_type, _ = mimetypes.guess_type(url)
 
+        logger.info(f'Got {resp.status_code} {mime_type} {resp.headers.get("Content-Length")} bytes {resp.url}')
         digest = multihash.digest(resp.content, 'sha2-256')
         cid = CID('base58btc', 1, 'raw', digest).encode('base32')
 
