@@ -37,7 +37,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         with self.assertRaises(ValueError):
             xrpc_repo.describe_repo({}, repo='unknown')
 
-        resp = xrpc_repo.describe_repo({}, repo='at://did:web:user.com')
+        resp = xrpc_repo.describe_repo({}, repo='did:web:user.com')
         self.assertEqual('did:web:user.com', resp['did'])
         self.assertEqual('han.dull', resp['handle'])
 
@@ -59,12 +59,12 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         }, resp)
 
     def test_list_records(self):
-        resp = xrpc_repo.list_records({}, repo='at://did:web:user.com',
+        resp = xrpc_repo.list_records({}, repo='did:web:user.com',
                                       collection='app.bsky.feed.post')
         self.assertEqual([], resp['records'])
 
         self.test_create_record()
-        resp = xrpc_repo.list_records({}, repo='at://did:web:user.com',
+        resp = xrpc_repo.list_records({}, repo='did:web:user.com',
                                       collection='app.bsky.feed.post')
         self.assertEqual(1, len(resp['records']))
         self.assertEqual('Hello, world!', resp['records'][0]['value']['text'])
@@ -83,7 +83,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
                 ('test.other_coll', {'foo': 'bar'}),
             ])])
 
-        resp = xrpc_repo.list_records({}, repo='at://did:web:user.com',
+        resp = xrpc_repo.list_records({}, repo='did:web:user.com',
                                       collection='test.coll')
         self.assertEqual({
             'records': [{
@@ -101,7 +101,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         self.test_create_record()
 
         resp = xrpc_repo.get_record({},
-            repo='at://did:web:user.com',
+            repo='did:web:user.com',
             collection='app.bsky.feed.post',
             rkey=util.int_to_tid(util._tid_ts_last),
         )
@@ -132,7 +132,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
             })])
 
         resp = xrpc_repo.get_record({},
-            repo='at://did:web:user.com',
+            repo='did:web:user.com',
             collection='test.coll',
             rkey='self',
         )
@@ -153,7 +153,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
     def test_get_record_not_found_no_app_view_env_var(self):
         with self.assertRaises(ValueError):
             xrpc_repo.get_record({},
-                repo='at://did:web:user.com',
+                repo='did:web:user.com',
                 collection='app.bsky.feed.post',
                 rkey='99999',
             )
@@ -162,13 +162,13 @@ class XrpcRepoTest(testutil.XrpcTestCase):
     def test_get_record_not_found_fall_back_to_app_view(self, mock_get):
         resp = {
             'uri': 'at://did:web:other/app.bsky.feed.post/99999',
-            'cid': '¯\_(ツ)_/¯',
+            'cid': 'sydddddd',
             'value': {'foo': 'bar'},
         }
         mock_get.return_value = testutil.requests_response(resp)
 
         params = {
-            'repo': 'at://did:web:other',
+            'repo': 'did:web:other',
             'collection': 'app.bsky.feed.post',
             'rkey': '99999',
         }
@@ -192,7 +192,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
     # def test_get_record_not_found_locally_or_app_view(self):
     #     with self.assertRaises(ValueError):
     #         xrpc_repo.get_record({},
-    #             repo='at://did:web:user.com',
+    #             repo='did:web:user.com',
     #             collection='app.bsky.feed.post',
     #             rkey='99999',
     #         )
@@ -207,7 +207,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         })
         with self.assertRaises(HTTPException) as e:
             xrpc_repo.get_record({},
-                repo='at://did:web:user.com',
+                repo='did:web:user.com',
                 collection='app.bsky.feed.post',
                 rkey='99999')
 
@@ -227,13 +227,13 @@ class XrpcRepoTest(testutil.XrpcTestCase):
 
         with self.assertRaises(ValueError):
             xrpc_repo.get_record({},
-                repo='at://did:web:user.com',
+                repo='did:web:user.com',
                 collection='app.bsky.feed.post',
                 rkey=util.int_to_tid(util._tid_ts_last),
             )
 
         resp = xrpc_repo.list_records({},
-            repo='at://did:web:user.com',
+            repo='did:web:user.com',
             collection='app.bsky.feed.post',
         )
         self.assertEqual([], resp['records'])
@@ -300,7 +300,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
                          resp['uri'])
 
         resp = xrpc_repo.get_record({},
-            repo='at://did:web:user.com',
+            repo='did:web:user.com',
             collection='app.bsky.actor.profile',
             rkey='self',
         )
@@ -320,7 +320,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
                          resp['uri'])
 
         resp = xrpc_repo.get_record({},
-            repo='at://did:web:user.com',
+            repo='did:web:user.com',
             collection='app.bsky.actor.profile',
             rkey='self',
         )
@@ -371,7 +371,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
     #         },
     #     })
     #     got = xrpc_repo.get_record(
-    #         repo='at://did:web:user.com',
+    #         repo='did:web:user.com',
     #         collection=res.uri.collection,
     #         rkey=res.uri.rkey,
     #     )
@@ -549,7 +549,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
     #         'record': profile_record(),
     #     })
     #     data = xrpc_repo.get_record(
-    #         repo='at://did:web:user.com',
+    #         repo='did:web:user.com',
     #         collection=ids.AppBskyActorProfile,
     #         rkey='self',
     #     )
@@ -560,7 +560,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
 
     #     # Update repo, change head
     #     xrpc_repo.create_record(
-    #         repo='at://did:web:user.com',
+    #         repo='did:web:user.com',
     #         collection=ids.AppBskyFeedPost,
     #         record=post_record(),
     #     )
@@ -593,7 +593,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
     #     })
 
     #     data = xrpc_repo.get_record(
-    #         repo='at://did:web:user.com',
+    #         repo='did:web:user.com',
     #         collection=ids.AppBskyActorProfile,
     #         rkey='self',
     #     )
@@ -609,7 +609,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
     #     })
 
     #     data = xrpc_repo.get_record(
-    #         repo='at://did:web:user.com',
+    #         repo='did:web:user.com',
     #         collection=ids.AppBskyActorProfile,
     #         rkey='self',
     #     )
@@ -719,18 +719,18 @@ class XrpcRepoTest(testutil.XrpcTestCase):
     #     # Could not locate record
     #     with self.assertRaises(ValueError):
     #         xrpc_repo.get_record(
-    #             repo='at://did:web:user.com',
+    #             repo='did:web:user.com',
     #             collection='app.bsky.feed.like',
     #             rkey=AtUri(likes[0].uri).rkey,
     #         )
 
     #     assert xrpc_repo.get_record(
-    #         repo='at://did:web:user.com',
+    #         repo='did:web:user.com',
     #         collection='app.bsky.feed.like',
     #         rkey=AtUri(likes[1].uri).rkey,
     #     )
     #     assert xrpc_repo.get_record(
-    #         repo='at://did:web:user.com',
+    #         repo='did:web:user.com',
     #         collection='app.bsky.feed.like',
     #         rkey=AtUri(likes[2].uri).rkey,
     #     )
@@ -757,17 +757,17 @@ class XrpcRepoTest(testutil.XrpcTestCase):
     #     # Could not locate record
     #     with self.assertRaises(ValueError):
     #         xrpc_repo.get_record(
-    #             repo='at://did:web:user.com',
+    #             repo='did:web:user.com',
     #             collection='app.bsky.feed.repost',
     #             rkey=AtUri(reposts[0].uri).rkey,
     #         )
     #     assert xrpc_repo.get_record(
-    #         repo='at://did:web:user.com',
+    #         repo='did:web:user.com',
     #         collection='app.bsky.feed.repost',
     #         rkey=AtUri(reposts[1].uri).rkey,
     #     )
     #     assert xrpc_repo.get_record(
-    #         repo='at://did:web:user.com',
+    #         repo='did:web:user.com',
     #         collection='app.bsky.feed.repost',
     #         rkey=AtUri(reposts[2].uri).rkey,
     #     )

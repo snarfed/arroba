@@ -1,10 +1,4 @@
-"""``com.atproto.sync.*`` XRPC methods.
-
-TODO:
-
-* getBlocks?
-* blobs
-"""
+"""``com.atproto.sync.*`` XRPC methods."""
 from datetime import timedelta, timezone
 import itertools
 import logging
