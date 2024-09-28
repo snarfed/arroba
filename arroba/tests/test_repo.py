@@ -12,6 +12,7 @@ import random
 
 import dag_cbor
 
+from ..server import server
 from ..datastore_storage import DatastoreStorage
 from ..repo import Repo, Write, writes_to_commit_ops
 from ..storage import Action, CommitOp, MemoryStorage
@@ -26,6 +27,7 @@ class RepoTest(TestCase):
 
     def setUp(self):
         super().setUp()
+        server._validate = False
         self.storage = self.STORAGE_CLS()
         self.repo = Repo.create(self.storage, 'did:web:user.com', handle='user.com',
                                 signing_key=self.key)

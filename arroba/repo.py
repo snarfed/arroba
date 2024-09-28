@@ -18,6 +18,7 @@ from multiformats import CID
 from . import util
 from .diff import Diff
 from .mst import MST
+from .server import server
 from .storage import (
     Action,
     Block,
@@ -282,6 +283,9 @@ class Repo:
             if write.action == Action.DELETE:
                 mst = mst.delete(data_key)
                 continue
+
+            # raises ValidationError if it doesn't validate
+            server.validate(write.record.get('$type'), 'record', write.record)
 
             block = Block(decoded=write.record, repo=repo_did)
             commit_blocks[block.cid] = block

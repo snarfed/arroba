@@ -256,10 +256,15 @@ class DatastoreStorageTest(DatastoreTest):
     def test_apply_commit(self):
         self.assertEqual(0, AtpBlock.query().count())
 
-        objs = [
-            {'foo': 'bar'},
-            {'baz': 'biff'},
-        ]
+        objs = [{
+            '$type': 'app.bsky.actor.profile',
+            'displayName': 'Alice',
+            'description': 'hi there',
+        }, {
+            '$type': 'app.bsky.feed.post',
+            'text': 'My original post',
+            'createdAt': '2007-07-07T03:04:05.000Z',
+        }]
         blocks = {dag_cbor_cid(obj): Block(decoded=obj) for obj in objs}
 
         # new repo with initial commit

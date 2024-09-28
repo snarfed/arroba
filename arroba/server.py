@@ -9,7 +9,7 @@ from .util import parse_at_uri, TombstonedRepo
 
 
 # XRPC server
-server = Server(validate=False)
+server = Server(validate=True)
 
 # initialized in app.py, testutil.XrpcTestCase.setUp
 storage = None

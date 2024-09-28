@@ -24,7 +24,7 @@ dependencies = [
     'dag-cbor',
     'dag-json>=0.2',
     'dnspython>=2.0.0',
-    'lexrpc>=0.7',
+    'lexrpc>=0.8',
     'multiformats>=0.3.1',
     'pyjwt>=2.0.0',
     'simple-websocket',
