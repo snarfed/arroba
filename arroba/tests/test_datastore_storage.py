@@ -379,3 +379,24 @@ class DatastoreStorageTest(DatastoreTest):
         with self.assertRaises(ValidationError):
             AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
                                         max_size=10)
+
+    def test_create_remote_blob_content_type_in_accept(self):
+        mock_get = MagicMock(return_value=requests_response('blob contents', headers={
+            'Content-Type': 'foo/bar',
+        }))
+        blob = AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
+                                           accept_types=['baz/biff', 'foo/*'])
+        self.assertEqual({
+            '$type': 'blob',
+            'ref': CID.decode('bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq') ,
+            'mimeType': 'foo/bar',
+            'size': 13,
+        }, blob.as_object())
+
+    def test_create_remote_blob_content_type_not_in_accept(self):
+        mock_get = MagicMock(return_value=requests_response('blob contents', headers={
+            'Content-Type': 'foo/bar',
+        }))
+        with self.assertRaises(ValidationError):
+            AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
+                                        accept_types=['baz/biff'])

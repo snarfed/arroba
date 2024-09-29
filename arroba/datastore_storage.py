@@ -295,7 +295,8 @@ class AtpRemoteBlob(ndb.Model):
 
     @classmethod
     @ndb.transactional()
-    def get_or_create(cls, *, url=None, get_fn=requests.get, max_size=None):
+    def get_or_create(cls, *, url=None, get_fn=requests.get, max_size=None,
+                      accept_types=None):
         """Returns a new or existing :class:`AtpRemoteBlob` for a given URL.
 
         If there isn't an existing :class:`AtpRemoteBlob`, fetches the URL over
@@ -306,13 +307,16 @@ class AtpRemoteBlob(ndb.Model):
           get_fn (callable): for making HTTP GET requests
           max_size (int, optional): the ``maxSize`` parameter for this blob
             field in its lexicon, if any
+          accept_types (sequence of str, optional): the ``accept`` parameter for
+            this blob field in its lexicon, if any. The set of allowed MIME types.
 
         Returns:
           AtpRemoteBlob: existing or newly created blob
 
         Raises:
           requests.RequestException: if the HTTP request to fetch the blob failed
-          lexrpc.ValidationError: if the blob is over ``max_size``
+          lexrpc.ValidationError: if the blob is over ``max_size`` or its type is
+            not in ``accept_types``
         """
         assert url
         existing = cls.get_by_id(url)
@@ -322,10 +326,17 @@ class AtpRemoteBlob(ndb.Model):
         logger.info(f'{get_fn} {url}')
         resp = get_fn(url)
         resp.raise_for_status()
+
+        # check type
         mime_type = resp.headers.get('Content-Type')
         if not mime_type:
             mime_type, _ = mimetypes.guess_type(url)
+        if (accept_types and mime_type not in accept_types
+                and '*/*' not in accept_types
+                and (mime_type.split('/')[0] + '/*') not in accept_types):
+            raise ValidationError(f'{url} type {mime_type} not in accept types {accept_types}')
 
+        # check size
         length = resp.headers.get('Content-Length')
         logger.info(f'Got {resp.status_code} {mime_type} {length} bytes {resp.url}')
 
