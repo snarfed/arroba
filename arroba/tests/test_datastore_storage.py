@@ -7,6 +7,7 @@ from google.cloud import ndb
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 import dag_cbor
+from lexrpc import ValidationError
 from multiformats import CID
 
 from ..datastore_storage import (
@@ -306,11 +307,14 @@ class DatastoreStorageTest(DatastoreTest):
         self.assertEqual(cid, CID.decode(atp_repo.head))
 
     def test_create_remote_blob(self):
-        mock_get = MagicMock(return_value=requests_response(
-            'blob contents', headers={'Content-Type': 'foo/bar'}))
+        mock_get = MagicMock(return_value=requests_response('blob contents', headers={
+            'Content-Type': 'foo/bar',
+            'Content-Length': 123,
+        }))
         cid = CID.decode('bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq')
 
-        blob = AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get)
+        blob = AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
+                                           max_size=456)
         mock_get.assert_called_with('http://blob')
         self.assertEqual({
             '$type': 'blob',
@@ -328,7 +332,8 @@ class DatastoreStorageTest(DatastoreTest):
         mock_get = MagicMock(return_value=requests_response('blob contents'))
         cid = CID.decode('bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq')
 
-        blob = AtpRemoteBlob.get_or_create(url='http://my/blob.png', get_fn=mock_get)
+        blob = AtpRemoteBlob.get_or_create(url='http://my/blob.png', get_fn=mock_get,
+                                           max_size=456)
         mock_get.assert_called_with('http://my/blob.png')
         self.assertEqual({
             '$type': 'blob',
@@ -359,3 +364,18 @@ class DatastoreStorageTest(DatastoreTest):
         got = AtpRemoteBlob.get_or_create(url='http://blob')
         self.assertEqual(blob, got)
         mock_get.assert_not_called()
+
+    def test_create_remote_blob_content_length_over_max_size(self):
+        mock_get = MagicMock(return_value=requests_response('blob contents', headers={
+            'Content-Type': 'foo/bar',
+            'Content-Length': 123,
+        }))
+        with self.assertRaises(ValidationError):
+            AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
+                                        max_size=99)
+
+    def test_create_remote_blob_no_content_length_over_max_size(self):
+        mock_get = MagicMock(return_value=requests_response('blob contents'))
+        with self.assertRaises(ValidationError):
+            AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
+                                        max_size=10)

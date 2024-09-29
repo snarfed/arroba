@@ -13,6 +13,7 @@ import dag_json
 from google.cloud import ndb
 from google.cloud.ndb.context import get_context
 from google.cloud.ndb.exceptions import ContextError
+from lexrpc import ValidationError
 from multiformats import CID, multicodec, multihash
 
 from .mst import MST
@@ -294,7 +295,7 @@ class AtpRemoteBlob(ndb.Model):
 
     @classmethod
     @ndb.transactional()
-    def get_or_create(cls, *, url=None, get_fn=requests.get):
+    def get_or_create(cls, *, url=None, get_fn=requests.get, max_size=None):
         """Returns a new or existing :class:`AtpRemoteBlob` for a given URL.
 
         If there isn't an existing :class:`AtpRemoteBlob`, fetches the URL over
@@ -303,12 +304,15 @@ class AtpRemoteBlob(ndb.Model):
         Args:
           url (str)
           get_fn (callable): for making HTTP GET requests
+          max_size (int, optional): the ``maxSize`` parameter for this blob
+            field in its lexicon, if any
 
         Returns:
-          AtpRemoteBlob: existing or newly created :class:`AtpRemoteBlob`
+          AtpRemoteBlob: existing or newly created blob
 
         Raises:
           requests.RequestException: if the HTTP request to fetch the blob failed
+          lexrpc.ValidationError: if the blob is over ``max_size``
         """
         assert url
         existing = cls.get_by_id(url)
@@ -322,7 +326,17 @@ class AtpRemoteBlob(ndb.Model):
         if not mime_type:
             mime_type, _ = mimetypes.guess_type(url)
 
-        logger.info(f'Got {resp.status_code} {mime_type} {resp.headers.get("Content-Length")} bytes {resp.url}')
+        length = resp.headers.get('Content-Length')
+        logger.info(f'Got {resp.status_code} {mime_type} {length} bytes {resp.url}')
+
+        over_max_size = ValidationError(f'{url} Content-Length {length} is over maxSize {max_size}')
+        if max_size and length and length > max_size:
+            raise over_max_size
+
+        # fetch body now
+        if max_size and len(resp.content) > max_size:
+            raise over_max_size
+
         digest = multihash.digest(resp.content, 'sha2-256')
         cid = CID('base58btc', 1, 'raw', digest).encode('base32')
 

@@ -114,6 +114,8 @@ _Non-breaking changes:_
 * `storage`:
   * Add new `write_event` method.
   * Add new optional `repo` kwarg to `read_blocks_by_seq` and `read_events_by_seq` to limit returned results to a single repo.
+* `datastore_storage`:
+  * Add new `max_size` kwarg to `AtpRemoteBlob.get_or_create` for the blob's `maxSize` parameter in its lexicon. If `Content-Length` is over `maxSize`, raises `lexrpc.ValidationError.`
 * `xrpc_sync`:
   * Switch `getBlob` from returning HTTP 302 to 301.
   * Implement `since` param in `getRepo`.
