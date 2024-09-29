@@ -309,7 +309,7 @@ class DatastoreStorageTest(DatastoreTest):
     def test_create_remote_blob(self):
         mock_get = MagicMock(return_value=requests_response('blob contents', headers={
             'Content-Type': 'foo/bar',
-            'Content-Length': 123,
+            'Content-Length': '123',
         }))
         cid = CID.decode('bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq')
 
@@ -368,7 +368,7 @@ class DatastoreStorageTest(DatastoreTest):
     def test_create_remote_blob_content_length_over_max_size(self):
         mock_get = MagicMock(return_value=requests_response('blob contents', headers={
             'Content-Type': 'foo/bar',
-            'Content-Length': 123,
+            'Content-Length': '123',
         }))
         with self.assertRaises(ValidationError):
             AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,

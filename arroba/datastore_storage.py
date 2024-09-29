@@ -330,10 +330,14 @@ class AtpRemoteBlob(ndb.Model):
         logger.info(f'Got {resp.status_code} {mime_type} {length} bytes {resp.url}')
 
         over_max_size = ValidationError(f'{url} Content-Length {length} is over maxSize {max_size}')
-        if max_size and length and length > max_size:
+        try:
+            length = int(length)
+        except (TypeError, ValueError):
+            length = None  # read body and check length manually below
+        if max_size and length and int(length) > max_size:
             raise over_max_size
 
-        # fetch body now
+        # now ready to fetch body
         if max_size and len(resp.content) > max_size:
             raise over_max_size
 
