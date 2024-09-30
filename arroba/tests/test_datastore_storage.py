@@ -30,7 +30,7 @@ CIDS = [
     CID.decode('bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm'),
     CID.decode('bafyreibj4lsc3aqnrvphp5xmrnfoorvru4wynt6lwidqbm2623a6tatzdu'),
 ]
-
+BLOB_CID = CID.decode('bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq')
 
 class DatastoreStorageTest(DatastoreTest):
 
@@ -311,14 +311,12 @@ class DatastoreStorageTest(DatastoreTest):
             'Content-Type': 'foo/bar',
             'Content-Length': '123',
         }))
-        cid = CID.decode('bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq')
-
         blob = AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
                                            max_size=456)
         mock_get.assert_called_with('http://blob', stream=True)
         self.assertEqual({
             '$type': 'blob',
-            'ref': cid,
+            'ref': BLOB_CID,
             'mimeType': 'foo/bar',
             'size': 13,
         }, blob.as_object())
@@ -330,14 +328,13 @@ class DatastoreStorageTest(DatastoreTest):
 
     def test_create_remote_blob_infer_mime_type_from_url(self):
         mock_get = MagicMock(return_value=requests_response('blob contents'))
-        cid = CID.decode('bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq')
 
         blob = AtpRemoteBlob.get_or_create(url='http://my/blob.png', get_fn=mock_get,
                                            max_size=456)
         mock_get.assert_called_with('http://my/blob.png', stream=True)
         self.assertEqual({
             '$type': 'blob',
-            'ref': cid,
+            'ref': BLOB_CID,
             'mimeType': 'image/png',
             'size': 13,
         }, blob.as_object())
@@ -349,13 +346,12 @@ class DatastoreStorageTest(DatastoreTest):
 
     def test_create_remote_blob_default_mime_type(self):
         mock_get = MagicMock(return_value=requests_response('blob contents'))
-        cid = CID.decode('bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq')
 
         blob = AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get)
         mock_get.assert_called_with('http://blob', stream=True)
         self.assertEqual({
             '$type': 'blob',
-            'ref': cid,
+            'ref': BLOB_CID,
             'mimeType': 'application/octet-stream',
             'size': 13,
         }, blob.as_object())
@@ -400,7 +396,7 @@ class DatastoreStorageTest(DatastoreTest):
                                                accept_types=['baz/biff', 'foo/*'])
             self.assertEqual({
                 '$type': 'blob',
-                'ref': CID.decode('bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq') ,
+                'ref': BLOB_CID,
                 'mimeType': 'foo/bar',
                 'size': 13,
             }, blob.as_object())
@@ -417,6 +413,28 @@ class DatastoreStorageTest(DatastoreTest):
                                         accept_types=['baz/biff'])
 
         mock_get.assert_called_with('http://blob', stream=True)
+
+    def test_create_remote_blob_content_type_missing(self):
+        mock_get = MagicMock(return_value=requests_response('blob contents'))
+
+        with self.assertRaises(ValidationError):
+            AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
+                                        accept_types=['baz/biff'])
+
+        mock_get.assert_called_with('http://blob', stream=True)
+
+    def test_create_remote_blob_content_type_missing_accept_all(self):
+        mock_get = MagicMock(return_value=requests_response('blob contents'))
+
+        blob = AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
+                                           accept_types=['*/*'])
+        mock_get.assert_called_with('http://blob', stream=True)
+        self.assertEqual({
+            '$type': 'blob',
+            'ref': BLOB_CID,
+            'mimeType': 'application/octet-stream',
+            'size': 13,
+        }, blob.as_object())
 
     def test_get_or_create_local_blob_content_type_not_in_accept(self):
         AtpRemoteBlob(id='http://blob', size=123, cid='', mime_type='foo/bar').put()
