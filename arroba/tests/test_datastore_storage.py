@@ -315,7 +315,7 @@ class DatastoreStorageTest(DatastoreTest):
 
         blob = AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
                                            max_size=456)
-        mock_get.assert_called_with('http://blob')
+        mock_get.assert_called_with('http://blob', stream=True)
         self.assertEqual({
             '$type': 'blob',
             'ref': cid,
@@ -334,7 +334,7 @@ class DatastoreStorageTest(DatastoreTest):
 
         blob = AtpRemoteBlob.get_or_create(url='http://my/blob.png', get_fn=mock_get,
                                            max_size=456)
-        mock_get.assert_called_with('http://my/blob.png')
+        mock_get.assert_called_with('http://my/blob.png', stream=True)
         self.assertEqual({
             '$type': 'blob',
             'ref': cid,
@@ -352,7 +352,7 @@ class DatastoreStorageTest(DatastoreTest):
         cid = CID.decode('bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq')
 
         blob = AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get)
-        mock_get.assert_called_with('http://blob')
+        mock_get.assert_called_with('http://blob', stream=True)
         self.assertEqual({
             '$type': 'blob',
             'ref': cid,
@@ -374,29 +374,56 @@ class DatastoreStorageTest(DatastoreTest):
             AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
                                         max_size=99)
 
-    def test_create_remote_blob_no_content_length_over_max_size(self):
+    def test_get_or_create_local_blob_content_length_over_max_size(self):
+        AtpRemoteBlob(id='http://blob', size=123, cid='').put()
+        mock_get = MagicMock()
+
+        with self.assertRaises(ValidationError):
+            AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
+                                        max_size=99)
+
+        mock_get.assert_not_called()
+
+    def test_create_blob_no_content_length_over_max_size(self):
         mock_get = MagicMock(return_value=requests_response('blob contents'))
         with self.assertRaises(ValidationError):
             AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
                                         max_size=10)
 
-    def test_create_remote_blob_content_type_in_accept(self):
+    def test_create_blob_content_type_in_accept(self):
         mock_get = MagicMock(return_value=requests_response('blob contents', headers={
             'Content-Type': 'foo/bar',
         }))
-        blob = AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
-                                           accept_types=['baz/biff', 'foo/*'])
-        self.assertEqual({
-            '$type': 'blob',
-            'ref': CID.decode('bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq') ,
-            'mimeType': 'foo/bar',
-            'size': 13,
-        }, blob.as_object())
+
+        for i in range(2):  # first time fetches, second uses datastore entity
+            blob = AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
+                                               accept_types=['baz/biff', 'foo/*'])
+            self.assertEqual({
+                '$type': 'blob',
+                'ref': CID.decode('bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq') ,
+                'mimeType': 'foo/bar',
+                'size': 13,
+            }, blob.as_object())
+
+        mock_get.assert_called_once()
 
     def test_create_remote_blob_content_type_not_in_accept(self):
         mock_get = MagicMock(return_value=requests_response('blob contents', headers={
             'Content-Type': 'foo/bar',
         }))
+
         with self.assertRaises(ValidationError):
             AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
                                         accept_types=['baz/biff'])
+
+        mock_get.assert_called_with('http://blob', stream=True)
+
+    def test_get_or_create_local_blob_content_type_not_in_accept(self):
+        AtpRemoteBlob(id='http://blob', size=123, cid='', mime_type='foo/bar').put()
+        mock_get = MagicMock()
+
+        with self.assertRaises(ValidationError):
+            AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
+                                        accept_types=['baz/biff'])
+
+        mock_get.assert_not_called()

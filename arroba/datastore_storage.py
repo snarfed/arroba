@@ -18,6 +18,7 @@ from multiformats import CID, multicodec, multihash
 
 from .mst import MST
 from .repo import Repo
+from .server import server
 from . import storage
 from .storage import Action, Block, Storage, SUBSCRIBE_REPOS_NSID
 from .util import dag_cbor_cid, tid_to_int, TOMBSTONED, TombstonedRepo
@@ -296,7 +297,7 @@ class AtpRemoteBlob(ndb.Model):
     @classmethod
     @ndb.transactional()
     def get_or_create(cls, *, url=None, get_fn=requests.get, max_size=None,
-                      accept_types=None):
+                      accept_types=None, name=''):
         """Returns a new or existing :class:`AtpRemoteBlob` for a given URL.
 
         If there isn't an existing :class:`AtpRemoteBlob`, fetches the URL over
@@ -309,6 +310,7 @@ class AtpRemoteBlob(ndb.Model):
             field in its lexicon, if any
           accept_types (sequence of str, optional): the ``accept`` parameter for
             this blob field in its lexicon, if any. The set of allowed MIME types.
+          name (str, optional): blob field name in lexicon
 
         Returns:
           AtpRemoteBlob: existing or newly created blob
@@ -318,49 +320,53 @@ class AtpRemoteBlob(ndb.Model):
           lexrpc.ValidationError: if the blob is over ``max_size`` or its type is
             not in ``accept_types``
         """
-        assert url
-        existing = cls.get_by_id(url)
-        if existing:
-            return existing
+        def validate_size(size):
+            if max_size and size > max_size:
+                raise ValidationError(f'{url} Content-Length {size} is over {name} blob maxSize {max_size}')
 
-        logger.info(f'{get_fn} {url}')
-        resp = get_fn(url)
+        assert url
+        blob = cls.get_by_id(url)
+        if blob:
+            validate_size(blob.size)
+            server.validate_mime_type(blob.mime_type, accept_types, name=url)
+            return blob
+
+        resp = get_fn(url, stream=True)
         resp.raise_for_status()
 
-        # check type
         mime_type = resp.headers.get('Content-Type')
         if not mime_type:
             mime_type, _ = mimetypes.guess_type(url)
-        if (accept_types and mime_type not in accept_types
-                and '*/*' not in accept_types
-                and (mime_type.split('/')[0] + '/*') not in accept_types):
-            raise ValidationError(f'{url} type {mime_type} not in accept types {accept_types}')
-
-        # check size
         length = resp.headers.get('Content-Length')
         logger.info(f'Got {resp.status_code} {mime_type} {length} bytes {resp.url}')
 
-        over_max_size = ValidationError(f'{url} Content-Length {length} is over maxSize {max_size}')
+        # check type
+        server.validate_mime_type(mime_type, accept_types, name=url)
+
+        # check size
         try:
             length = int(length)
         except (TypeError, ValueError):
             length = None  # read body and check length manually below
-        if max_size and length and int(length) > max_size:
-            raise over_max_size
+        if length:
+            validate_size(length)
 
         # now ready to fetch body
-        if max_size and len(resp.content) > max_size:
-            raise over_max_size
-
         digest = multihash.digest(resp.content, 'sha2-256')
         cid = CID('base58btc', 1, 'raw', digest).encode('base32')
 
         # note that if the initial URL redirects, we still store it in the
         # AtpRemoteBlob, not the final resolved URL after redirects.
         logger.info(f'Creating new AtpRemoteBlob for {url} CID {cid}')
-        mime_type_prop = {'mime_type': mime_type} if mime_type else {}
-        blob = cls(id=url, cid=cid, size=len(resp.content), **mime_type_prop)
+        blob = cls(id=url, cid=cid, size=len(resp.content))
+        if mime_type:
+            blob.mime_type = mime_type
         blob.put()
+
+        # re-validate size in case the server didn't give us Content-Length.
+        # do this after storing blob so that we don't re-download it next time.
+        validate_size(len(resp.content))
+
         return blob
 
     def as_object(self):
