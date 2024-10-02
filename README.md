@@ -102,11 +102,14 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 
 _Breaking changes:_
 
+* Add much more lexicon schema validation for records and XRPC method input, output, and parameters.
 * `storage`:
   * Switch `Storage.write` to return `Block` instead of `CID`.
 
 _Non-breaking changes:_
 
+* `did`:
+  * `create`: add new `also_known_as` kwarg.
 * `mst`:
   * Add new optional `start` kwarg to `load_all`.
 * `repo`:

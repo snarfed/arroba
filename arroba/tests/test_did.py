@@ -120,6 +120,20 @@ class DidTest(TestCase):
             }],
         }, did_plc.doc)
 
+    def test_create_plc_also_known_as(self):
+        mock_post = MagicMock(return_value=requests_response('OK'))
+        did_plc = did.create_plc('han.dull', also_known_as=['abc', 'xyz'],
+                                 post_fn=mock_post)
+
+        mock_post.assert_called_once()
+        self.assertEqual((f'https://plc.bsky-sandbox.dev/{did_plc.did}',),
+                         mock_post.call_args.args)
+
+        self.assertTrue(did_plc.did.startswith('did:plc:'))
+        self.assertEqual(['at://han.dull', 'abc', 'xyz'], did_plc.doc['alsoKnownAs'])
+        genesis_op = mock_post.call_args.kwargs['json']
+        self.assertEqual(['at://han.dull', 'abc', 'xyz'], genesis_op['alsoKnownAs'])
+
     def test_encode_decode_did_key(self):
         did_key = did.encode_did_key(self.key.public_key())
         self.assertTrue(did_key.startswith('did:key:'))

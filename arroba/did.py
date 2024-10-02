@@ -101,7 +101,7 @@ def resolve_plc(did, get_fn=requests.get):
 
 
 def create_plc(handle, signing_key=None, rotation_key=None, pds_url=None,
-               post_fn=requests.post):
+               also_known_as=None, post_fn=requests.post):
     """Creates a new ``did:plc`` in a PLC registry.
 
     The PLC registry hostname is specified in the ``PLC_HOST`` environment
@@ -125,6 +125,8 @@ def create_plc(handle, signing_key=None, rotation_key=None, pds_url=None,
         If omitted, a new keypair will be created.
       pds_url (str): PDS base URL to associate with this DID. If omitted,
         defaults to ``https://[PDS_HOST]``
+      also_known_as (str or sequence of str): additional URI or URIs to add to
+        ``alsoKnownAs``
       post_fn (callable): for making HTTP POST requests
 
     Returns:
@@ -133,6 +135,7 @@ def create_plc(handle, signing_key=None, rotation_key=None, pds_url=None,
     Raises:
       ValueError: if any inputs are invalid
       requests.RequestException: if the HTTP request to the PLC registry fails
+
     """
     plc_host = os.environ.get('PLC_WRITE_HOST') or os.environ.get('PLC_HOST')
 
@@ -154,6 +157,11 @@ def create_plc(handle, signing_key=None, rotation_key=None, pds_url=None,
         logger.info('Generating new k256 rotation key')
         rotation_key = util.new_key()
 
+    if not also_known_as:
+        also_known_as = []
+    elif isinstance(also_known_as, str):
+        also_known_as = [also_known_as]
+
     logger.info('Generating and signing PLC directory genesis operation...')
     # this is a PLC directory genesis operation for creating a new DID.
     # it's *not* a DID document. similar but not the same!
@@ -164,9 +172,7 @@ def create_plc(handle, signing_key=None, rotation_key=None, pds_url=None,
         'verificationMethods': {
             'atproto': encode_did_key(signing_key.public_key()),
         },
-        'alsoKnownAs': [
-            f'at://{handle}',
-        ],
+        'alsoKnownAs': [f'at://{handle}'] + list(also_known_as),
         'services': {
             'atproto_pds': {
                 'type': 'AtprotoPersonalDataServer',
