@@ -524,7 +524,10 @@ class DatastoreStorage(Storage):
                 query = AtpBlock.query(AtpBlock.seq >= start).order(AtpBlock.seq)
                 if repo:
                     query = query.filter(AtpBlock.repo == AtpRepo(id=repo).key)
-                for atp_block in query:
+                # unproven hypothesis: need strong consistency to make sure we
+                # get all blocks for a given seq, including commit
+                # https://console.cloud.google.com/errors/detail/CO2g4eLG_tOkZg;service=atproto-hub;time=P1D;refresh=true;locations=global?project=bridgy-federated
+                for atp_block in query.iter(read_consistency=ndb.STRONG):
                     yield atp_block.to_block()
             except ContextError as e:
                 logging.warning(f'lost ndb context! client may have disconnected? "{e}"')
