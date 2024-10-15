@@ -300,8 +300,7 @@ class Storage:
 
         # final commit
         if blocks:
-            assert blocks
-            assert commit_block
+            assert commit_block, f'seq {seq}'
             yield make_commit()
 
     def has(self, cid):
