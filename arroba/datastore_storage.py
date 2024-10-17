@@ -11,7 +11,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 import dag_cbor
 import dag_json
 from google.cloud import ndb
-from google.cloud.ndb.context import get_context
+from google.cloud.ndb import context
 from google.cloud.ndb.exceptions import ContextError
 from lexrpc import ValidationError
 from multiformats import CID, multicodec, multihash
@@ -410,9 +410,9 @@ class DatastoreStorage(Storage):
     def ndb_context(fn):
         @wraps(fn)
         def decorated(self, *args, **kwargs):
-            context = get_context(raise_context_error=False)
+            ctx = context.get_context(raise_context_error=False)
 
-            with context.use() if context else self.ndb_client.context():
+            with ctx.use() if ctx else self.ndb_client.context():
                 ret = fn(self, *args, **kwargs)
 
             return ret
@@ -514,24 +514,41 @@ class DatastoreStorage(Storage):
     def read_blocks_by_seq(self, start=0, repo=None):
         assert start >= 0
 
-        context = get_context(raise_context_error=False)
+        cur_seq = start
+        cur_seq_cids = []
 
-        with context.use() if context else self.ndb_client.context() as cm:
-            # lexrpc event subscription handlers like subscribeRepos call this
-            # on a different thread, so if we're there, we need to create a new
-            # ndb context
-            try:
-                query = AtpBlock.query(AtpBlock.seq >= start).order(AtpBlock.seq)
-                if repo:
-                    query = query.filter(AtpBlock.repo == AtpRepo(id=repo).key)
-                # unproven hypothesis: need strong consistency to make sure we
-                # get all blocks for a given seq, including commit
-                # https://console.cloud.google.com/errors/detail/CO2g4eLG_tOkZg;service=atproto-hub;time=P1D;refresh=true;locations=global?project=bridgy-federated
-                for atp_block in query.iter(read_consistency=ndb.STRONG):
-                    yield atp_block.to_block()
-            except ContextError as e:
-                logging.warning(f'lost ndb context! client may have disconnected? "{e}"')
-                return
+        while True:
+            ctx = context.get_context(raise_context_error=False)
+            with ctx.use() if ctx else self.ndb_client.context():
+                # lexrpc event subscription handlers like subscribeRepos call this
+                # on a different thread, so if we're there, we need to create a new
+                # ndb context
+                try:
+                    query = AtpBlock.query(AtpBlock.seq >= cur_seq).order(AtpBlock.seq)
+                    if repo:
+                        query = query.filter(AtpBlock.repo == AtpRepo(id=repo).key)
+                    # unproven hypothesis: need strong consistency to make sure we
+                    # get all blocks for a given seq, including commit
+                    # https://console.cloud.google.com/errors/detail/CO2g4eLG_tOkZg;service=atproto-hub;time=P1D;refresh=true;locations=global?project=bridgy-federated
+                    for atp_block in query.iter(read_consistency=ndb.STRONG):
+                        if atp_block.seq != cur_seq:
+                            cur_seq = atp_block.seq
+                            cur_seq_cids = []
+                        if atp_block.key.id() not in cur_seq_cids:
+                            cur_seq_cids.append(atp_block.key.id())
+                            yield atp_block.to_block()
+
+                    # finished cleanly
+                    break
+
+                except ContextError as e:
+                    logging.warning(f'lost ndb context! re-querying at {cur_seq}. {e}')
+                    # continue loop, restart query
+
+            # Context.use() resets this to the previous context when it exits,
+            # but that context is bad now, so make sure we get a new one at the
+            # top of the loop
+            context._state.context = None
 
     @ndb_context
     def has(self, cid):
