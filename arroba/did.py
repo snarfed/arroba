@@ -236,7 +236,6 @@ def decode_did_key(did_key):
     Returns:
       ec.EllipticCurvePublicKey
     """
-    assert did_key.startswith('did:key:')
     wrapped_bytes = multibase.decode(did_key.removeprefix('did:key:'))
     codec, data = multicodec.unwrap(wrapped_bytes)
 
