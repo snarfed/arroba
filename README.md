@@ -115,7 +115,7 @@ _Non-breaking changes:_
 * `repo`:
   * [Emit new `#identity` and `#account` events](https://github.com/snarfed/bridgy-fed/issues/1119) to `subscribeRepos` when creating new repos.
 * `storage`:
-  * Add new `write_event` method.
+  * Add new `deactivate_repo`, `activate_repo`, and `write_event` methods.
   * Add new optional `repo` kwarg to `read_blocks_by_seq` and `read_events_by_seq` to limit returned results to a single repo.
 * `datastore_storage`:
   * Add new `max_size` and `accept_types` kwarg to `AtpRemoteBlob.get_or_create` for the blob's `maxSize` and `accept` parameters in its lexicon. If the fetched file doesn't satisfy those constraints, raises `lexrpc.ValidationError.`

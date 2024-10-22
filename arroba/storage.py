@@ -11,7 +11,7 @@ import dag_cbor
 from multiformats import CID, multicodec, multihash
 
 from . import util
-from .util import dag_cbor_cid, tid_to_int, TOMBSTONED, TombstonedRepo
+from .util import dag_cbor_cid, DEACTIVATED, tid_to_int, TOMBSTONED, TombstonedRepo
 
 SUBSCRIBE_REPOS_NSID = 'com.atproto.sync.subscribeRepos'
 
@@ -183,6 +183,39 @@ class Storage:
         """
         raise NotImplementedError()
 
+    def deactivate_repo(self, repo):
+        """Marks a repo as deactivated.
+
+        * Stores a ``com.atproto.sync.subscribeRepos#account`` block with its
+          own sequence number.
+        * If :attr:`Repo.callback` is populated, calls it with the
+          ``com.atproto.sync.subscribeRepos#account`` message.
+        * Calls :meth:`Repo._set_status` to mark the repo as deactivated in storage.
+
+        Args:
+          repo (Repo)
+        """
+        self._set_repo_status(repo, DEACTIVATED)
+        block = self.write_event(repo=repo, type='account',
+                                 active=False, status='deactivated')
+
+    def activate_repo(self, repo):
+        """Marks a repo as active.
+
+        Only needed after deactivating. Does nothing if the repo is tombstoned.
+
+        * Stores a ``com.atproto.sync.subscribeRepos#account`` block with its
+          own sequence number.
+        * If :attr:`Repo.callback` is populated, calls it with the
+          ``com.atproto.sync.subscribeRepos#account`` message.
+        * Calls :meth:`Repo._set_status` to mark the repo as active in storage.
+
+        Args:
+          repo (Repo)
+        """
+        self._set_repo_status(repo, None)
+        block = self.write_event(repo=repo, type='account', active=True)
+
     def tombstone_repo(self, repo):
         """Marks a repo as tombstoned.
 
@@ -190,7 +223,7 @@ class Storage:
           own sequence number.
         * If :attr:`Repo.callback` is populated, calls it with the
           ``com.atproto.sync.subscribeRepos#tombstone`` message.
-        * Calls :meth:`_tombstone` to mark the repo as tombstoned in storage.
+        * Calls :meth:`Repo._set_status` to mark the repo as deactivated in storage.
 
         After this, :meth:`load_repo` will raise :class:`TombstonedRepo` for
         this repo.
@@ -198,10 +231,8 @@ class Storage:
         Args:
           repo (Repo)
         """
-        self._tombstone_repo(repo)
-        block = self.write_event(repo_did=repo.did, type='tombstone')
-        if repo.callback:
-            repo.callback(block.decoded)
+        self._set_repo_status(repo, TOMBSTONED)
+        block = self.write_event(repo=repo, type='tombstone')
 
     def _tombstone_repo(self, repo):
         """Marks a repo as tombstoned in storage.
@@ -329,27 +360,31 @@ class Storage:
         """
         raise NotImplementedError()
 
-    def write_event(self, repo_did, type, **kwargs):
+    def write_event(self, repo, type, **kwargs):
         """Writes a ``subscribeRepos`` event to storage.
 
         Args:
-          repo_did (str):
+          repo (Repo)
           type (str): ``account`` or ``identity``
           kwargs: included in the event, eg ``active``, `status``
 
         Returns:
-          CID:
+          Block:
         """
         assert type in ('account', 'identity', 'tombstone'), type
 
         seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
-        return self.write(repo_did, {
+        block = self.write(repo.did, {
             '$type': f'com.atproto.sync.subscribeRepos#{type}',
             'seq': seq,
-            'did': repo_did,
+            'did': repo.did,
             'time': util.now().isoformat(),
             **kwargs,
         }, seq=seq)
+
+        if repo.callback:
+            repo.callback(block.decoded)
+        return block
 
     def apply_commit(self, commit_data):
         """Writes a commit to storage.
@@ -428,8 +463,8 @@ class MemoryStorage(Storage):
 
         return list(itertools.islice(it, limit))
 
-    def _tombstone_repo(self, repo):
-        repo.status = TOMBSTONED
+    def _set_repo_status(self, repo, status):
+        repo.status = status
 
     def read(self, cid):
         return self.blocks.get(cid)

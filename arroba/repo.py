@@ -67,7 +67,7 @@ class Repo:
       mst (MST)
       head (Block): head commit
       handle (str)
-      status (str): None (if active) or ``'tombstoned'``
+      status (str): None (if active), ``'deactivated'``, or ``'tombstoned'``
       callback (callable: (CommitData | dict) => None): called on new commits
         and other repo events. May be set directly by clients. None means no
         callback. The parameter will be a :class:`CommitData` for commits, dict
@@ -171,12 +171,6 @@ class Repo:
         Returns:
           Repo:
         """
-        did = commit_data.commit.repo
-        storage.write_event(repo_did=did, type='identity', handle=kwargs.get('handle'))
-        storage.write_event(repo_did=did, type='account', active=True)
-
-        storage.apply_commit(commit_data)
-
         # avoid reading from storage, since if we're in a transaction, those
         # reads won't see writes that happened in apply_commit. instead,
         # construct Repo and MST in memory from existing data.
@@ -184,6 +178,11 @@ class Repo:
         repo = Repo(storage=storage, mst=mst, head=commit_data.commit,
                     signing_key=signing_key, rotation_key=rotation_key,
                     **kwargs)
+
+        did = commit_data.commit.repo
+        storage.write_event(repo=repo, type='identity', handle=kwargs.get('handle'))
+        storage.write_event(repo=repo, type='account', active=True)
+        storage.apply_commit(commit_data)
 
         storage.create_repo(repo, signing_key=signing_key, rotation_key=rotation_key)
         if repo.callback:

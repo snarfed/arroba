@@ -40,6 +40,8 @@ CURVE_ORDER = {
     ec.SECP256K1: 0xFFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFE_BAAEDCE6_AF48A03B_BFD25E8C_D0364141
 }
 
+DEACTIVATED = 'deactivated'
+DELETED = 'deleted'
 TOMBSTONED = 'tombstoned'
 
 class TombstonedRepo(ValueError):

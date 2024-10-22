@@ -6,7 +6,7 @@ from multiformats import CID
 
 from ..repo import Repo, Write
 from ..storage import Action, Block, MemoryStorage, SUBSCRIBE_REPOS_NSID
-from ..util import dag_cbor_cid, next_tid, TOMBSTONED, TombstonedRepo
+from ..util import dag_cbor_cid, next_tid, DEACTIVATED, TOMBSTONED, TombstonedRepo
 
 from .testutil import NOW, TestCase
 
@@ -228,13 +228,61 @@ class StorageTest(TestCase):
         with self.assertRaises(TombstonedRepo):
             storage.load_repo('did:user')
 
+    def test_deactivate_repo(self):
+        seen = []
+        storage = MemoryStorage()
+        repo = Repo.create(storage, 'did:user', signing_key=self.key)
+        self.assertEqual(3, storage.last_seq(SUBSCRIBE_REPOS_NSID))
+
+        repo.callback = lambda event: seen.append(event)
+        storage.deactivate_repo(repo)
+
+        self.assertEqual(DEACTIVATED, repo.status)
+
+        self.assertEqual(4, storage.last_seq(SUBSCRIBE_REPOS_NSID))
+        expected = {
+            '$type': 'com.atproto.sync.subscribeRepos#account',
+            'seq': 4,
+            'did': 'did:user',
+            'time': NOW.isoformat(),
+            'active': False,
+            'status': 'deactivated',
+        }
+        self.assertEqual([expected], seen)
+        self.assertEqual(expected, storage.read(dag_cbor_cid(expected)).decoded)
+
+    def test_activate_repo(self):
+        seen = []
+        storage = MemoryStorage()
+        repo = Repo.create(storage, 'did:user', signing_key=self.key,
+                           status=DEACTIVATED)
+        self.assertEqual(3, storage.last_seq(SUBSCRIBE_REPOS_NSID))
+
+        repo.callback = lambda event: seen.append(event)
+        storage.activate_repo(repo)
+        self.assertIsNone(repo.status)
+
+        self.assertEqual(4, storage.last_seq(SUBSCRIBE_REPOS_NSID))
+        expected = {
+            '$type': 'com.atproto.sync.subscribeRepos#account',
+            'seq': 4,
+            'did': 'did:user',
+            'time': NOW.isoformat(),
+            'active': True,
+        }
+        self.assertEqual([expected], seen)
+        self.assertEqual(expected, storage.read(dag_cbor_cid(expected)).decoded)
+
     def test_write_event(self):
         storage = MemoryStorage()
-        block = storage.write_event(repo_did='did:user', type='identity',
+        repo = Repo.create(storage, 'did:user', signing_key=self.key)
+        self.assertEqual(3, storage.last_seq(SUBSCRIBE_REPOS_NSID))
+
+        block = storage.write_event(repo=repo, type='identity',
                                     active=False, status='foo')
         self.assertEqual({
             '$type': 'com.atproto.sync.subscribeRepos#identity',
-            'seq': 1,
+            'seq': 4,
             'did': 'did:user',
             'time': NOW.isoformat(),
             'active': False,

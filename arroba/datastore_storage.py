@@ -21,7 +21,14 @@ from .repo import Repo
 from .server import server
 from . import storage
 from .storage import Action, Block, Storage, SUBSCRIBE_REPOS_NSID
-from .util import dag_cbor_cid, tid_to_int, TOMBSTONED, TombstonedRepo
+from .util import (
+    dag_cbor_cid,
+    tid_to_int,
+    DEACTIVATED,
+    DELETED,
+    TOMBSTONED,
+    TombstonedRepo,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +119,7 @@ class AtpRepo(ndb.Model):
     # TODO: rename this recovery_key_pem?
     # https://discord.com/channels/1097580399187738645/1098725036917002302/1153447354003894372
     rotation_key_pem = ndb.BlobProperty()
-    status = ndb.StringProperty(choices=(TOMBSTONED,))
+    status = ndb.StringProperty(choices=(DEACTIVATED, DELETED, TOMBSTONED))
 
     created = ndb.DateTimeProperty(auto_now_add=True)
     updated = ndb.DateTimeProperty(auto_now=True)
@@ -462,7 +469,7 @@ class DatastoreStorage(Storage):
         self.head = CID.decode(atp_repo.head)
         handle = atp_repo.handles[0] if atp_repo.handles else None
 
-        return Repo.load(self, cid=self.head, handle=handle,
+        return Repo.load(self, cid=self.head, handle=handle, status=atp_repo.status,
                          signing_key=atp_repo.signing_key,
                          rotation_key=atp_repo.rotation_key)
 
@@ -488,11 +495,13 @@ class DatastoreStorage(Storage):
                 for atp_repo, head, mst in zip(atp_repos, heads, msts)]
 
     @ndb_context
-    def _tombstone_repo(self, repo):
+    def _set_repo_status(self, repo, status):
+        assert status in (DEACTIVATED, DELETED, TOMBSTONED, None)
+
         @ndb.transactional()
         def update():
             atp_repo = AtpRepo.get_by_id(repo.did)
-            atp_repo.status = TOMBSTONED
+            atp_repo.status = status
             atp_repo.put()
 
         update()
