@@ -70,9 +70,9 @@ def resolve(did, **kwargs):
 
 @cached(TTLCache(maxsize=CACHE_SIZE, ttl=CACHE_TTL.total_seconds()))
 def resolve_plc(did, get_fn=requests.get):
-    """Resolves a ``did:plc`` by fetching its DID document from a PLC registry.
+    """Resolves a ``did:plc`` by fetching its DID document from a PLC directory.
 
-    The PLC registry hostname is specified in the ``PLC_HOST`` environment
+    The PLC directory hostname is specified in the ``PLC_HOST`` environment
     variable.
 
     ``did:plc`` background:
@@ -100,11 +100,51 @@ def resolve_plc(did, get_fn=requests.get):
     return resp.json()
 
 
-def create_plc(handle, signing_key=None, rotation_key=None, pds_url=None,
-               also_known_as=None, post_fn=requests.post):
-    """Creates a new ``did:plc`` in a PLC registry.
+def create_plc(handle, **kwargs):
+    """Creates a new ``did:plc`` in a PLC directory.
 
-    The PLC registry hostname is specified in the ``PLC_HOST`` environment
+    Args are documented in :func:`write_plc`.
+    """
+    assert 'did' not in kwargs
+    assert 'prev' not in kwargs
+    return write_plc(handle=handle, **kwargs)
+
+
+def update_plc(did, **kwargs):
+    """Creates a new ``did:plc`` in a PLC directory.
+
+    Args are documented in :func:`write_plc`.
+    """
+    assert 'rotation_key' in kwargs
+    assert 'signing_key' in kwargs
+
+    # get CID of previous head operation for this DID from the directory
+    # response is a JSON list with operations from earliest to latest
+    # https://github.com/did-method-plc/did-method-plc#audit-logs
+    get_fn = kwargs.get('get_fn') or requests.get
+    resp = get_fn(f'https://{os.environ["PLC_HOST"]}/{did}/log/audit')
+    last_op = resp.json()[-1]
+
+    # merge new data into existing data
+    handle = last_op['operation']['alsoKnownAs'].pop(0)
+    assert handle.startswith('at://')
+    handle = handle.removeprefix('at://')
+    kwargs.setdefault('handle', handle)
+
+    kwargs.setdefault('also_known_as', last_op['operation']['alsoKnownAs'])
+
+    # write update operation
+    return write_plc(did=did, prev=last_op['cid'], **kwargs)
+
+
+def write_plc(did=None, handle=None, signing_key=None, rotation_key=None,
+              pds_url=None, also_known_as=None, prev=None,
+              get_fn=requests.get, post_fn=requests.post):
+    """Writes a PLC operation to a PLC directory.
+
+    Generally used to create a new ``did:plc`` or update an existing one.
+
+    The PLC directory hostname is specified in the ``PLC_HOST`` environment
     variable.
 
     ``did:plc`` background:
@@ -118,6 +158,7 @@ def create_plc(handle, signing_key=None, rotation_key=None, pds_url=None,
     https://github.com/bluesky-social/atproto/discussions/1510
 
     Args:
+      did (str): if provided, updates an existing DID, otherwise creates a new one.
       handle (str): domain handle to associate with this DID
       signing_key (ec.EllipticCurvePrivateKey): The curve must be SECP256K1.
         If omitted, a new keypair will be created.
@@ -127,6 +168,8 @@ def create_plc(handle, signing_key=None, rotation_key=None, pds_url=None,
         defaults to ``https://[PDS_HOST]``
       also_known_as (str or sequence of str): additional URI or URIs to add to
         ``alsoKnownAs``
+      prev (str): if an update, the CID of the previous operation for this DID
+      get_fn (callable): for making HTTP GET requests
       post_fn (callable): for making HTTP POST requests
 
     Returns:
@@ -134,10 +177,9 @@ def create_plc(handle, signing_key=None, rotation_key=None, pds_url=None,
 
     Raises:
       ValueError: if any inputs are invalid
-      requests.RequestException: if the HTTP request to the PLC registry fails
-
+      requests.RequestException: if the HTTP request to the PLC directory fails
     """
-    plc_host = os.environ.get('PLC_WRITE_HOST') or os.environ.get('PLC_HOST')
+    plc_host = os.environ['PLC_HOST']
 
     if not isinstance(handle, str) or not handle:
         raise ValueError(f'{handle} is not a valid handle')
@@ -162,11 +204,11 @@ def create_plc(handle, signing_key=None, rotation_key=None, pds_url=None,
     elif isinstance(also_known_as, str):
         also_known_as = [also_known_as]
 
-    logger.info('Generating and signing PLC directory genesis operation...')
-    # this is a PLC directory genesis operation for creating a new DID.
+    logger.info('Generating and signing PLC directory operation...')
+    # this is a PLC directory genesis operation for creating or updating a DID.
     # it's *not* a DID document. similar but not the same!
     # https://github.com/bluesky-social/did-method-plc#presentation-as-did-document
-    create = {
+    op = {
         'type': 'plc_operation',
         'rotationKeys': [encode_did_key(rotation_key.public_key())],
         'verificationMethods': {
@@ -179,24 +221,28 @@ def create_plc(handle, signing_key=None, rotation_key=None, pds_url=None,
                 'endpoint': f'{pds_url}',
             }
         },
-        'prev': None,
+        'prev': prev,
     }
-    create = util.sign(create, rotation_key)
-    create['sig'] = base64.urlsafe_b64encode(create['sig']).decode().rstrip('=')
-    sha256 = Hash(SHA256())
-    sha256.update(dag_cbor.encode(create))
-    hash = sha256.finalize()
-    did_plc = 'did:plc:' + base64.b32encode(hash)[:24].lower().decode()
-    logger.info(f'  {did_plc}')
+    op = util.sign(op, rotation_key)
+    op['sig'] = base64.urlsafe_b64encode(op['sig']).decode().rstrip('=')
 
-    plc_url = f'https://{plc_host}/{did_plc}'
+    if did:
+        logger.info(f'Updating existing DID {did}')
+    else:
+        sha256 = Hash(SHA256())
+        sha256.update(dag_cbor.encode(op))
+        hash = sha256.finalize()
+        did = 'did:plc:' + base64.b32encode(hash)[:24].lower().decode()
+        logger.info(f'Creating new DID {did}')
+
+    plc_url = f'https://{plc_host}/{did}'
     logger.info(f'Publishing to {plc_url}  ...')
-    resp = post_fn(plc_url, json=create)
-    resp.raise_for_status()
+    resp = post_fn(plc_url, json=op)
     logger.info(f'{resp} {resp.content}')
+    resp.raise_for_status()
 
-    create['did'] = did_plc
-    return DidPlc(did=did_plc, doc=plc_operation_to_did_doc(create),
+    op['did'] = did
+    return DidPlc(did=did, doc=plc_operation_to_did_doc(op),
                   signing_key=signing_key, rotation_key=rotation_key)
 
 

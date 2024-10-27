@@ -109,7 +109,8 @@ _Breaking changes:_
 _Non-breaking changes:_
 
 * `did`:
-  * `create`: add new `also_known_as` kwarg.
+  * Add new `update_plc` method.
+  * `create_plc`: add new `also_known_as` kwarg.
 * `mst`:
   * Add new optional `start` kwarg to `load_all`.
 * `repo`:
