@@ -111,6 +111,7 @@ _Non-breaking changes:_
 * `did`:
   * Add new `update_plc` method.
   * `create_plc`: add new `also_known_as` kwarg.
+  * `resolve_handle`: drop `Content-Type: text/plain` requirement for HTTPS method.
 * `mst`:
   * Add new optional `start` kwarg to `load_all`.
 * `repo`:

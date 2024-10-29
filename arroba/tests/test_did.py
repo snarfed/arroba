@@ -297,12 +297,18 @@ class DidTest(TestCase):
     def test_resolve_handle_https_well_known(self, mock_resolve):
         mock_resolve.return_value = dns_answer('foo.com.', 'nope')
 
-        self.mock_get.return_value = requests_response('did:plc:123abc')
-        self.mock_get.return_value.headers['Content-Type'] = 'text/plain; charset=utf-8'
+        did_str = 'did:plc:123abc456def789ghi987jkl'
+        self.mock_get.return_value = requests_response(did_str)
 
-        self.assertEqual('did:plc:123abc',
-                         did.resolve_handle('foo.com', get_fn=self.mock_get))
+        self.assertEqual(did_str, did.resolve_handle('foo.com', get_fn=self.mock_get))
         mock_resolve.assert_called_once_with('_atproto.foo.com.', TXT)
+        self.mock_get.assert_called_with('https://foo.com/.well-known/atproto-did')
+
+    @patch('dns.resolver.resolve')
+    def test_resolve_handle_https_well_known_not_did(self, mock_resolve):
+        mock_resolve.return_value = dns_answer('foo.com.', 'nope')
+        self.mock_get.return_value = requests_response('nope')
+        self.assertIsNone(did.resolve_handle('foo.com', get_fn=self.mock_get))
         self.mock_get.assert_called_with('https://foo.com/.well-known/atproto-did')
 
     @patch('dns.resolver.resolve')

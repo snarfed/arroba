@@ -412,7 +412,9 @@ def resolve_handle(handle, get_fn=requests.get):
         logger.info(f'HTTPS handle resolution failed: {e}')
         return None
 
-    if resp.ok and resp.headers.get('Content-Type', '').split(';')[0] == 'text/plain':
-        return resp.text.strip()
+    if resp.ok:
+        did = resp.text.strip()
+        if did.startswith('did:plc:') and len(did.removeprefix('did:plc:')) == 24:
+            return did
 
     return None
