@@ -414,7 +414,7 @@ def resolve_handle(handle, get_fn=requests.get):
 
     if resp.ok:
         did = resp.text.strip()
-        if did.startswith('did:plc:') and len(did.removeprefix('did:plc:')) == 24:
+        if did.startswith('did:plc:') and len(did.removeprefix('did:plc:')) <= 24:
             return did
 
     return None
