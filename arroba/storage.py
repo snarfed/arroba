@@ -345,15 +345,17 @@ class Storage:
         """
         raise NotImplementedError()
 
-    def write(self, repo_did, obj, seq=None):
+    def write(self, repo_did, obj, seq_field=None):
         """Writes a node to storage.
+
+        Generates a new sequence number for the node.
 
         Args:
           repo_did (str):
           obj (dict): a record, commit, serialized :class:`MST` node, or
             `subscribeRepos` event/message
-          seq (int or None): sequence number. If not provided, a new one will be
-            allocated.
+          seq_field (str): optional,
+            field name in obj to populate with the sequence number, eg ``seq``
 
         Returns:
           Block:
@@ -373,14 +375,13 @@ class Storage:
         """
         assert type in ('account', 'identity', 'tombstone'), type
 
-        seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
         block = self.write(repo.did, {
             '$type': f'com.atproto.sync.subscribeRepos#{type}',
-            'seq': seq,
             'did': repo.did,
             'time': util.now().isoformat(),
+            # seq is populated in write()
             **kwargs,
-        }, seq=seq)
+        }, seq_field='seq')
 
         if repo.callback:
             repo.callback(block.decoded)
@@ -389,7 +390,8 @@ class Storage:
     def apply_commit(self, commit_data):
         """Writes a commit to storage.
 
-        Generates a new sequence number and uses it for all blocks in the commit.
+        Generates a new sequence number, uses it for all blocks in the commit,
+        and populates it into the commit block's ``rev`` field.
 
         Args:
           commit (CommitData)
@@ -485,9 +487,11 @@ class MemoryStorage(Storage):
     def has(self, cid):
         return cid in self.blocks
 
-    def write(self, repo_did, obj, seq=None):
-        if seq is None:
-            seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
+    def write(self, repo_did, obj, seq_field=None):
+        seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
+        if seq_field:
+            assert seq_field not in obj
+            obj[seq_field] = seq
 
         block = Block(decoded=obj, seq=seq, repo=repo_did)
         if block not in self.blocks:
@@ -495,6 +499,10 @@ class MemoryStorage(Storage):
         return block
 
     def apply_commit(self, commit_data):
+        # assert 'rev' not in commit_data.commit.decoded
+        # seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
+        # commit_data.commit.decoded['rev'] = util.int_to_tid(seq, clock_id=0)
+
         seq = tid_to_int(commit_data.commit.decoded['rev'])
         assert seq
 

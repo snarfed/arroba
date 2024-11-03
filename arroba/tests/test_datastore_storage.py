@@ -32,16 +32,21 @@ CIDS = [
 ]
 BLOB_CID = CID.decode('bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq')
 
-class DatastoreStorageTest(DatastoreTest):
 
+@ndb.transactional()
+def allocate(seq_id):
+    return AtpSequence.allocate(seq_id)
+
+
+class DatastoreStorageTest(DatastoreTest):
     def test_atpsequence_allocate_new(self):
         self.assertIsNone(AtpSequence.query().get())
-        self.assertEqual(1, AtpSequence.allocate('foo'))
+        self.assertEqual(1, allocate('foo'))
         self.assertEqual(2, AtpSequence.get_by_id('foo').next)
 
     def test_atpsequence_allocate_existing(self):
         AtpSequence(id='foo', next=42).put()
-        self.assertEqual(42, AtpSequence.allocate('foo'))
+        self.assertEqual(42, allocate('foo'))
         self.assertEqual(43, AtpSequence.get_by_id('foo').next)
 
     def test_atpsequence_last_new(self):
@@ -185,9 +190,9 @@ class DatastoreStorageTest(DatastoreTest):
             self.storage.read_many(cids))
 
     def test_read_blocks_by_seq(self):
-        AtpSequence.allocate(SUBSCRIBE_REPOS_NSID)
+        allocate(SUBSCRIBE_REPOS_NSID)
         foo = self.storage.write(repo_did='did:plc:123', obj={'foo': 2})  # seq 2
-        AtpSequence.allocate(SUBSCRIBE_REPOS_NSID)
+        allocate(SUBSCRIBE_REPOS_NSID)
         bar = self.storage.write(repo_did='did:plc:123', obj={'bar': 4})  # seq 4
         baz = self.storage.write(repo_did='did:plc:123', obj={'baz': 5})  # seq 5
 
@@ -219,14 +224,14 @@ class DatastoreStorageTest(DatastoreTest):
             [b.cid for b in self.storage.read_blocks_by_seq(repo='did:plc:789')])
 
     def test_read_blocks_by_seq_no_ndb_context(self):
-        AtpSequence.allocate(SUBSCRIBE_REPOS_NSID)
+        allocate(SUBSCRIBE_REPOS_NSID)
         block = self.storage.write(repo_did='did:plc:123', obj={'foo': 2})
 
         self.ndb_context.__exit__(None, None, None)
         self.assertEqual([block], list(self.storage.read_blocks_by_seq()))
 
     def test_read_blocks_by_seq_ndb_context_closes_while_running(self):
-        AtpSequence.allocate(SUBSCRIBE_REPOS_NSID)
+        allocate(SUBSCRIBE_REPOS_NSID)
         blocks = [
             self.storage.write(repo_did='did:plc:123', obj={'foo': 2}),
             self.storage.write(repo_did='did:plc:123', obj={'bar': 3}),
@@ -276,9 +281,14 @@ class DatastoreStorageTest(DatastoreTest):
 
         # new commit
         writes = [Write(Action.CREATE, 'coll', next_tid(), obj) for obj in objs]
-        commit_data = Repo.format_commit(repo=repo, writes=writes)
 
-        self.storage.apply_commit(commit_data)
+        @ndb.transactional()
+        def write():
+            commit_data = Repo.format_commit(repo=repo, writes=writes)
+            self.storage.apply_commit(commit_data)
+            return commit_data
+
+        commit_data = write()
         self.assertEqual(commit_data.commit.cid, self.storage.head)
         self.assert_same_seq(k.encode('base32') for k in commit_data.blocks.keys())
 

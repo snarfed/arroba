@@ -27,7 +27,7 @@ CID1_STR = CID1.encode('base32')
 CID2_STR = CID2.encode('base32')
 
 
-class XrpcRepoTest(testutil.XrpcTestCase):
+class XrpcRepoTest(testutil.XrpcTestCase, testutil.DatastoreTest):
 
     def last_at_uri(self):
         tid = util.int_to_tid(util._tid_ts_last)

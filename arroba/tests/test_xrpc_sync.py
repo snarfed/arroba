@@ -45,7 +45,7 @@ def load(blocks):
     return objs
 
 
-class XrpcSyncTest(testutil.XrpcTestCase):
+class XrpcSyncTest(testutil.XrpcTestCase, testutil.DatastoreTest):
 
     def setUp(self):
         super().setUp()
@@ -530,7 +530,7 @@ class XrpcSyncTest(testutil.XrpcTestCase):
     #     self.assertEqual(full.repos, pt1.repos + pt2.repos)
 
 
-class SubscribeReposTest(testutil.XrpcTestCase):
+class SubscribeReposTest(testutil.XrpcTestCase, testutil.DatastoreTest):
     def setUp(self):
         super().setUp()
         self.repo.callback = lambda commit_data: xrpc_sync.send_events()

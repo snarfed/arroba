@@ -13,6 +13,7 @@ import logging
 
 from cryptography.hazmat.primitives.asymmetric import ec
 import dag_cbor
+from google.cloud import ndb
 from multiformats import CID
 
 from . import util
@@ -155,6 +156,12 @@ class Repo:
         return contents
 
     @classmethod
+    # TODO: HACK: we shouldn't have to know about ndb here! the problem is that
+    # we generate a sequence number in format_commit below so that we can get
+    # the block's CID and sign it, but we don't store the commit and other
+    # blocks until create_from_commit. we need a transaction around both. ugh.
+    # https://github.com/snarfed/arroba/issues/34
+    @ndb.transactional()
     def create_from_commit(cls, storage, commit_data, *,
                            signing_key, rotation_key=None, **kwargs):
         """
@@ -191,6 +198,12 @@ class Repo:
         return repo
 
     @classmethod
+    # TODO: HACK: we shouldn't have to know about ndb here! the problem is that
+    # we generate a sequence number in format_commit below so that we can get
+    # the block's CID and sign it, but we don't store the commit and other
+    # blocks until create_from_commit. we need a transaction around both. ugh.
+    # https://github.com/snarfed/arroba/issues/34
+    @ndb.transactional()
     def create(cls, storage, did, *, signing_key, rotation_key=None,
                initial_writes=None, **kwargs):
         """
@@ -340,6 +353,12 @@ class Repo:
             self.callback(commit_data)
         return self
 
+    # TODO: HACK: we shouldn't have to know about ndb here! the problem is that
+    # we generate a sequence number in format_commit below so that we can get
+    # the block's CID and sign it, but we don't store the commit and other
+    # blocks until create_from_commit. we need a transaction around both. ugh.
+    # https://github.com/snarfed/arroba/issues/34
+    @ndb.transactional()
     def apply_writes(self, writes):
         """
 

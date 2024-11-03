@@ -22,7 +22,7 @@ from ..util import dag_cbor_cid, next_tid, verify_sig
 from .testutil import DatastoreTest, NOW, TestCase
 
 
-class RepoTest(TestCase):
+class RepoTest(DatastoreTest):
     STORAGE_CLS = MemoryStorage
 
     def setUp(self):

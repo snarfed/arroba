@@ -246,12 +246,15 @@ class AtpSequence(ndb.Model):
     updated = ndb.DateTimeProperty(auto_now=True)
 
     @classmethod
-    @ndb.transactional()
     def allocate(cls, nsid):
         """Returns the next sequence number for a given NSID.
 
         Creates a new :class:`AtpSequence` entity if one doesn't already exist
         for the given NSID.
+
+        Must be inside an ndb transaction! Since the sequence number should be
+        allocated in the same transaction that it's written as part of an
+        :class:`AtpBlock`. https://github.com/snarfed/arroba/issues/34
 
         Args:
           nsid (str): the subscription XRPC method for this sequence number
@@ -259,6 +262,8 @@ class AtpSequence(ndb.Model):
         Returns:
           integer, next sequence number for this NSID
         """
+        assert context.get_context().in_transaction(), 'Must be inside an ndb datastore transaction!'
+
         seq = AtpSequence.get_or_insert(nsid, next=1)
         ret = seq.next
         seq.next += 1
@@ -564,14 +569,23 @@ class DatastoreStorage(Storage):
         return self.read(cid) is not None
 
     @ndb_context
-    def write(self, repo_did, obj, seq=None):
-        if seq is None:
-            seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
+    @ndb.transactional()
+    def write(self, repo_did, obj, seq_field=None):
+        seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
+        if seq_field:
+            assert seq_field not in obj
+            obj[seq_field] = seq
+
         return AtpBlock.create(repo_did=repo_did, data=obj, seq=seq).to_block()
 
     @ndb_context
-    @ndb.transactional()
     def apply_commit(self, commit_data):
+        # Must be inside an ndb transaction! Since allocating the sequence
+        # number for this commit and its blocks be transactional with writing
+        # the blocks here.
+        # https://github.com/snarfed/arroba/issues/34
+        assert context.get_context().in_transaction(), 'Must be inside an ndb datastore transaction!'
+
         seq = tid_to_int(commit_data.commit.decoded['rev'])
         assert seq
 
