@@ -103,6 +103,8 @@ class TestCase(unittest.TestCase):
         if not TestCase.key:
             TestCase.key = util.new_key(seed=2349872879569)
 
+        server.server._validate = server.server._truncate = False
+
         # clear caches
         did.resolve_handle.cache.clear()
         did.resolve_plc.cache.clear()
