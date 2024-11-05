@@ -214,6 +214,9 @@ def subscribe_repos(cursor=None):
                 cur_seq = last_seq
                 break
 
+        if delay := os.getenv('SUBSCRIBE_REPOS_BATCH_DELAY'):
+            time.sleep(float(delay))
+
 
 
 @server.server.method('com.atproto.sync.getBlocks')

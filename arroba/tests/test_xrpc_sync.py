@@ -687,6 +687,11 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         subscriber_b.join()
 
+    @patch.dict(os.environ, SUBSCRIBE_REPOS_BATCH_DELAY='.01')
+    @patch('arroba.xrpc_sync.NEW_EVENTS_TIMEOUT', timedelta(seconds=.01))
+    def test_subscribe_repos_batch_delay(self, *_):
+        self.test_subscribe_repos()
+
     def test_subscribe_repos_cursor_zero(self, *_):
         commit_cids = [self.repo.head.cid]
         writes = [None]
