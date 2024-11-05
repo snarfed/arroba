@@ -1,6 +1,8 @@
 """Unit tests for xrpc_sync.py."""
+from datetime import timedelta
 from io import BytesIO
 from threading import Semaphore, Thread
+import time
 from unittest import skip
 from unittest.mock import patch
 
@@ -18,7 +20,7 @@ from ..repo import Repo, Write, writes_to_commit_ops
 from .. import server
 from ..storage import Action, Storage, SUBSCRIBE_REPOS_NSID
 from .. import util
-from ..util import dag_cbor_cid, int_to_tid, next_tid
+from ..util import dag_cbor_cid, int_to_tid, next_tid, tid_to_int
 from .. import xrpc_sync
 
 from . import testutil
@@ -522,7 +524,7 @@ class XrpcSyncTest(testutil.XrpcTestCase):
     #     with self.assertRaises(ValueError):
     #         sync.loadCheckout(syncStorage, checkoutCar, repoDid, keypair.did())
 
-    # based atproto/packages/pds/tests/sync/list.test.ts
+    # based on atproto/packages/pds/tests/sync/list.test.ts
     # def test_paginates_listed_hosted_repos(self):
     #     full = xrpc_sync.list_repos({})
     #     pt1 = xrpc_sync.list_repos({}, limit=2)
@@ -562,7 +564,8 @@ class SubscribeReposTest(testutil.XrpcTestCase):
                 return
 
     def assertCommitMessage(self, commit_msg, record=None, write=None,
-                            repo=None, cur=None, prev=None, seq=None):
+                            repo=None, cur=None, prev=None, seq=None,
+                            check_commit=True):
         if not repo:
             repo = self.repo
         if not cur:
@@ -597,7 +600,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             record_cid = dag_cbor_cid(record)
             mst_entry = {
                 'e': [{
-                    'k': f'co.ll/{int_to_tid(util._tid_ts_last)}'.encode(),
+                    'k': f'co.ll/{write.rkey}'.encode(),
                     'v': record_cid,
                     'p': 0,
                     't': None,
@@ -613,20 +616,21 @@ class SubscribeReposTest(testutil.XrpcTestCase):
                 'l': None,
             }
 
-        commit_record = {
-            'version': 3,
-            'did': repo.did,
-            'data': dag_cbor_cid(mst_entry),
-            'rev': int_to_tid(seq, clock_id=0),
-            'prev': prev,
-        }
-
         msg_records = [b.decoded for b in msg_blocks]
         # TODO: if I util.sign(commit_record), the sig doesn't match. why?
         for msg_record in msg_records:
             msg_record.pop('sig', None)
 
-        self.assertIn(commit_record, msg_records)
+        if check_commit:
+            commit_record = {
+                'version': 3,
+                'did': repo.did,
+                'data': dag_cbor_cid(mst_entry),
+                'rev': int_to_tid(seq, clock_id=0),
+                'prev': prev,
+            }
+            self.assertIn(commit_record, msg_records)
+
         if record:
             self.assertIn(record, msg_records)
 
@@ -766,7 +770,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         subscriber.join()
 
-    def test_tombstone(self, *_):
+    def test_tombstoned(self, *_):
         # second repo: bob
         bob_repo = Repo.create(server.storage, 'did:bob',
                                handle='bo.bb', signing_key=self.key)
@@ -825,6 +829,56 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             'did': 'did:bob',
             'time': testutil.NOW.isoformat(),
         }, payload)
+
+    @patch('arroba.xrpc_sync.NEW_EVENTS_TIMEOUT', timedelta(seconds=2))
+    def test_subscribe_repos_skipped_seq(self, *_):
+        # https://github.com/snarfed/arroba/issues/34
+        received = []
+        delivered = Semaphore(value=0)
+        subscriber = Thread(target=self.subscribe,
+                              args=[received, delivered, 2])
+        subscriber.start()
+
+        # prepare two writes with seqs 4 and 5
+        write_4 = Write(Action.CREATE, 'co.ll', next_tid(), {'a': 'b'})
+        commit_4 = Repo.format_commit(repo=self.repo, writes=[write_4])
+        self.assertEqual(4, tid_to_int(commit_4.commit.decoded['rev']))
+
+        write_5 = Write(Action.CREATE, 'co.ll', next_tid(), {'x': 'y'})
+        commit_5 = Repo.format_commit(repo=self.repo, writes=[write_5])
+        self.assertEqual(5, tid_to_int(commit_5.commit.decoded['rev']))
+
+        prev = self.repo.head.cid
+
+        with self.assertLogs() as logs:
+            # first write, skip seq 4, write with seq 5 instead
+            self.repo.apply_commit(commit_5)
+            head_5 = self.repo.head.cid
+
+            # there's a small chance that this could be flaky, if >.2s elapses
+            # between starting the subscriber above and receiving the second
+            # write below
+            time.sleep(.1)
+
+            # shouldn't receive the event yet
+            self.assertEqual(0, len(received))
+
+            # second write, use seq 4 that we skipped above
+            self.repo.apply_commit(commit_4)
+
+            delivered.acquire()
+            delivered.acquire()
+
+        self.assertIn('WARNING:arroba.xrpc_sync:Waiting for seq 4', logs.output)
+
+        # should receive both commits
+        self.assertEqual(2, len(received))
+        self.assertCommitMessage(received[0], {'a': 'b'}, write=write_4,
+                                 cur=self.repo.head.cid, prev=prev, seq=4)
+        self.assertCommitMessage(received[1], {'x': 'y'}, write=write_5,
+                                 cur=head_5, prev=prev, seq=5, check_commit=False)
+
+        subscriber.join()
 
 
 class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):

@@ -4,6 +4,7 @@ import itertools
 import logging
 import os
 from threading import Condition
+import time
 
 from carbox import car
 import dag_cbor
@@ -127,13 +128,13 @@ def subscribe_repos(cursor=None):
     Returns:
       (dict, dict) tuple: (header, payload)
     """
-    last_seq = server.storage.last_seq(SUBSCRIBE_REPOS_NSID)
+    cur_seq = server.storage.last_seq(SUBSCRIBE_REPOS_NSID)
 
     def handle(event):
-        nonlocal last_seq
+        nonlocal cur_seq
 
         if isinstance(event, dict):  # non-commit event
-            last_seq = event['seq']
+            cur_seq = event['seq']
             type = event.pop('$type')
             type_fragment = type.removeprefix('com.atproto.sync.subscribeRepos')
             assert type_fragment != type, type
@@ -142,14 +143,14 @@ def subscribe_repos(cursor=None):
         assert isinstance(event, CommitData), \
             f'unexpected event type {event.__class__} {event}'
 
-        last_seq = event.commit.seq
+        cur_seq = event.commit.seq
         commit = event.commit.decoded
         car_blocks = [car.Block(cid=block.cid, data=block.encoded,
                                 decoded=block.decoded)
                       for block in event.blocks.values()]
         return ({  # header
-          'op': 1,
-          't': '#commit',
+            'op': 1,
+            't': '#commit',
         }, {  # payload
             'repo': commit['did'],
             'ops': [{
@@ -173,14 +174,14 @@ def subscribe_repos(cursor=None):
 
     if cursor is not None:
         # validate cursor
-        if cursor > last_seq:
-            msg = f'Cursor {cursor} is past our current sequence number {last_seq}'
+        if cursor > cur_seq:
+            msg = f'Cursor {cursor} is past our current sequence number {cur_seq}'
             logger.warning(msg)
             yield ({'op': -1}, {'error': 'FutureCursor', 'message': msg})
             return
 
         if ROLLBACK_WINDOW is not None:
-            rollback_start = max(last_seq - ROLLBACK_WINDOW - 1, 0)
+            rollback_start = max(cur_seq - ROLLBACK_WINDOW - 1, 0)
             if cursor < rollback_start:
                 logger.warning(f'Cursor {cursor} is before our rollback window; starting at {rollback_start}')
                 yield ({'op': 1, 't': '#info'}, {'name': 'OutdatedCursor'})
@@ -190,14 +191,32 @@ def subscribe_repos(cursor=None):
         for event in server.storage.read_events_by_seq(start=cursor):
             yield handle(event)
 
-    # serve new events as they happen
+    # serve new events as they happen. if we see a sequence number skipped, wait
+    # for it up to NEW_EVENTS_TIMEOUT before giving up on it and moving on
     logger.info(f'serving new events')
+    timeout_s = NEW_EVENTS_TIMEOUT.total_seconds()
+    last_yield = time.time()
+
     while True:
         with new_events:
-            new_events.wait(NEW_EVENTS_TIMEOUT.total_seconds())
+            new_events.wait(timeout_s)
 
-        for commit_data in server.storage.read_events_by_seq(start=last_seq + 1):
-            yield handle(commit_data)
+        for commit_data in server.storage.read_events_by_seq(start=cur_seq + 1):
+            last_seq = cur_seq
+            event = handle(commit_data)
+
+            waited_enough = time.time() - last_yield > timeout_s
+            if cur_seq == last_seq + 1 or waited_enough:
+                if cur_seq > last_seq + 1:
+                    logger.warning(f'Gave up waiting for seqs {last_seq + 1} to {cur_seq - 1}!')
+
+                last_yield = time.time()
+                yield event
+            else:
+                logger.warning(f'Waiting for seq {last_seq + 1}')
+                cur_seq = last_seq
+                break
+
 
 
 @server.server.method('com.atproto.sync.getBlocks')
