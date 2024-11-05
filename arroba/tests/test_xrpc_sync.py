@@ -13,6 +13,7 @@ from google.cloud.ndb.exceptions import ContextError
 from lexrpc.base import XrpcError
 from lexrpc.server import Redirect
 from multiformats import CID
+import os
 
 from .. import datastore_storage
 from ..datastore_storage import AtpRemoteBlob, DatastoreStorage
@@ -721,7 +722,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
              }),
         ], received)
 
-    @patch('arroba.xrpc_sync.ROLLBACK_WINDOW', 2)
+    @patch.dict(os.environ, ROLLBACK_WINDOW='2')
     def test_subscribe_repos_cursor_before_rollback_window(self, *_):
         while seq := server.storage.allocate_seq(SUBSCRIBE_REPOS_NSID):
             if seq >= 5:

@@ -25,10 +25,6 @@ logger = logging.getLogger(__name__)
 NEW_EVENTS_TIMEOUT = timedelta(seconds=60)
 new_events = Condition()
 
-ROLLBACK_WINDOW = None
-if 'ROLLBACK_WINDOW' in os.environ:
-    ROLLBACK_WINDOW = int(os.environ['ROLLBACK_WINDOW'])
-
 
 @server.server.method('com.atproto.sync.getCheckout')
 def get_checkout(input, did=None):
@@ -180,8 +176,9 @@ def subscribe_repos(cursor=None):
             yield ({'op': -1}, {'error': 'FutureCursor', 'message': msg})
             return
 
-        if ROLLBACK_WINDOW is not None:
-            rollback_start = max(cur_seq - ROLLBACK_WINDOW - 1, 0)
+
+        if window := os.getenv('ROLLBACK_WINDOW'):
+            rollback_start = max(cur_seq - int(window) - 1, 0)
             if cursor < rollback_start:
                 logger.warning(f'Cursor {cursor} is before our rollback window; starting at {rollback_start}')
                 yield ({'op': 1, 't': '#info'}, {'name': 'OutdatedCursor'})
