@@ -4,7 +4,7 @@ arroba
 Python implementation of `Bluesky <https://blueskyweb.xyz/>`__
 `PDS <https://atproto.com/guides/data-repos>`__ and `AT
 Protocol <https://atproto.com/specs/atp>`__, including data repository,
-Merkle search tree, and `com.atproto.sync XRPC
+Merkle search tree, and `XRPC
 methods <https://atproto.com/lexicons/com-atproto-sync>`__.
 
 You can build your own PDS on top of arroba with just a few lines of
@@ -153,6 +153,64 @@ XRPC handlers:
 
 Changelog
 ---------
+
+0.7 - unreleased
+~~~~~~~~~~~~~~~~
+
+*Breaking changes:*
+
+-  Add much more lexicon schema validation for records and XRPC method
+   input, output, and parameters.
+-  ``storage``:
+
+   -  Switch ``Storage.write`` to return ``Block`` instead of ``CID``.
+
+*Non-breaking changes:*
+
+-  ``did``:
+
+   -  Add new ``update_plc`` method.
+   -  ``create_plc``: add new ``also_known_as`` kwarg.
+   -  ``resolve_handle``: drop ``Content-Type: text/plain`` requirement
+      for HTTPS method.
+
+-  ``mst``:
+
+   -  Add new optional ``start`` kwarg to ``load_all``.
+
+-  ``repo``:
+
+   -  `Emit new ``#identity`` and ``#account``
+      events <https://github.com/snarfed/bridgy-fed/issues/1119>`__ to
+      ``subscribeRepos`` when creating new repos.
+
+-  ``storage``:
+
+   -  Add new ``deactivate_repo``, ``activate_repo``, and
+      ``write_event`` methods.
+   -  Add new optional ``repo`` kwarg to ``read_blocks_by_seq`` and
+      ``read_events_by_seq`` to limit returned results to a single repo.
+
+-  ``datastore_storage``:
+
+   -  Add new ``max_size`` and ``accept_types`` kwarg to
+      ``AtpRemoteBlob.get_or_create`` for the blob’s ``maxSize`` and
+      ``accept`` parameters in its lexicon. If the fetched file doesn’t
+      satisfy those constraints, raises ``lexrpc.ValidationError.``
+      ``DatastoreStorage.read_blocks_by_seq``: use strong consistency
+      for datastore query. May fix occasional ``AssertionError`` when
+      serving ``subscribeRepos``.
+
+-  ``xrpc_sync``:
+
+   -  Switch ``getBlob`` from returning HTTP 302 to 301.
+   -  Implement ``since`` param in ``getRepo``.
+
+-  ``util``:
+
+   -  ``service_jwt``: add new ``**claims`` parameter for additional JWT
+      claims, `eg
+      ``lxm <https://github.com/bluesky-social/atproto/discussions/2687>`__.
 
 0.6 - 2024-06-24
 ~~~~~~~~~~~~~~~~
