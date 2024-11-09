@@ -99,7 +99,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 
 ## Changelog
 
-### 0.7 - unreleased
+### 0.7 - 2024-11-08
 
 _Breaking changes:_
 
@@ -116,18 +116,19 @@ _Non-breaking changes:_
 * `mst`:
   * Add new optional `start` kwarg to `load_all`.
 * `repo`:
-  * [Emit new `#identity` and `#account` events](https://github.com/snarfed/bridgy-fed/issues/1119) to `subscribeRepos` when creating new repos.
+  * [Emit new #identity and #account events](https://github.com/snarfed/bridgy-fed/issues/1119) to `subscribeRepos` when creating new repos.
 * `storage`:
   * Add new `deactivate_repo`, `activate_repo`, and `write_event` methods.
   * Add new optional `repo` kwarg to `read_blocks_by_seq` and `read_events_by_seq` to limit returned results to a single repo.
 * `datastore_storage`:
   * Add new `max_size` and `accept_types` kwarg to `AtpRemoteBlob.get_or_create` for the blob's `maxSize` and `accept` parameters in its lexicon. If the fetched file doesn't satisfy those constraints, raises `lexrpc.ValidationError.`
-  `DatastoreStorage.read_blocks_by_seq`: use strong consistency for datastore query. May fix occasional `AssertionError` when serving `subscribeRepos`.
+  * `DatastoreStorage.read_blocks_by_seq`: use strong consistency for datastore query. May fix occasional `AssertionError` when serving `subscribeRepos`.
 * `xrpc_sync`:
   * Switch `getBlob` from returning HTTP 302 to 301.
   * Implement `since` param in `getRepo`.
+  * `subscribeRepos`: wait up to 60s on a skipped sequence number before giving up and emitting it as a gap.
 * `util`:
-  * `service_jwt`: add new `**claims` parameter for additional JWT claims, [eg `lxm`](https://github.com/bluesky-social/atproto/discussions/2687).
+  * `service_jwt`: add new `**claims` parameter for additional JWT claims, eg [`lxm`](https://github.com/bluesky-social/atproto/discussions/2687).
 
 ### 0.6 - 2024-06-24
 
@@ -258,7 +259,10 @@ Here's how to package, test, and ship a new release.
     ```sh
     source local/bin/activate.csh
     python
-    # TODO: test code
+
+    from arroba import did
+    did.resolve_handle('snarfed.org')
+
     deactivate
     ```
 1. Tag the release in git. In the tag message editor, delete the generated comments at bottom, leave the first line blank (to omit the release "title" in github), put `### Notable changes` on the second line, then copy and paste this version's changelog contents below it.

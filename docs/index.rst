@@ -139,8 +139,11 @@ XRPC handlers:
    auth will return HTTP 501 Not Implemented.
 -  ``ROLLBACK_WINDOW``, number of events to serve in the
    `subscribeRepos`` rollback
-   window <https://atproto.com/specs/event-stream#sequence-numbers>`__.
-   Defaults to no limit.
+   window <https://atproto.com/specs/event-stream#sequence-numbers>`__,
+   as an integer. Defaults to no limit.
+-  ``SUBSCRIBE_REPOS_BATCH_DELAY``, minimum time to wait between
+   datastore queries in ``com.atproto.sync.subscribeRepos``, in seconds,
+   as a float. Defaults to 0 if unset.
 
 .. raw:: html
 
@@ -154,7 +157,7 @@ XRPC handlers:
 Changelog
 ---------
 
-0.7 - unreleased
+0.7 - 2024-11-08
 ~~~~~~~~~~~~~~~~
 
 *Breaking changes:*
@@ -180,7 +183,7 @@ Changelog
 
 -  ``repo``:
 
-   -  `Emit new ``#identity`` and ``#account``
+   -  `Emit new #identity and #account
       events <https://github.com/snarfed/bridgy-fed/issues/1119>`__ to
       ``subscribeRepos`` when creating new repos.
 
@@ -197,7 +200,7 @@ Changelog
       ``AtpRemoteBlob.get_or_create`` for the blob’s ``maxSize`` and
       ``accept`` parameters in its lexicon. If the fetched file doesn’t
       satisfy those constraints, raises ``lexrpc.ValidationError.``
-      ``DatastoreStorage.read_blocks_by_seq``: use strong consistency
+   -  ``DatastoreStorage.read_blocks_by_seq``: use strong consistency
       for datastore query. May fix occasional ``AssertionError`` when
       serving ``subscribeRepos``.
 
@@ -205,12 +208,16 @@ Changelog
 
    -  Switch ``getBlob`` from returning HTTP 302 to 301.
    -  Implement ``since`` param in ``getRepo``.
+   -  ``subscribeRepos``: wait up to 60s on a skipped sequence number
+      before giving up and emitting it as a gap.
 
 -  ``util``:
 
    -  ``service_jwt``: add new ``**claims`` parameter for additional JWT
-      claims, `eg
-      ``lxm <https://github.com/bluesky-social/atproto/discussions/2687>`__.
+      claims, eg
+      `lxm <https://github.com/bluesky-social/atproto/discussions/2687>`__.
+
+.. _section-1:
 
 0.6 - 2024-06-24
 ~~~~~~~~~~~~~~~~
@@ -299,7 +306,7 @@ Changelog
    when appropriate
    (`snarfed/bridgy-fed#1083 <https://github.com/snarfed/bridgy-fed/issues/1083>`__).
 
-.. _section-1:
+.. _section-2:
 
 0.5 - 2024-03-16
 ~~~~~~~~~~~~~~~~
@@ -340,7 +347,7 @@ Changelog
    -  Implement ``getBlob``, right now only based on “remote” blobs
       stored in ``AtpRemoteBlob``\ s in datastore storage.
 
-.. _section-2:
+.. _section-3:
 
 0.4 - 2023-09-19
 ~~~~~~~~~~~~~~~~
@@ -381,7 +388,7 @@ Changelog
    -  Drop bundled ``app.bsky``/``com.atproto`` lexicons, use
       `lexrpc <https://lexrpc.readthedocs.io/>`__\ ’s instead.
 
-.. _section-3:
+.. _section-4:
 
 0.3 - 2023-08-29
 ~~~~~~~~~~~~~~~~
@@ -399,7 +406,7 @@ minimal demo code needed to wrap arroba in a fully functional PDS.
 
 -  …and much more.
 
-.. _section-4:
+.. _section-5:
 
 0.2 - 2023-05-18
 ~~~~~~~~~~~~~~~~
@@ -409,7 +416,7 @@ storage. This completes the first pass at all PDS data structures. Next
 release will include initial implementations of the
 ``com.atproto.sync.*`` XRPC methods.
 
-.. _section-5:
+.. _section-6:
 
 0.1 - 2023-04-30
 ~~~~~~~~~~~~~~~~
@@ -471,7 +478,10 @@ Here’s how to package, test, and ship a new release.
 
        source local/bin/activate.csh
        python
-       # TODO: test code
+
+       from arroba import did
+       did.resolve_handle('snarfed.org')
+
        deactivate
 
 8.  Tag the release in git. In the tag message editor, delete the
