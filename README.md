@@ -99,6 +99,13 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 
 ## Changelog
 
+### 0.8 - unreleased
+
+_Breaking changes:_
+
+* Rename `util.TombstonedRepo` to `InactiveRepo`.
+
+
 ### 0.7 - 2024-11-08
 
 _Breaking changes:_

@@ -27,7 +27,7 @@ from .util import (
     DEACTIVATED,
     DELETED,
     TOMBSTONED,
-    TombstonedRepo,
+    InactiveRepo,
 )
 
 logger = logging.getLogger(__name__)
@@ -462,8 +462,8 @@ class DatastoreStorage(Storage):
         if not atp_repo:
             logger.info(f"Couldn't find repo for {did_or_handle}")
             return None
-        elif atp_repo.status == TOMBSTONED:
-            raise TombstonedRepo(f'{atp_repo.key} is tombstoned')
+        elif atp_repo.status:
+            raise InactiveRepo(atp_repo.key, atp_repo.status)
 
         logger.info(f'Loading repo {atp_repo.key}')
         self.head = CID.decode(atp_repo.head)

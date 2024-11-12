@@ -5,7 +5,7 @@ from flask import request
 from lexrpc.base import XrpcError
 from lexrpc.server import Server
 
-from .util import parse_at_uri, TombstonedRepo
+from .util import parse_at_uri, InactiveRepo
 
 
 # XRPC server
@@ -33,7 +33,7 @@ def load_repo(did_or_at_uri):
 
     try:
         repo = storage.load_repo(did_or_handle)
-    except TombstonedRepo:
+    except InactiveRepo:
         raise XrpcError(f'Repo {did_or_handle} is tombstoned', name='RepoDeactivated')
 
     if not repo:

@@ -44,9 +44,10 @@ DEACTIVATED = 'deactivated'
 DELETED = 'deleted'
 TOMBSTONED = 'tombstoned'
 
-class TombstonedRepo(ValueError):
-    def __init__(self, message='Repo is tombstoned', *args, **kwargs):
-        super().__init__(message, *args, **kwargs)
+class InactiveRepo(ValueError):
+    def __init__(self, did, status, *args, **kwargs):
+        assert status
+        super().__init__(f'Repo {did} is {status}', *args, **kwargs)
 
 
 def now(tz=timezone.utc, **kwargs):

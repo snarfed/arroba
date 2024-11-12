@@ -11,7 +11,7 @@ import dag_cbor
 from multiformats import CID, multicodec, multihash
 
 from . import util
-from .util import dag_cbor_cid, DEACTIVATED, tid_to_int, TOMBSTONED, TombstonedRepo
+from .util import dag_cbor_cid, DEACTIVATED, tid_to_int, TOMBSTONED, InactiveRepo
 
 SUBSCRIBE_REPOS_NSID = 'com.atproto.sync.subscribeRepos'
 
@@ -164,7 +164,7 @@ class Storage:
           Repo, or None if the did or handle wasn't found:
 
         Raises:
-          TombstonedRepo: if the repo is tombstoned
+          InactiveRepo: if the repo is tombstoned
         """
         raise NotImplementedError()
 
@@ -225,7 +225,7 @@ class Storage:
           ``com.atproto.sync.subscribeRepos#tombstone`` message.
         * Calls :meth:`Repo._set_status` to mark the repo as deactivated in storage.
 
-        After this, :meth:`load_repo` will raise :class:`TombstonedRepo` for
+        After this, :meth:`load_repo` will raise :class:`InactiveRepo` for
         this repo.
 
         Args:
@@ -451,8 +451,8 @@ class MemoryStorage(Storage):
 
         for repo in self.repos:
             if did_or_handle in (repo.did, repo.handle):
-                if repo.status == TOMBSTONED:
-                    raise TombstonedRepo(f'{repo.did} is tombstoned')
+                if repo.status:
+                    raise InactiveRepo(repo.did, repo.status)
                 return repo
 
     def load_repos(self, after=None, limit=500):

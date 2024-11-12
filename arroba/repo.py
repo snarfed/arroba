@@ -67,7 +67,8 @@ class Repo:
       mst (MST)
       head (Block): head commit
       handle (str)
-      status (str): None (if active), ``'deactivated'``, or ``'tombstoned'``
+      status (str): None (if active) or ``'deactivated'``, ``'deleted'``,
+        or ``'tombstoned'`` (deprecated)
       callback (callable: (CommitData | dict) => None): called on new commits
         and other repo events. May be set directly by clients. None means no
         callback. The parameter will be a :class:`CommitData` for commits, dict
@@ -92,7 +93,8 @@ class Repo:
           mst (MST)
           head (dict): head commit
           handle (str)
-          status (str): None (if active) or ``'tombstoned'``
+          status (str): None (if active) or ``'deactivated'``, ``'deleted'``,
+            or ``'tombstoned'`` (deprecated)
           callback (callable, (CommitData | dict) => None)
           signing_key (ec.EllipticCurvePrivateKey): required
           rotation_key (ec.EllipticCurvePrivateKey)

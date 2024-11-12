@@ -6,7 +6,7 @@ from multiformats import CID
 
 from ..repo import Repo, Write
 from ..storage import Action, Block, MemoryStorage, SUBSCRIBE_REPOS_NSID
-from ..util import dag_cbor_cid, next_tid, DEACTIVATED, TOMBSTONED, TombstonedRepo
+from ..util import dag_cbor_cid, next_tid, DEACTIVATED, TOMBSTONED, InactiveRepo
 
 from .testutil import NOW, TestCase
 
@@ -225,7 +225,7 @@ class StorageTest(TestCase):
         self.assertEqual([expected], seen)
         self.assertEqual(expected, storage.read(dag_cbor_cid(expected)).decoded)
 
-        with self.assertRaises(TombstonedRepo):
+        with self.assertRaises(InactiveRepo):
             storage.load_repo('did:user')
 
     def test_deactivate_repo(self):
