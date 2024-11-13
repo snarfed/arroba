@@ -20,7 +20,7 @@ from ..datastore_storage import (
 )
 from ..repo import Action, Repo, Write
 from ..storage import Block, CommitData, MemoryStorage, SUBSCRIBE_REPOS_NSID
-from ..util import dag_cbor_cid, new_key, next_tid, TOMBSTONED, InactiveRepo
+from ..util import dag_cbor_cid, new_key, next_tid, TOMBSTONED
 
 from . import test_repo
 from .testutil import DatastoreTest, requests_response
@@ -89,10 +89,8 @@ class DatastoreStorageTest(DatastoreTest):
         self.assertIsNone(AtpRepo.get_by_id('did:user').status)
 
         self.storage.tombstone_repo(repo)
+        self.assertEqual(TOMBSTONED, repo.status)
         self.assertEqual(TOMBSTONED, AtpRepo.get_by_id('did:user').status)
-
-        with self.assertRaises(InactiveRepo):
-            self.storage.load_repo('did:user')
 
     def test_load_repos(self):
         alice = Repo.create(self.storage, 'did:web:alice', signing_key=self.key)

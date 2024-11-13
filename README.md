@@ -103,7 +103,12 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 
 _Breaking changes:_
 
-* Rename `util.TombstonedRepo` to `InactiveRepo`.
+* `repo`:
+  * `apply_commit`, `apply_writes`: raise an exception if the repo is inactive.
+* `storage`:
+  * `load_repo`: don't raise an exception if the repo is tombstoned.
+* `util`:
+  * Rename `TombstonedRepo` to `InactiveRepo`.
 
 
 ### 0.7 - 2024-11-08
@@ -136,6 +141,7 @@ _Non-breaking changes:_
   * `subscribeRepos`: wait up to 60s on a skipped sequence number before giving up and emitting it as a gap.
 * `util`:
   * `service_jwt`: add new `**claims` parameter for additional JWT claims, eg [`lxm`](https://github.com/bluesky-social/atproto/discussions/2687).
+
 
 ### 0.6 - 2024-06-24
 
@@ -193,6 +199,7 @@ _Non-breaking changes:_
 * `xrpc_sync`:
   * Implement `getBlob`, right now only based on "remote" blobs stored in `AtpRemoteBlob`s in datastore storage.
 
+
 ### 0.4 - 2023-09-19
 
 * Migrate to [ATProto repo v3](https://atproto.com/blog/repo-sync-update). Specifically, the existing `subscribeRepos` sequence number is reused as the new `rev` field in commits. ([Discussion.](https://github.com/bluesky-social/atproto/discussions/1607)).
@@ -209,6 +216,7 @@ _Non-breaking changes:_
     * As part of this, replace `xrpc_sync.enqueue_commit` with new `send_new_commits` function that takes no parameters.
   * Drop bundled `app.bsky`/`com.atproto` lexicons, use [lexrpc](https://lexrpc.readthedocs.io/)'s instead.
 
+
 ### 0.3 - 2023-08-29
 
 Big milestone: arroba is successfully federating with the [ATProto sandbox](https://atproto.com/blog/federation-developer-sandbox)! See [app.py](https://github.com/snarfed/arroba/blob/main/app.py) for the minimal demo code needed to wrap arroba in a fully functional PDS.
@@ -218,9 +226,11 @@ Big milestone: arroba is successfully federating with the [ATProto sandbox](http
   * Notably, includes `subscribeRepos` server side over websocket.
 * ...and much more.
 
+
 ### 0.2 - 2023-05-18
 
 Implement repo and commit chain in new Repo class, including pluggable storage. This completes the first pass at all PDS data structures. Next release will include initial implementations of the `com.atproto.sync.*` XRPC methods.
+
 
 ### 0.1 - 2023-04-30
 

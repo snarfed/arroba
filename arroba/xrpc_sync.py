@@ -80,7 +80,7 @@ def list_repos(input, limit=500, cursor=None):
         'head': repo.head.cid.encode('base32'),
         'rev': repo.head.seq,
         'active': repo.status is None,
-        'status': STATUSES.get(repo.status),
+        'status': STATUSES.get(repo.status) or repo.status,
     } for repo in server.storage.load_repos(limit=limit, after=cursor)]
 
     ret = {'repos': repos}

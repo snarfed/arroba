@@ -336,6 +336,9 @@ class Repo:
         Returns:
           Repo: self
         """
+        if self.status:
+            raise util.InactiveRepo(self.did, self.status)
+
         self.storage.apply_commit(commit_data)
         self.head = commit_data.commit
         if self.callback:
@@ -351,6 +354,9 @@ class Repo:
         Returns:
           Repo: self
         """
+        if self.status:
+            raise util.InactiveRepo(self.did, self.status)
+
         if isinstance(writes, Write):
             writes = [writes]
 

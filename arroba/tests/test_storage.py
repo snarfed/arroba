@@ -6,7 +6,7 @@ from multiformats import CID
 
 from ..repo import Repo, Write
 from ..storage import Action, Block, MemoryStorage, SUBSCRIBE_REPOS_NSID
-from ..util import dag_cbor_cid, next_tid, DEACTIVATED, TOMBSTONED, InactiveRepo
+from ..util import dag_cbor_cid, next_tid, DEACTIVATED, TOMBSTONED
 
 from .testutil import NOW, TestCase
 
@@ -119,7 +119,7 @@ class StorageTest(TestCase):
 
         storage.tombstone_repo(alice)
 
-        bob = Repo.create(storage, 'did:alice', signing_key=self.key)
+        bob = Repo.create(storage, 'did:bob', signing_key=self.key)
 
         events = list(storage.read_events_by_seq())
         self.assertEqual(alice.head.cid, events[0].commit.cid)
@@ -224,9 +224,8 @@ class StorageTest(TestCase):
         }
         self.assertEqual([expected], seen)
         self.assertEqual(expected, storage.read(dag_cbor_cid(expected)).decoded)
-
-        with self.assertRaises(InactiveRepo):
-            storage.load_repo('did:user')
+        self.assertEqual(TOMBSTONED, repo.status)
+        self.assertEqual(TOMBSTONED, storage.load_repo('did:user').status)
 
     def test_deactivate_repo(self):
         seen = []
@@ -236,8 +235,8 @@ class StorageTest(TestCase):
 
         repo.callback = lambda event: seen.append(event)
         storage.deactivate_repo(repo)
-
         self.assertEqual(DEACTIVATED, repo.status)
+        self.assertEqual(DEACTIVATED, storage.load_repo('did:user').status)
 
         self.assertEqual(4, storage.last_seq(SUBSCRIBE_REPOS_NSID))
         expected = {
@@ -272,6 +271,8 @@ class StorageTest(TestCase):
         }
         self.assertEqual([expected], seen)
         self.assertEqual(expected, storage.read(dag_cbor_cid(expected)).decoded)
+        self.assertIsNone(repo.status)
+        self.assertIsNone(storage.load_repo('did:user').status)
 
     def test_write_event(self):
         storage = MemoryStorage()

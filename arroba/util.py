@@ -44,9 +44,16 @@ DEACTIVATED = 'deactivated'
 DELETED = 'deleted'
 TOMBSTONED = 'tombstoned'
 
+
 class InactiveRepo(ValueError):
+    """Raised when loading a repo that's not active.
+
+    Attributes:
+      status (str)
+    """
     def __init__(self, did, status, *args, **kwargs):
         assert status
+        self.status = status
         super().__init__(f'Repo {did} is {status}', *args, **kwargs)
 
 

@@ -162,9 +162,6 @@ class Storage:
 
         Returns:
           Repo, or None if the did or handle wasn't found:
-
-        Raises:
-          InactiveRepo: if the repo is tombstoned
         """
         raise NotImplementedError()
 
@@ -191,6 +188,9 @@ class Storage:
         * If :attr:`Repo.callback` is populated, calls it with the
           ``com.atproto.sync.subscribeRepos#account`` message.
         * Calls :meth:`Repo._set_status` to mark the repo as deactivated in storage.
+
+        After this, any attempt to write to this repo will raise
+        :class:`InactiveRepo`.
 
         Args:
           repo (Repo)
@@ -225,8 +225,8 @@ class Storage:
           ``com.atproto.sync.subscribeRepos#tombstone`` message.
         * Calls :meth:`Repo._set_status` to mark the repo as deactivated in storage.
 
-        After this, :meth:`load_repo` will raise :class:`InactiveRepo` for
-        this repo.
+        After this, any attempt to write to this repo will raise
+        :class:`InactiveRepo`.
 
         Args:
           repo (Repo)
@@ -357,6 +357,9 @@ class Storage:
 
         Returns:
           Block:
+
+        Raises:
+          InactiveError: if the repo is not active
         """
         raise NotImplementedError()
 
@@ -370,6 +373,9 @@ class Storage:
 
         Returns:
           Block:
+
+        Raises:
+          InactiveError: if the repo is not active
         """
         assert type in ('account', 'identity', 'tombstone'), type
 
@@ -393,6 +399,9 @@ class Storage:
 
         Args:
           commit (CommitData)
+
+        Raises:
+          InactiveError: if the repo is not active
         """
         raise NotImplementedError()
 
@@ -427,7 +436,7 @@ class MemoryStorage(Storage):
     """In memory storage implementation.
 
     Attributes:
-      repos (list of :class:`Repo`)
+      repos (dict mapping str DID to :class:`Repo`)
       blocks (dict): {:class:`CID`: :class:`Block`}
       head (CID)
       sequences (dict): {str NSID: int next sequence number}
@@ -439,24 +448,22 @@ class MemoryStorage(Storage):
 
     def __init__(self):
         self.blocks = {}
-        self.repos = []
+        self.repos = {}
         self.sequences = {}
 
     def create_repo(self, repo, *, signing_key, rotation_key=None):
-        if repo not in self.repos:
-            self.repos.append(repo)
+        assert repo.did not in self.repos
+        self.repos[repo.did] = repo
 
     def load_repo(self, did_or_handle):
         assert did_or_handle
 
-        for repo in self.repos:
+        for repo in self.repos.values():
             if did_or_handle in (repo.did, repo.handle):
-                if repo.status:
-                    raise InactiveRepo(repo.did, repo.status)
                 return repo
 
     def load_repos(self, after=None, limit=500):
-        it = iter(sorted(self.repos, key=lambda repo: repo.did))
+        it = iter(sorted(self.repos.values(), key=lambda repo: repo.did))
 
         if after:
             it = itertools.dropwhile(lambda repo: repo.did <= after, it)
@@ -495,6 +502,10 @@ class MemoryStorage(Storage):
         return block
 
     def apply_commit(self, commit_data):
+        if repo := self.repos.get(commit_data.commit.repo):
+            if repo.status:
+                raise InactiveRepo(repo.did, repo.status)
+
         seq = tid_to_int(commit_data.commit.decoded['rev'])
         assert seq
 

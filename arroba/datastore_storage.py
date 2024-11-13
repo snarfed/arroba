@@ -462,8 +462,6 @@ class DatastoreStorage(Storage):
         if not atp_repo:
             logger.info(f"Couldn't find repo for {did_or_handle}")
             return None
-        elif atp_repo.status:
-            raise InactiveRepo(atp_repo.key, atp_repo.status)
 
         logger.info(f'Loading repo {atp_repo.key}')
         self.head = CID.decode(atp_repo.head)
@@ -497,6 +495,7 @@ class DatastoreStorage(Storage):
     @ndb_context
     def _set_repo_status(self, repo, status):
         assert status in (DEACTIVATED, DELETED, TOMBSTONED, None)
+        repo.status = status  # in memory only
 
         @ndb.transactional()
         def update():
@@ -572,6 +571,11 @@ class DatastoreStorage(Storage):
     @ndb_context
     @ndb.transactional()
     def apply_commit(self, commit_data):
+        commit = commit_data.commit.decoded
+        if repo := AtpRepo.get_by_id(commit['did']):
+            if repo.status:
+                raise InactiveRepo(repo.key.id(), self.status)
+
         seq = tid_to_int(commit_data.commit.decoded['rev'])
         assert seq
 
@@ -586,22 +590,21 @@ class DatastoreStorage(Storage):
             block.seq = seq
 
         self.head = commit_data.commit.cid
-
-        commit = commit_data.commit.decoded
         head_encoded = self.head.encode('base32')
 
-        repo = AtpRepo.get_by_id(commit['did'])
         if repo:
             logger.info(f'Updating {repo.key}')
             repo.head = head_encoded
             repo.put()
 
+    @classmethod
     @ndb_context
-    def allocate_seq(self, nsid):
+    def allocate_seq(cls, nsid):
         assert nsid
         return AtpSequence.allocate(nsid)
 
+    @classmethod
     @ndb_context
-    def last_seq(self, nsid):
+    def last_seq(cls, nsid):
         assert nsid
         return AtpSequence.last(nsid)
