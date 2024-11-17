@@ -597,14 +597,12 @@ class DatastoreStorage(Storage):
             repo.head = head_encoded
             repo.put()
 
-    @classmethod
     @ndb_context
-    def allocate_seq(cls, nsid):
+    def allocate_seq(self, nsid):
         assert nsid
         return AtpSequence.allocate(nsid)
 
-    @classmethod
     @ndb_context
-    def last_seq(cls, nsid):
+    def last_seq(self, nsid):
         assert nsid
         return AtpSequence.last(nsid)
