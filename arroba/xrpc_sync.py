@@ -176,7 +176,6 @@ def subscribe_repos(cursor=None):
             yield ({'op': -1}, {'error': 'FutureCursor', 'message': msg})
             return
 
-
         if window := os.getenv('ROLLBACK_WINDOW'):
             rollback_start = max(cur_seq - int(window) - 1, 0)
             if cursor < rollback_start:

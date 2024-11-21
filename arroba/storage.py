@@ -306,7 +306,6 @@ class Storage:
             return CommitData(blocks=blocks, commit=commit_block,
                               prev=commit_block.decoded.get('prev'))
 
-        seen = []  # CIDs
         for block in self.read_blocks_by_seq(start=start, repo=repo):
             assert block.seq
             if block.seq != seq:  # switching to a new commit's blocks
