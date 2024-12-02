@@ -18,6 +18,7 @@ from multiformats import CID
 from . import util
 from .diff import Diff
 from .mst import MST
+from .server import server
 from .storage import (
     Action,
     Block,
@@ -66,7 +67,8 @@ class Repo:
       mst (MST)
       head (Block): head commit
       handle (str)
-      status (str): None (if active) or ``'tombstoned'``
+      status (str): None (if active) or ``'deactivated'``, ``'deleted'``,
+        or ``'tombstoned'`` (deprecated)
       callback (callable: (CommitData | dict) => None): called on new commits
         and other repo events. May be set directly by clients. None means no
         callback. The parameter will be a :class:`CommitData` for commits, dict
@@ -83,14 +85,16 @@ class Repo:
     status = None
 
     def __init__(self, *, storage=None, mst=None, head=None, handle=None,
-                 callback=None, signing_key=None, rotation_key=None):
+                 status=None, callback=None, signing_key=None, rotation_key=None):
         """Constructor.
 
         Args:
           storage (Storage): required
           mst (MST)
-          commit (dict): head commit
-          cid (CID): head CID
+          head (dict): head commit
+          handle (str)
+          status (str): None (if active) or ``'deactivated'``, ``'deleted'``,
+            or ``'tombstoned'`` (deprecated)
           callback (callable, (CommitData | dict) => None)
           signing_key (ec.EllipticCurvePrivateKey): required
           rotation_key (ec.EllipticCurvePrivateKey)
@@ -102,6 +106,7 @@ class Repo:
         self.mst = mst
         self.head = head
         self.handle = handle
+        self.status = status
         self.callback = callback
         self.signing_key = signing_key
         self.rotation_key = rotation_key
@@ -168,8 +173,6 @@ class Repo:
         Returns:
           Repo:
         """
-        storage.apply_commit(commit_data)
-
         # avoid reading from storage, since if we're in a transaction, those
         # reads won't see writes that happened in apply_commit. instead,
         # construct Repo and MST in memory from existing data.
@@ -178,9 +181,15 @@ class Repo:
                     signing_key=signing_key, rotation_key=rotation_key,
                     **kwargs)
 
+        did = commit_data.commit.repo
+        storage.write_event(repo=repo, type='identity', handle=kwargs.get('handle'))
+        storage.write_event(repo=repo, type='account', active=True)
+        storage.apply_commit(commit_data)
+
         storage.create_repo(repo, signing_key=signing_key, rotation_key=rotation_key)
         if repo.callback:
             repo.callback(commit_data)
+
         return repo
 
     @classmethod
@@ -276,7 +285,10 @@ class Repo:
                 mst = mst.delete(data_key)
                 continue
 
-            block = Block(decoded=write.record)
+            # raises ValidationError if it doesn't validate
+            server.validate(write.record.get('$type'), 'record', write.record)
+
+            block = Block(decoded=write.record, repo=repo_did)
             commit_blocks[block.cid] = block
             if write.action == Action.CREATE:
                 mst = mst.add(data_key, block.cid)
@@ -285,6 +297,8 @@ class Repo:
                 mst = mst.update(data_key, block.cid)
 
         root, unstored_blocks = mst.get_unstored_blocks()
+        for block in unstored_blocks.values():
+            block.repo = repo_did
         commit_blocks.update(unstored_blocks)
 
         # ensure we're not missing any blocks that were removed and then
@@ -304,7 +318,8 @@ class Repo:
             'prev': cur_head,
             'data': root,
         }, signing_key)
-        commit_block = Block(decoded=commit, ops=writes_to_commit_ops(writes))
+        commit_block = Block(decoded=commit, ops=writes_to_commit_ops(writes),
+                             repo=repo_did)
         commit_blocks[commit_block.cid] = commit_block
 
         if repo:
@@ -321,6 +336,9 @@ class Repo:
         Returns:
           Repo: self
         """
+        if self.status:
+            raise util.InactiveRepo(self.did, self.status)
+
         self.storage.apply_commit(commit_data)
         self.head = commit_data.commit
         if self.callback:
@@ -336,6 +354,9 @@ class Repo:
         Returns:
           Repo: self
         """
+        if self.status:
+            raise util.InactiveRepo(self.did, self.status)
+
         if isinstance(writes, Write):
             writes = [writes]
 

@@ -40,11 +40,21 @@ CURVE_ORDER = {
     ec.SECP256K1: 0xFFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFE_BAAEDCE6_AF48A03B_BFD25E8C_D0364141
 }
 
+DEACTIVATED = 'deactivated'
+DELETED = 'deleted'
 TOMBSTONED = 'tombstoned'
 
-class TombstonedRepo(ValueError):
-    def __init__(self, message='Repo is tombstoned', *args, **kwargs):
-        super().__init__(message, *args, **kwargs)
+
+class InactiveRepo(ValueError):
+    """Raised when loading a repo that's not active.
+
+    Attributes:
+      status (str)
+    """
+    def __init__(self, did, status, *args, **kwargs):
+        assert status
+        self.status = status
+        super().__init__(f'Repo {did} is {status}', *args, **kwargs)
 
 
 def now(tz=timezone.utc, **kwargs):
@@ -351,7 +361,7 @@ def verify_sig(obj, public_key):
 
 
 def service_jwt(host, repo_did, privkey, expiration=timedelta(minutes=10),
-                aud=None):
+                aud=None, **claims):
     """Generates an inter-service JWT, eg for a relay or AppView.
 
     https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification
@@ -363,6 +373,7 @@ def service_jwt(host, repo_did, privkey, expiration=timedelta(minutes=10),
       expiration (timedelta): length of time this JWT will be valid, defaults to 10m
       aud (str): JWT audience. Default is ``did:web:[host]``, which works for relays
         and AppViews, but others (eg mod services) have ``did:plc``s instead.
+      claims (dict): additional claims to include in the JWT, eg ``lxm``
 
     Returns:
       str: JWT
@@ -375,6 +386,7 @@ def service_jwt(host, repo_did, privkey, expiration=timedelta(minutes=10),
         'aud': aud or f'did:web:{host}',
         'alg': 'ES256K',  # k256
         'exp': int((now() + expiration).timestamp()),
+        **claims,
     }
     logger.info(f'Generating ATProto inter-service JWT: {data}')
     return jwt.encode(data, privkey, algorithm='ES256K')

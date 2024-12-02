@@ -1,22 +1,20 @@
-"""``com.atproto.sync.*`` XRPC methods.
-
-TODO:
-
-* getBlocks?
-* blobs
-"""
+"""``com.atproto.sync.*`` XRPC methods."""
 from datetime import timedelta, timezone
 import itertools
 import logging
 import os
 from threading import Condition
+import time
 
 from carbox import car
 import dag_cbor
+from lexrpc.base import XrpcError
 from lexrpc.server import Redirect
+from multiformats import CID
+from multiformats.multibase import MultibaseKeyError, MultibaseValueError
 
+from .datastore_storage import AtpBlock, AtpRemoteBlob, AtpRepo, DatastoreStorage
 from . import server
-from .datastore_storage import AtpRemoteBlob
 from .storage import CommitData, SUBSCRIBE_REPOS_NSID
 from . import util
 from . import xrpc_repo
@@ -24,12 +22,8 @@ from . import xrpc_repo
 logger = logging.getLogger(__name__)
 
 # used by subscribe_repos and send_events
-NEW_EVENTS_TIMEOUT = timedelta(seconds=60)
+NEW_EVENTS_TIMEOUT = timedelta(seconds=20)
 new_events = Condition()
-
-ROLLBACK_WINDOW = None
-if 'ROLLBACK_WINDOW' in os.environ:
-    ROLLBACK_WINDOW = int(os.environ['ROLLBACK_WINDOW'])
 
 
 @server.server.method('com.atproto.sync.getCheckout')
@@ -45,31 +39,55 @@ def get_checkout(input, did=None):
 
 @server.server.method('com.atproto.sync.getRepo')
 def get_repo(input, did=None, since=None):
-    """Handler for ``com.atproto.sync.getRepo`` XRPC method.
-
-    TODO: implement ``since``
-    """
+    """Handler for ``com.atproto.sync.getRepo`` XRPC method."""
     repo = server.load_repo(did)
-    return car.write_car(
-        [repo.head.cid],
-        (car.Block(cid=cid, data=data) for cid, data in itertools.chain(
-            [(repo.head.cid, repo.head.encoded)], repo.mst.load_all())))
+    start = util.tid_to_int(since) if since else 0
+
+    blocks_and_head = itertools.chain(
+        [car.Block(repo.head.cid, repo.head.encoded)],
+        (car.Block(cid, data) for cid, data in repo.mst.load_all(start=start)))
+
+    return car.write_car([repo.head.cid], blocks_and_head)
 
 
-# @server.server.method('com.atproto.sync.listRepos')
-# def list_repos(input, limit=None, cursor=None):
-#     """Handler for ``com.atproto.sync.listRepos`` XRPC method.
+@server.server.method('com.atproto.sync.getRepoStatus')
+def get_repo_status(input, did=None):
+    """Handler for ``com.atproto.sync.getRepoStatus`` XRPC method."""
+    try:
+        repo = server.load_repo(did)
+    except XrpcError as e:
+        if e.name == 'RepoDeactivated':
+            return {
+                'did': did,
+                'active': False,
+                'status': 'deactivated',
+            }
+        raise
 
-#     TODO: implement. needs new Storage.list_repos method or similar
-#     TODO: implement cursor
-#     """
-#     if cursor:
-#         raise ValueError('cursor is not implemented yet')
+    return {
+        'did': did,
+        'active': True,
+    }
 
-#     return [{
-#         'did': repo.did,
-#         'head': repo.head.cid.encode('base32'),
-#     }]
+
+@server.server.method('com.atproto.sync.listRepos')
+def list_repos(input, limit=500, cursor=None):
+    """Handler for ``com.atproto.sync.listRepos`` XRPC method."""
+    STATUSES = {'tombstoned': 'deactivated'}
+
+    repos = [{
+        'did': repo.did,
+        'head': repo.head.cid.encode('base32'),
+        'rev': repo.head.seq,
+        'active': repo.status is None,
+        'status': STATUSES.get(repo.status) or repo.status,
+    } for repo in server.storage.load_repos(limit=limit, after=cursor)]
+
+    ret = {'repos': repos}
+    if len(repos) == limit:
+        ret['cursor'] = repos[-1]['did']
+
+    return ret
 
 
 def send_events():
@@ -106,13 +124,13 @@ def subscribe_repos(cursor=None):
     Returns:
       (dict, dict) tuple: (header, payload)
     """
-    last_seq = server.storage.last_seq(SUBSCRIBE_REPOS_NSID)
+    cur_seq = server.storage.last_seq(SUBSCRIBE_REPOS_NSID)
 
     def handle(event):
-        nonlocal last_seq
+        nonlocal cur_seq
 
         if isinstance(event, dict):  # non-commit event
-            last_seq = event['seq']
+            cur_seq = event['seq']
             type = event.pop('$type')
             type_fragment = type.removeprefix('com.atproto.sync.subscribeRepos')
             assert type_fragment != type, type
@@ -121,14 +139,14 @@ def subscribe_repos(cursor=None):
         assert isinstance(event, CommitData), \
             f'unexpected event type {event.__class__} {event}'
 
-        last_seq = event.commit.seq
+        cur_seq = event.commit.seq
         commit = event.commit.decoded
         car_blocks = [car.Block(cid=block.cid, data=block.encoded,
                                 decoded=block.decoded)
                       for block in event.blocks.values()]
         return ({  # header
-          'op': 1,
-          't': '#commit',
+            'op': 1,
+            't': '#commit',
         }, {  # payload
             'repo': commit['did'],
             'ops': [{
@@ -152,14 +170,14 @@ def subscribe_repos(cursor=None):
 
     if cursor is not None:
         # validate cursor
-        if cursor > last_seq:
-            msg = f'Cursor {cursor} is past our current sequence number {last_seq}'
+        if cursor > cur_seq:
+            msg = f'Cursor {cursor} is past our current sequence number {cur_seq}'
             logger.warning(msg)
             yield ({'op': -1}, {'error': 'FutureCursor', 'message': msg})
             return
 
-        if ROLLBACK_WINDOW is not None:
-            rollback_start = max(last_seq - ROLLBACK_WINDOW - 1, 0)
+        if window := os.getenv('ROLLBACK_WINDOW'):
+            rollback_start = max(cur_seq - int(window) - 1, 0)
             if cursor < rollback_start:
                 logger.warning(f'Cursor {cursor} is before our rollback window; starting at {rollback_start}')
                 yield ({'op': 1, 't': '#info'}, {'name': 'OutdatedCursor'})
@@ -169,28 +187,65 @@ def subscribe_repos(cursor=None):
         for event in server.storage.read_events_by_seq(start=cursor):
             yield handle(event)
 
-    # serve new events as they happen
+    # serve new events as they happen. if we see a sequence number skipped, wait
+    # for it up to NEW_EVENTS_TIMEOUT before giving up on it and moving on
     logger.info(f'serving new events')
+    timeout_s = NEW_EVENTS_TIMEOUT.total_seconds()
+    last_yield = time.time()
+
     while True:
         with new_events:
-            new_events.wait(NEW_EVENTS_TIMEOUT.total_seconds())
+            new_events.wait(timeout_s)
 
-        for commit_data in server.storage.read_events_by_seq(start=last_seq + 1):
-            yield handle(commit_data)
+        for commit_data in server.storage.read_events_by_seq(start=cur_seq + 1):
+            last_seq = cur_seq
+            event = handle(commit_data)
+
+            waited_enough = time.time() - last_yield > timeout_s
+            if cur_seq == last_seq + 1 or waited_enough:
+                if cur_seq > last_seq + 1:
+                    logger.warning(f'Gave up waiting for seqs {last_seq + 1} to {cur_seq - 1}!')
+
+                last_yield = time.time()
+                yield event
+            else:
+                logger.warning(f'Waiting for seq {last_seq + 1}')
+                cur_seq = last_seq
+                break
+
+        if delay := os.getenv('SUBSCRIBE_REPOS_BATCH_DELAY'):
+            time.sleep(float(delay))
 
 
-# @server.server.method('com.atproto.sync.getBlocks')
-# def get_blocks(input, did=None, cids=None):
-#     """Handler for ``com.atproto.sync.getBlocks`` XRPC method."""
-#     # TODO
-#     return b''
+
+@server.server.method('com.atproto.sync.getBlocks')
+def get_blocks(input, did=None, cids=()):
+    """Handler for ``com.atproto.sync.getBlocks`` XRPC method."""
+    repo = server.load_repo(did)
+
+    try:
+        cids = [CID.decode(cid) for cid in cids]
+    except (MultibaseKeyError, MultibaseValueError):
+        raise XrpcError('Invalid CID', name='BlockNotFound')
+
+    car_blocks = []
+    blocks = server.storage.read_many(cids)
+
+    for cid in cids:
+        block = blocks[cid]
+        if block is None:
+            raise XrpcError(f'No block found for CID {cid.encode("base32")}',
+                            name='BlockNotFound')
+        car_blocks.append(car.Block(cid=block.cid, data=block.encoded))
+
+    return car.write_car([server.storage.head], car_blocks)
 
 
 @server.server.method('com.atproto.sync.getHead')
 def get_head(input, did=None):
     """Handler for ``com.atproto.sync.getHead`` XRPC method.
 
-    Deprecated! Use getLatestCommit instead.
+    Deprecated! Use ``getLatestCommit`` instead.
     """
     repo = server.load_repo(did)
     return {
@@ -238,12 +293,16 @@ def get_blob(input, did=None, cid=None):
     """
     blob = AtpRemoteBlob.query(AtpRemoteBlob.cid == cid).get()
     if blob:
-        raise Redirect(to=blob.key.id())
+        raise Redirect(to=blob.key.id(), status=301)
 
     raise ValueError(f'No blob found for CID {cid}')
 
 
 # @server.server.method('com.atproto.sync.listBlobs')
-# def list_blobs(input, did=None, earliest=None, latest=None):
-#     """Handler for ``com.atproto.sync.listBlobs`` XRPC method."""
+# def list_blobs(input, did=None, since=None, limit=500):
+#     """Handler for ``com.atproto.sync.listBlobs`` XRPC method.
+#
+#     TODO. The difficulty with this one is that AtpRemoteBlob is
+#     repo-independent. Hrm.
+#     """
 #     # output: {'cids': [CID, ...]}

@@ -1,12 +1,16 @@
 """``com.atproto.repo.*`` XRPC methods."""
+import itertools
+import json
 import logging
 import os
 
+import dag_json
 from flask import abort, make_response
 from lexrpc import Client
 from requests import HTTPError
 
 from .repo import Repo, Write
+from . import server
 from .storage import Action
 from . import server
 from .util import at_uri, dag_cbor_cid, next_tid, USER_AGENT
@@ -24,13 +28,13 @@ def validate(input, **params):
     if not input.get('repo'):
         raise ValueError('Missing repo param')
 
-    server.auth()
-
 
 @server.server.method('com.atproto.repo.createRecord')
 def create_record(input):
     """Handler for ``com.atproto.repo.createRecord`` XRPC method."""
     validate(input)
+    server.auth()
+
     repo = server.load_repo(input['repo'])
     input.setdefault('rkey', next_tid())
     return put_record(input)
@@ -41,6 +45,7 @@ def get_record(input, repo=None, collection=None, rkey=None, cid=None):
     """Handler for `com.atproto.repo.getRecord` XRPC method."""
     # Largely duplicates xrpc_sync.get_record
     validate(input, repo=repo, collection=collection, rkey=rkey, cid=cid)
+
     if cid:
         raise ValueError(f'cid not supported yet')
 
@@ -48,11 +53,11 @@ def get_record(input, repo=None, collection=None, rkey=None, cid=None):
         repo = server.load_repo(input['repo'])
         record = repo.get_record(collection, rkey)
         if record is not None:
-            return {
+            return json.loads(dag_json.encode({
                 'uri': at_uri(repo.did, collection, rkey),
                 'cid': dag_cbor_cid(record).encode('base32'),
                 'value': record,
-            }
+            }, dialect='atproto'))
     except ValueError as e:
         logger.info(e)
         pass
@@ -81,8 +86,9 @@ def get_record(input, repo=None, collection=None, rkey=None, cid=None):
 def delete_record(input):
     """Handler for ``com.atproto.repo.deleteRecord`` XRPC method."""
     validate(input)
-    repo = server.load_repo(input['repo'])
+    server.auth()
 
+    repo = server.load_repo(input['repo'])
     record = repo.get_record(input['collection'], input['rkey'])
     if record is None:
         return  # noop
@@ -95,33 +101,58 @@ def delete_record(input):
 
 
 @server.server.method('com.atproto.repo.listRecords')
-def list_records(input, repo=None, collection=None, limit=None, cursor=None,
+def list_records(input, repo=None, collection=None, limit=50, cursor=None,
                  reverse=None,
                  # DEPRECATED
                  rkeyStart=None, rkeyEnd=None):
-    """Handler for `com.atproto.repo.listRecords` XRPC method."""
+    """Handler for `com.atproto.repo.listRecords` XRPC method.
+
+    KNOWN ISSUE: cursor is interpreted as inclusive, so whenever a cursor is
+    used, the response includes the last record returned in the previous
+    response.
+    """
     validate(input, repo=repo, collection=collection, limit=limit, cursor=cursor)
+
     if rkeyStart or rkeyEnd:
         raise ValueError(f'rkeyStart/rkeyEnd not supported')
+    elif reverse:
+        raise ValueError(f'reverse not supported yet')
+    elif not collection:
+        raise ValueError(f'collection is required')
+
     repo = server.load_repo(input['repo'])
 
-    records = [{
-        'uri': at_uri(repo.did, collection, rkey),
-        'cid': dag_cbor_cid(record).encode('base32'),
-        'value': record,
-    } for rkey, record in repo.get_contents()[collection].items()]
-    if reverse:
-        records.reverse()
+    start = cursor or f'{collection}/'
+    entries = list(itertools.islice(
+        itertools.takewhile(lambda entry: entry.key.startswith(f'{collection}/'),
+                            repo.mst.walk_leaves_from(key=start)),
+        limit))
+    blocks = server.storage.read_many([e.value for e in entries])
+    records = [blocks[e.value].decoded for e in entries]
 
-    return {'records': records}
+
+    records = [
+        json.loads(dag_json.encode({
+            'uri': at_uri(repo.did, *entry.key.split('/', 2)),  # collection, rkey
+            'cid': dag_cbor_cid(record).encode('base32'),
+            'value': record,
+        }, dialect='atproto'))
+        for entry, record in zip(entries, records)]
+
+    ret = {'records': records}
+    if len(entries) == limit:
+        ret['cursor'] = entries[-1].key
+
+    return ret
 
 
 @server.server.method('com.atproto.repo.putRecord')
 def put_record(input):
     """Handler for ``com.atproto.repo.putRecord`` XRPC method."""
     validate(input)
-    repo = server.load_repo(input['repo'])
+    server.auth()
 
+    repo = server.load_repo(input['repo'])
     existing = repo.get_record(input['collection'], input['rkey'])
 
     repo.apply_writes([Write(
@@ -147,11 +178,9 @@ def describe_repo(input, repo=None):
         'did': repo.did,
         'handle': repo.handle,
         'didDoc': {'TODO': 'TODO'},
-        # TODO
         'collections': [
             'app.bsky.actor.profile',
-            'app.bsky.feed.posts',
-            'app.bsky.feed.likes',
+            'TODO',
         ],
         'handleIsCorrect': True,
     }
@@ -161,6 +190,7 @@ def describe_repo(input, repo=None):
 def apply_writes(input):
     """Handler for ``com.atproto.repo.applyWrites`` XRPC method."""
     validate(input)
+    server.auth()
     return 'Not implemented yet', 501
 
 
@@ -169,4 +199,5 @@ def upload_blob(input):
     """Handler for ``com.atproto.repo.uploadBlob`` XRPC method."""
     # input: binary
     validate({})
+    server.auth()
     return 'Not implemented yet', 501

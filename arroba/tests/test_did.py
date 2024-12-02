@@ -1,5 +1,6 @@
 """Unit tests for did.py."""
 import base64
+import copy
 from unittest.mock import MagicMock, patch
 
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -120,6 +121,120 @@ class DidTest(TestCase):
             }],
         }, did_plc.doc)
 
+    def test_create_plc_also_known_as(self):
+        mock_post = MagicMock(return_value=requests_response('OK'))
+        did_plc = did.create_plc('han.dull', also_known_as=['abc', 'xyz'],
+                                 post_fn=mock_post)
+
+        mock_post.assert_called_once()
+        self.assertEqual((f'https://plc.bsky-sandbox.dev/{did_plc.did}',),
+                         mock_post.call_args.args)
+
+        self.assertTrue(did_plc.did.startswith('did:plc:'))
+        self.assertEqual(['at://han.dull', 'abc', 'xyz'], did_plc.doc['alsoKnownAs'])
+        genesis_op = mock_post.call_args.kwargs['json']
+        self.assertEqual(['at://han.dull', 'abc', 'xyz'], genesis_op['alsoKnownAs'])
+
+    def test_update_plc(self):
+        did_key = did.encode_did_key(self.key.public_key())
+        op = {
+            'type': 'plc_operation',
+            'services': {
+                'atproto_pds': {
+                    'type': 'AtprotoPersonalDataServer',
+                    'endpoint': 'https://pds',
+                },
+            },
+            'alsoKnownAs': ['at://han.dull'],
+            'rotationKeys': [did_key],
+            'verificationMethods': {'atproto': did_key}
+        }
+        mock_get = MagicMock(return_value=requests_response([{
+            'did': 'did:plc:xyz',
+            'operation': {**op, 'prev': None},
+            'cid': 'orig',
+            'nullified': False,
+        }]))
+        mock_post = MagicMock(return_value=requests_response('OK'))
+
+        did_plc = did.update_plc('did:plc:xyz', get_fn=mock_get, post_fn=mock_post,
+                                 signing_key=self.key, rotation_key=self.key)
+        self.assertEqual('did:plc:xyz', did_plc.did)
+        self.assertEqual(self.key, did_plc.signing_key)
+        self.assertEqual(self.key, did_plc.rotation_key)
+        self.assertEqual(['at://han.dull'], did_plc.doc['alsoKnownAs'])
+        self.assertEqual([{
+            'id': '#atproto_pds',
+            'type': 'AtprotoPersonalDataServer',
+            'serviceEndpoint': 'https://localhost:8080',
+        }], did_plc.doc['service'])
+
+        mock_post.assert_called_once()
+        self.assertEqual((f'https://plc.bsky-sandbox.dev/{did_plc.did}',),
+                         mock_post.call_args.args)
+
+        update_op = mock_post.call_args.kwargs['json']
+        self.assertEqual('did:plc:xyz', update_op.pop('did'))
+
+        update_op['sig'] = base64.urlsafe_b64decode(
+            update_op['sig'] + '=' * (4 - len(update_op['sig']) % 4))  # padding
+        assert util.verify_sig(update_op, self.key.public_key())
+        del update_op['sig']
+
+        expected = copy.deepcopy(op)
+        expected['prev'] = 'orig'
+        expected['services']['atproto_pds']['endpoint'] = 'https://localhost:8080'
+        self.assertEqual(expected, update_op)
+
+    def test_update_plc_new_handle_pds(self):
+        mock_get = MagicMock(return_value=requests_response([{
+            'operation': {
+                'alsoKnownAs': ['at://han.dull', 'http://han.dy'],
+            },
+            'cid': 'orig',
+        }]))
+        mock_post = MagicMock(return_value=requests_response('OK'))
+
+        did_plc = did.update_plc('did:plc:xyz', get_fn=mock_get, post_fn=mock_post,
+                                 handle='new.ie', pds_url='http://sur.vur',
+                                 signing_key=self.key, rotation_key=self.key)
+        self.assertEqual('did:plc:xyz', did_plc.did)
+        self.assertEqual(self.key, did_plc.signing_key)
+        self.assertEqual(self.key, did_plc.rotation_key)
+        self.assertEqual(['at://new.ie', 'http://han.dy'], did_plc.doc['alsoKnownAs'])
+        self.assertEqual([{
+            'id': '#atproto_pds',
+            'type': 'AtprotoPersonalDataServer',
+            'serviceEndpoint': 'http://sur.vur',
+        }], did_plc.doc['service'])
+
+        mock_post.assert_called_once()
+        self.assertEqual((f'https://plc.bsky-sandbox.dev/{did_plc.did}',),
+                         mock_post.call_args.args)
+
+        update_op = mock_post.call_args.kwargs['json']
+        self.assertEqual('did:plc:xyz', update_op.pop('did'))
+
+        update_op['sig'] = base64.urlsafe_b64decode(
+            update_op['sig'] + '=' * (4 - len(update_op['sig']) % 4))  # padding
+        assert util.verify_sig(update_op, self.key.public_key())
+        del update_op['sig']
+
+        did_key = did.encode_did_key(self.key.public_key())
+        self.assertEqual({
+            'type': 'plc_operation',
+            'prev': 'orig',
+            'services': {
+                'atproto_pds': {
+                    'type': 'AtprotoPersonalDataServer',
+                    'endpoint': 'http://sur.vur',
+                },
+            },
+            'alsoKnownAs': ['at://new.ie', 'http://han.dy'],
+            'rotationKeys': [did_key],
+            'verificationMethods': {'atproto': did_key}
+        }, update_op)
+
     def test_encode_decode_did_key(self):
         did_key = did.encode_did_key(self.key.public_key())
         self.assertTrue(did_key.startswith('did:key:'))
@@ -182,12 +297,18 @@ class DidTest(TestCase):
     def test_resolve_handle_https_well_known(self, mock_resolve):
         mock_resolve.return_value = dns_answer('foo.com.', 'nope')
 
-        self.mock_get.return_value = requests_response('did:plc:123abc')
-        self.mock_get.return_value.headers['Content-Type'] = 'text/plain; charset=utf-8'
+        did_str = 'did:plc:123abc456def789ghi987jkl'
+        self.mock_get.return_value = requests_response(did_str)
 
-        self.assertEqual('did:plc:123abc',
-                         did.resolve_handle('foo.com', get_fn=self.mock_get))
+        self.assertEqual(did_str, did.resolve_handle('foo.com', get_fn=self.mock_get))
         mock_resolve.assert_called_once_with('_atproto.foo.com.', TXT)
+        self.mock_get.assert_called_with('https://foo.com/.well-known/atproto-did')
+
+    @patch('dns.resolver.resolve')
+    def test_resolve_handle_https_well_known_not_did(self, mock_resolve):
+        mock_resolve.return_value = dns_answer('foo.com.', 'nope')
+        self.mock_get.return_value = requests_response('nope')
+        self.assertIsNone(did.resolve_handle('foo.com', get_fn=self.mock_get))
         self.mock_get.assert_called_with('https://foo.com/.well-known/atproto-did')
 
     @patch('dns.resolver.resolve')

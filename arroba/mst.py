@@ -15,7 +15,7 @@ From that file:
 This is an implementation of a Merkle Search Tree (MST)
 The data structure is described here: https://hal.inria.fr/hal-02303490/document
 The MST is an ordered, insert-order-independent, deterministic tree.
-Keys are laid out in alphabetic order.
+Data keys are laid out in alphabetic order.
 The key insight of an MST is that each key is hashed and starting 0s are counted
 to determine which layer it falls on (5 zeros for ~32 fanout).
 This is a merkle tree, so each subtree is referred to by it's hash (CID).
@@ -61,8 +61,8 @@ logger = logging.getLogger(__name__)
 
 # this is treeEntry in mst.ts
 Entry = namedtuple('Entry', [
-    'p',  # int, length of prefix that this key shares with the prev key
-    'k',  # bytes, the rest of the key outside the shared prefix
+    'p',  # int, length of prefix that this data key shares with the prev data key
+    'k',  # bytes, the rest of the data key outside the shared prefix
     'v',  # str CID, value
     't',  # str CID, next subtree (to the right of leaf), or None
 ])
@@ -73,7 +73,7 @@ Data = namedtuple('Data', [
 ])
 
 Leaf = namedtuple('Leaf', [
-    'key',    # str, record key
+    'key',    # str, data key (collection + record key aka rkey)
     'value',  # CID
 ])
 
@@ -693,7 +693,7 @@ class MST:
     def walk_leaves_from(self, key):
         """Walk tree starting at key.
 
-        Generator for leaves in the tree, starting at a given rkey.
+        Generator for leaves in the tree, starting at a given key.
 
         Args:
           key (str):
@@ -718,11 +718,11 @@ class MST:
                     yield e
 
     def list(self, after=None, before=None):
-        """Returns entries, optionally bounded within an rkey range.
+        """Returns entries, optionally bounded within a key range.
 
         Args:
-          after (str): rkey, optional
-          before (str): rkey, optional
+          after (str): key, optional
+          before (str): key, optional
 
         Returns:
           sequence of Leaf:
@@ -739,10 +739,10 @@ class MST:
         return vals
 
     def list_with_prefix(self, prefix):
-        """Returns entries with a given rkey prefix.
+        """Returns entries with a given key prefix.
 
         Args:
-          prefix (str): rkey prefix
+          prefix (str): key prefix
 
         Returns:
           sequence of Leaf
@@ -865,10 +865,14 @@ class MST:
 
 #     Sync Protocol
 
-    def load_all(self):
-        """Generator. Used in :func:`xrpc_sync.get_checkout`.
+    def load_all(self, start=0):
+        """Generator. Used in :func:`xrpc_sync.get_repo`.
 
         (The bluesky-social/atproto TS code calls this ``writeToCarStream``.)
+
+        Args:
+          start (int): optional ``subscribeRepos`` sequence number to start from,
+            inclusive. Defaults to 0.
 
         Returns:
           generator of (CID, bytes) tuples
@@ -885,6 +889,9 @@ class MST:
             to_fetch.clear()
 
             for cid, block in blocks.items():
+                if block.seq < start:
+                    continue
+
                 yield cid, block.encoded
                 entries = deserialize_node_data(storage=self.storage,
                                                 data=Data(**block.decoded))

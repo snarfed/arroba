@@ -11,14 +11,24 @@ from cryptography.hazmat.primitives.asymmetric import ec
 import dag_cbor
 import dag_json
 from google.cloud import ndb
-from google.cloud.ndb.context import get_context
+from google.cloud.ndb import context
 from google.cloud.ndb.exceptions import ContextError
+from lexrpc import ValidationError
 from multiformats import CID, multicodec, multihash
 
+from .mst import MST
 from .repo import Repo
+from .server import server
 from . import storage
 from .storage import Action, Block, Storage, SUBSCRIBE_REPOS_NSID
-from .util import dag_cbor_cid, tid_to_int, TOMBSTONED, TombstonedRepo
+from .util import (
+    dag_cbor_cid,
+    tid_to_int,
+    DEACTIVATED,
+    DELETED,
+    TOMBSTONED,
+    InactiveRepo,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +119,7 @@ class AtpRepo(ndb.Model):
     # TODO: rename this recovery_key_pem?
     # https://discord.com/channels/1097580399187738645/1098725036917002302/1153447354003894372
     rotation_key_pem = ndb.BlobProperty()
-    status = ndb.StringProperty(choices=(TOMBSTONED,))
+    status = ndb.StringProperty(choices=(DEACTIVATED, DELETED, TOMBSTONED))
 
     created = ndb.DateTimeProperty(auto_now_add=True)
     updated = ndb.DateTimeProperty(auto_now=True)
@@ -138,6 +148,7 @@ class AtpBlock(ndb.Model):
     ``com.atproto.sync.subscribeRepos#tombstone``.
 
     Properties:
+    * repo (str): DID of the first repo that included this block
     * encoded (bytes): DAG-CBOR encoded value
     * data (dict): DAG-JSON value, only used for human debugging
     * seq (int): sequence number for the subscribeRepos event stream
@@ -194,7 +205,7 @@ class AtpBlock(ndb.Model):
                                 cid=CID.decode(op.cid) if op.cid else None)
                for op in self.ops]
         return Block(cid=self.cid, encoded=self.encoded, seq=self.seq, ops=ops,
-                     time=self.created)
+                     time=self.created, repo=self.repo)
 
     @classmethod
     def from_block(cls, *, repo_did, block):
@@ -292,7 +303,8 @@ class AtpRemoteBlob(ndb.Model):
 
     @classmethod
     @ndb.transactional()
-    def get_or_create(cls, *, url=None, get_fn=requests.get):
+    def get_or_create(cls, *, url=None, get_fn=requests.get, max_size=None,
+                      accept_types=None, name=''):
         """Returns a new or existing :class:`AtpRemoteBlob` for a given URL.
 
         If there isn't an existing :class:`AtpRemoteBlob`, fetches the URL over
@@ -301,31 +313,67 @@ class AtpRemoteBlob(ndb.Model):
         Args:
           url (str)
           get_fn (callable): for making HTTP GET requests
+          max_size (int, optional): the ``maxSize`` parameter for this blob
+            field in its lexicon, if any
+          accept_types (sequence of str, optional): the ``accept`` parameter for
+            this blob field in its lexicon, if any. The set of allowed MIME types.
+          name (str, optional): blob field name in lexicon
 
         Returns:
-          AtpRemoteBlob: existing or newly created :class:`AtpRemoteBlob`
+          AtpRemoteBlob: existing or newly created blob
 
         Raises:
           requests.RequestException: if the HTTP request to fetch the blob failed
+          lexrpc.ValidationError: if the blob is over ``max_size`` or its type is
+            not in ``accept_types``
         """
-        assert url
-        existing = cls.get_by_id(url)
-        if existing:
-            return existing
+        def validate_size(size):
+            if max_size and size > max_size:
+                raise ValidationError(f'{url} Content-Length {size} is over {name} blob maxSize {max_size}')
 
-        resp = get_fn(url)
+        assert url
+        blob = cls.get_by_id(url)
+        if blob:
+            validate_size(blob.size)
+            server.validate_mime_type(blob.mime_type, accept_types, name=url)
+            return blob
+
+        resp = get_fn(url, stream=True)
         resp.raise_for_status()
+
         mime_type = resp.headers.get('Content-Type')
         if not mime_type:
             mime_type, _ = mimetypes.guess_type(url)
+        length = resp.headers.get('Content-Length')
+        logger.info(f'Got {resp.status_code} {mime_type} {length} bytes {resp.url}')
 
+        # check type
+        server.validate_mime_type(mime_type, accept_types, name=url)
+
+        # check size
+        try:
+            length = int(length)
+        except (TypeError, ValueError):
+            length = None  # read body and check length manually below
+        if length:
+            validate_size(length)
+
+        # now ready to fetch body
         digest = multihash.digest(resp.content, 'sha2-256')
         cid = CID('base58btc', 1, 'raw', digest).encode('base32')
 
+        # note that if the initial URL redirects, we still store it in the
+        # AtpRemoteBlob, not the final resolved URL after redirects.
         logger.info(f'Creating new AtpRemoteBlob for {url} CID {cid}')
-        mime_type_prop = {'mime_type': mime_type} if mime_type else {}
-        blob = cls(id=url, cid=cid, size=len(resp.content), **mime_type_prop)
+        blob = cls(id=url, cid=cid, size=len(resp.content))
+        if mime_type:
+            blob.mime_type = mime_type
         blob.put()
+
+        # re-validate size in case the server didn't give us Content-Length.
+        # do this after storing blob so that we don't re-download it next time.
+        validate_size(len(resp.content))
+
         return blob
 
     def as_object(self):
@@ -334,7 +382,7 @@ class AtpRemoteBlob(ndb.Model):
         https://atproto.com/specs/data-model#blob-type
 
         Returns:
-          dict:
+          dict: with ``$type: blob`` and ``ref``, ``mimeType``, and ``size` fields
         """
         return {
             '$type': 'blob',
@@ -369,9 +417,9 @@ class DatastoreStorage(Storage):
     def ndb_context(fn):
         @wraps(fn)
         def decorated(self, *args, **kwargs):
-            context = get_context(raise_context_error=False)
+            ctx = context.get_context(raise_context_error=False)
 
-            with context.use() if context else self.ndb_client.context():
+            with ctx.use() if ctx else self.ndb_client.context():
                 ret = fn(self, *args, **kwargs)
 
             return ret
@@ -414,23 +462,45 @@ class DatastoreStorage(Storage):
         if not atp_repo:
             logger.info(f"Couldn't find repo for {did_or_handle}")
             return None
-        elif atp_repo.status == TOMBSTONED:
-            raise TombstonedRepo(f'{atp_repo.key} is tombstoned')
 
         logger.info(f'Loading repo {atp_repo.key}')
         self.head = CID.decode(atp_repo.head)
         handle = atp_repo.handles[0] if atp_repo.handles else None
 
-        return Repo.load(self, cid=self.head, handle=handle,
+        return Repo.load(self, cid=self.head, handle=handle, status=atp_repo.status,
                          signing_key=atp_repo.signing_key,
                          rotation_key=atp_repo.rotation_key)
 
     @ndb_context
-    def _tombstone_repo(self, repo):
+    def load_repos(self, after=None, limit=500):
+        query = AtpRepo.query()
+        if after:
+            query = query.filter(AtpRepo.key > AtpRepo(id=after).key)
+
+        # duplicates parts of Repo.load but batches reading blocks from storage
+        atp_repos = query.fetch(limit=limit)
+
+        cids = [CID.decode(r.head) for r in atp_repos]
+        blocks = self.read_many(cids)  # dict mapping CID to block
+        heads = [blocks[cid] for cid in cids]
+
+        # MST.load doesn't read from storage
+        msts = [MST.load(storage=self, cid=block.decoded['data']) for block in heads]
+        return [Repo(storage=self, mst=mst, head=head, status=atp_repo.status,
+                     handle=atp_repo.handles[0] if atp_repo.handles else None,
+                     signing_key=atp_repo.signing_key,
+                     rotation_key=atp_repo.rotation_key)
+                for atp_repo, head, mst in zip(atp_repos, heads, msts)]
+
+    @ndb_context
+    def _set_repo_status(self, repo, status):
+        assert status in (DEACTIVATED, DELETED, TOMBSTONED, None)
+        repo.status = status  # in memory only
+
         @ndb.transactional()
         def update():
             atp_repo = AtpRepo.get_by_id(repo.did)
-            atp_repo.status = TOMBSTONED
+            atp_repo.status = status
             atp_repo.put()
 
         update()
@@ -449,22 +519,44 @@ class DatastoreStorage(Storage):
                 for cid, block in got}
 
     # can't use @ndb_context because this is a generator, not a normal function
-    def read_blocks_by_seq(self, start=0):
+    def read_blocks_by_seq(self, start=0, repo=None):
         assert start >= 0
 
-        context = get_context(raise_context_error=False)
+        cur_seq = start
+        cur_seq_cids = []
 
-        with context.use() if context else self.ndb_client.context() as cm:
-            # lexrpc event subscription handlers like subscribeRepos call this
-            # on a different thread, so if we're there, we need to create a new
-            # ndb context
-            try:
-                for atp_block in AtpBlock.query(AtpBlock.seq >= start)\
-                                         .order(AtpBlock.seq):
-                    yield atp_block.to_block()
-            except ContextError as e:
-                logging.warning(f'lost ndb context! client may have disconnected? "{e}"')
-                return
+        while True:
+            ctx = context.get_context(raise_context_error=False)
+            with ctx.use() if ctx else self.ndb_client.context():
+                # lexrpc event subscription handlers like subscribeRepos call this
+                # on a different thread, so if we're there, we need to create a new
+                # ndb context
+                try:
+                    query = AtpBlock.query(AtpBlock.seq >= cur_seq).order(AtpBlock.seq)
+                    if repo:
+                        query = query.filter(AtpBlock.repo == AtpRepo(id=repo).key)
+                    # unproven hypothesis: need strong consistency to make sure we
+                    # get all blocks for a given seq, including commit
+                    # https://console.cloud.google.com/errors/detail/CO2g4eLG_tOkZg;service=atproto-hub;time=P1D;refresh=true;locations=global?project=bridgy-federated
+                    for atp_block in query.iter(read_consistency=ndb.STRONG):
+                        if atp_block.seq != cur_seq:
+                            cur_seq = atp_block.seq
+                            cur_seq_cids = []
+                        if atp_block.key.id() not in cur_seq_cids:
+                            cur_seq_cids.append(atp_block.key.id())
+                            yield atp_block.to_block()
+
+                    # finished cleanly
+                    break
+
+                except ContextError as e:
+                    logging.warning(f'lost ndb context! re-querying at {cur_seq}. {e}')
+                    # continue loop, restart query
+
+            # Context.use() resets this to the previous context when it exits,
+            # but that context is bad now, so make sure we get a new one at the
+            # top of the loop
+            context._state.context = None
 
     @ndb_context
     def has(self, cid):
@@ -474,11 +566,16 @@ class DatastoreStorage(Storage):
     def write(self, repo_did, obj, seq=None):
         if seq is None:
             seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
-        return AtpBlock.create(repo_did=repo_did, data=obj, seq=seq).cid
+        return AtpBlock.create(repo_did=repo_did, data=obj, seq=seq).to_block()
 
     @ndb_context
     @ndb.transactional()
     def apply_commit(self, commit_data):
+        commit = commit_data.commit.decoded
+        if repo := AtpRepo.get_by_id(commit['did']):
+            if repo.status:
+                raise InactiveRepo(repo.key.id(), self.status)
+
         seq = tid_to_int(commit_data.commit.decoded['rev'])
         assert seq
 
@@ -493,11 +590,8 @@ class DatastoreStorage(Storage):
             block.seq = seq
 
         self.head = commit_data.commit.cid
-
-        commit = commit_data.commit.decoded
         head_encoded = self.head.encode('base32')
 
-        repo = AtpRepo.get_by_id(commit['did'])
         if repo:
             logger.info(f'Updating {repo.key}')
             repo.head = head_encoded

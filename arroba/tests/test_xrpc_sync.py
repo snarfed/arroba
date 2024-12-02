@@ -1,6 +1,8 @@
 """Unit tests for xrpc_sync.py."""
+from datetime import timedelta
 from io import BytesIO
 from threading import Semaphore, Thread
+import time
 from unittest import skip
 from unittest.mock import patch
 
@@ -11,6 +13,7 @@ from google.cloud.ndb.exceptions import ContextError
 from lexrpc.base import XrpcError
 from lexrpc.server import Redirect
 from multiformats import CID
+import os
 
 from .. import datastore_storage
 from ..datastore_storage import AtpRemoteBlob, DatastoreStorage
@@ -18,7 +21,7 @@ from ..repo import Repo, Write, writes_to_commit_ops
 from .. import server
 from ..storage import Action, Storage, SUBSCRIBE_REPOS_NSID
 from .. import util
-from ..util import dag_cbor_cid, int_to_tid, next_tid
+from ..util import dag_cbor_cid, int_to_tid, next_tid, tid_to_int
 from .. import xrpc_sync
 
 from . import testutil
@@ -76,10 +79,25 @@ class XrpcSyncTest(testutil.XrpcTestCase):
         self.assertEqual({
             'version': 3,
             'did': 'did:web:user.com',
-            'rev': '2222222222422',
+            'rev': '2222222222622',
         }, commit)
 
-        self.assertEqual(self.data, load(blocks[0:]))
+        self.assertEqual(self.data, load(blocks))
+
+    def test_get_repo_since(self):
+        since = self.repo.head.seq
+
+        # create a record
+        create = Write(Action.CREATE, 'co.ll', '123', {'foo': 'bar'})
+        cur = self.repo.apply_writes([create])
+
+        resp = xrpc_sync.get_repo({}, did='did:web:user.com',
+                                  since=util.int_to_tid(since))
+        roots, blocks = read_car(resp)
+
+        decoded = [b.decoded for b in blocks]
+        self.assertIn(cur.head.decoded, decoded)
+        self.assertIn({'foo': 'bar'}, decoded)
 
     def test_get_repo_not_found(self):
         with self.assertRaises(XrpcError) as cm:
@@ -95,13 +113,60 @@ class XrpcSyncTest(testutil.XrpcTestCase):
 
         self.assertEqual('RepoDeactivated', cm.exception.name)
 
-    @skip
-    def test_lists_hosted_repos_in_order_of_creation(self):
-        resp = xrpc_sync.list_repos({})
-        self.assertEqual([{
+    def test_get_repo_status(self):
+        resp = xrpc_sync.get_repo_status({}, did='did:web:user.com')
+        self.assertEqual({
+            'did': 'did:web:user.com',
+            'active': True,
+        }, resp)
+
+    def test_get_repo_status_not_found(self):
+        with self.assertRaises(XrpcError) as cm:
+            xrpc_sync.get_repo_status({}, did='did:unknown')
+
+        self.assertEqual('RepoNotFound', cm.exception.name)
+
+    def test_get_repo_status_tombstoned(self):
+        server.storage.tombstone_repo(self.repo)
+
+        resp = xrpc_sync.get_repo_status({}, did='did:web:user.com')
+        self.assertEqual({
+            'did': 'did:web:user.com',
+            'active': False,
+            'status': 'deactivated',
+        }, resp)
+
+    def test_list_repos(self):
+        eve = Repo.create(server.storage, 'did:plc:eve', signing_key=self.key)
+        server.storage.tombstone_repo(eve)
+
+        expected_eve = {
+            'did': 'did:plc:eve',
+            'head': eve.head.cid.encode('base32'),
+            'rev': eve.head.seq,
+            'active': False,
+            'status': 'deactivated',
+        }
+        expected_user = {
             'did': 'did:web:user.com',
             'head': self.repo.head.cid.encode('base32'),
-        }], resp)
+            'rev': self.repo.head.seq,
+            'active': True,
+            'status': None,
+        }
+
+        self.assertEqual(
+            {'repos': [expected_eve, expected_user]},
+            xrpc_sync.list_repos({}))
+        self.assertEqual(
+            {'repos': [expected_eve], 'cursor': 'did:plc:eve'},
+            xrpc_sync.list_repos({}, limit=1))
+        self.assertEqual(
+            {'repos': [expected_user]},
+            xrpc_sync.list_repos({}, cursor='did:plc:eve'))
+        self.assertEqual(
+            {'repos': []},
+            xrpc_sync.list_repos({}, cursor='did:web:user.com'))
 
     def test_get_head(self):
         resp = xrpc_sync.get_head({}, did='did:web:user.com')
@@ -111,7 +176,7 @@ class XrpcSyncTest(testutil.XrpcTestCase):
         resp = xrpc_sync.get_latest_commit({}, did='did:web:user.com')
         self.assertEqual({
             'cid': self.repo.head.cid.encode('base32'),
-            'rev': '2222222222422',
+            'rev': '2222222222622',
         }, resp)
 
     def test_get_record(self):
@@ -129,6 +194,34 @@ class XrpcSyncTest(testutil.XrpcTestCase):
         with self.assertRaises(ValueError):
             resp = xrpc_sync.get_record({}, did='did:web:user.com',
                                         collection='com.example.posts', rkey='9999')
+
+    def test_get_blocks_empty(self):
+        resp = xrpc_sync.get_blocks({}, did='did:web:user.com', cids=[])
+        roots, blocks = read_car(resp)
+        self.assertEqual([], blocks)
+
+    def test_get_blocks(self):
+        cids = [dag_cbor_cid(record).encode('base32')
+                for record in self.data.values()]
+        resp = xrpc_sync.get_blocks({}, did='did:web:user.com', cids=cids)
+        roots, blocks = read_car(resp)
+        self.assertCountEqual(self.data.values(), [b.decoded for b in blocks])
+
+    def test_get_blocks_not_found(self):
+        cid = dag_cbor_cid(next(iter(self.data.values()))).encode('base32')
+
+        with self.assertRaises(XrpcError) as cm:
+            xrpc_sync.get_blocks({}, did='did:web:user.com', cids=[cid, 'nope'])
+
+        self.assertEqual('BlockNotFound', cm.exception.name)
+
+    def test_get_blocks_repo_tombstoned(self):
+        server.storage.tombstone_repo(self.repo)
+
+        with self.assertRaises(XrpcError) as cm:
+            xrpc_sync.get_blocks({}, did='did:web:user.com', cids=[])
+
+        self.assertEqual('RepoDeactivated', cm.exception.name)
 
     # based on atproto/packages/pds/tests/sync/sync.test.ts
     # def test_get_repo_creates_and_deletes(self):
@@ -432,7 +525,7 @@ class XrpcSyncTest(testutil.XrpcTestCase):
     #     with self.assertRaises(ValueError):
     #         sync.loadCheckout(syncStorage, checkoutCar, repoDid, keypair.did())
 
-    # based atproto/packages/pds/tests/sync/list.test.ts
+    # based on atproto/packages/pds/tests/sync/list.test.ts
     # def test_paginates_listed_hosted_repos(self):
     #     full = xrpc_sync.list_repos({})
     #     pt1 = xrpc_sync.list_repos({}, limit=2)
@@ -459,7 +552,9 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         for i, (header, payload) in enumerate(
                 xrpc_sync.subscribe_repos(cursor=cursor)):
             self.assertIn(header, [
+                {'op': 1, 't': '#account'},
                 {'op': 1, 't': '#commit'},
+                {'op': 1, 't': '#identity'},
                 {'op': 1, 't': '#tombstone'},
                 {'op': -1},
             ])
@@ -470,7 +565,8 @@ class SubscribeReposTest(testutil.XrpcTestCase):
                 return
 
     def assertCommitMessage(self, commit_msg, record=None, write=None,
-                            repo=None, cur=None, prev=None, seq=None):
+                            repo=None, cur=None, prev=None, seq=None,
+                            check_commit=True):
         if not repo:
             repo = self.repo
         if not cur:
@@ -505,7 +601,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             record_cid = dag_cbor_cid(record)
             mst_entry = {
                 'e': [{
-                    'k': f'co.ll/{int_to_tid(util._tid_ts_last)}'.encode(),
+                    'k': f'co.ll/{write.rkey}'.encode(),
                     'v': record_cid,
                     'p': 0,
                     't': None,
@@ -521,20 +617,21 @@ class SubscribeReposTest(testutil.XrpcTestCase):
                 'l': None,
             }
 
-        commit_record = {
-            'version': 3,
-            'did': repo.did,
-            'data': dag_cbor_cid(mst_entry),
-            'rev': int_to_tid(seq, clock_id=0),
-            'prev': prev,
-        }
-
         msg_records = [b.decoded for b in msg_blocks]
         # TODO: if I util.sign(commit_record), the sig doesn't match. why?
         for msg_record in msg_records:
             msg_record.pop('sig', None)
 
-        self.assertIn(commit_record, msg_records)
+        if check_commit:
+            commit_record = {
+                'version': 3,
+                'did': repo.did,
+                'data': dag_cbor_cid(mst_entry),
+                'rev': int_to_tid(seq, clock_id=0),
+                'prev': prev,
+            }
+            self.assertIn(commit_record, msg_records)
+
         if record:
             self.assertIn(record, msg_records)
 
@@ -554,7 +651,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         self.assertEqual(1, len(received_a))
         self.assertCommitMessage(received_a[0], {'foo': 'bar'}, write=create,
-                                 prev=prev, seq=2)
+                                 prev=prev, seq=4)
 
         # update, subscriber_a and subscriber_b
         received_b = []
@@ -571,10 +668,10 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         self.assertEqual(2, len(received_a))
         self.assertCommitMessage(received_a[1], {'foo': 'baz'}, write=update,
-                                 prev=prev, seq=3)
+                                 prev=prev, seq=5)
         self.assertEqual(1, len(received_b))
         self.assertCommitMessage(received_b[0], {'foo': 'baz'}, write=update,
-                                 prev=prev, seq=3)
+                                 prev=prev, seq=5)
 
         subscriber_a.join()
 
@@ -586,9 +683,14 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         self.assertEqual(2, len(received_a))
         self.assertEqual(2, len(received_b))
-        self.assertCommitMessage(received_b[1], write=delete, prev=prev, seq=4)
+        self.assertCommitMessage(received_b[1], write=delete, prev=prev, seq=6)
 
         subscriber_b.join()
+
+    @patch.dict(os.environ, SUBSCRIBE_REPOS_BATCH_DELAY='.01')
+    @patch('arroba.xrpc_sync.NEW_EVENTS_TIMEOUT', timedelta(seconds=.01))
+    def test_subscribe_repos_batch_delay(self, *_):
+        self.test_subscribe_repos()
 
     def test_subscribe_repos_cursor_zero(self, *_):
         commit_cids = [self.repo.head.cid]
@@ -598,21 +700,21 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             write = Write(Action.CREATE if val == 'bar' else Action.UPDATE,
                           'co.ll', tid, {'foo': val})
             writes.append(write)
-            commit_cid = self.repo.apply_writes([write])
+            self.repo.apply_writes([write])
             commit_cids.append(self.repo.head.cid)
 
         received = []
-        self.subscribe(received, limit=4, cursor=0)
+        self.subscribe(received, limit=6, cursor=0)
 
-        self.assertEqual(5, server.storage.allocate_seq(SUBSCRIBE_REPOS_NSID))
+        self.assertEqual(7, server.storage.allocate_seq(SUBSCRIBE_REPOS_NSID))
 
         self.assertCommitMessage(
             received[0], record=None, cur=commit_cids[0], prev=None, seq=1)
 
         for i, val in enumerate(['bar', 'baz', 'biff'], start=1):
             self.assertCommitMessage(
-                received[i], {'foo': val}, cur=commit_cids[i], write=writes[i],
-                prev=commit_cids[i - 1], seq=i + 1)
+                received[i + 2], {'foo': val}, cur=commit_cids[i], write=writes[i],
+                prev=commit_cids[i - 1], seq=i + 3)
 
     def test_subscribe_repos_cursor_past_current_seq(self, *_):
         received = []
@@ -621,11 +723,11 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             ({'op': -1},
              {
                  'error': 'FutureCursor',
-                 'message': 'Cursor 999 is past our current sequence number 1',
+                 'message': 'Cursor 999 is past our current sequence number 3',
              }),
         ], received)
 
-    @patch('arroba.xrpc_sync.ROLLBACK_WINDOW', 2)
+    @patch.dict(os.environ, ROLLBACK_WINDOW='2')
     def test_subscribe_repos_cursor_before_rollback_window(self, *_):
         while seq := server.storage.allocate_seq(SUBSCRIBE_REPOS_NSID):
             if seq >= 5:
@@ -641,6 +743,9 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         header, payload = next(sub)
         self.assertEqual({'op': 1, 't': '#info'}, header)
         self.assertEqual({'name': 'OutdatedCursor'}, payload)
+
+        header, _ = next(sub)
+        self.assertEqual({'op': 1, 't': '#account'}, header)
 
         self.assertCommitMessage(next(sub), {'foo': 'bar'}, write=write,
                                  seq=6, cur=self.repo.head.cid, prev=prev)
@@ -667,11 +772,11 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         self.assertEqual(1, len(received))
         self.assertCommitMessage(received[0], {'foo': 'bar'}, write=second,
-                                 prev=prev, seq=3)
+                                 prev=prev, seq=5)
 
         subscriber.join()
 
-    def test_tombstone(self, *_):
+    def test_tombstoned(self, *_):
         # second repo: bob
         bob_repo = Repo.create(server.storage, 'did:bob',
                                handle='bo.bb', signing_key=self.key)
@@ -690,27 +795,27 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         received = []
         delivered = Semaphore(value=0)
         subscriber = Thread(target=self.subscribe, args=[received, delivered],
-                            kwargs={'limit': 6, 'cursor': 0})
+                            kwargs={'limit': 10, 'cursor': 0})
         subscriber.start()
 
-        # first two events are initial commits for each repo
-        delivered.acquire()
-        delivered.acquire()
+        # first six events are initial commits and events for each repo
+        for i in range(6):
+            delivered.acquire()
 
         # tombstone
         delivered.acquire()
-        header, payload = received[2]
+        header, payload = received[6]
         self.assertEqual({'op': 1, 't': '#tombstone'}, header)
         self.assertEqual({
-            'seq': 3,
+            'seq': 7,
             'did': 'did:web:user.com',
             'time': testutil.NOW.isoformat(),
         }, payload)
 
         # bob's write, now from streaming
         delivered.acquire()
-        self.assertCommitMessage(received[3], {'foo': 'bar'}, write=write,
-                                 repo=bob_repo, prev=prev, seq=4)
+        self.assertCommitMessage(received[7], {'foo': 'bar'}, write=write,
+                                 repo=bob_repo, prev=prev, seq=8)
 
         # another write to bob
         prev = bob_repo.head.cid
@@ -722,19 +827,70 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         server.storage.tombstone_repo(bob_repo)
         delivered.acquire()
 
-        self.assertEqual(6, len(received))
-        header, payload = received[5]
+        self.assertEqual(10, len(received))
+        header, payload = received[9]
         self.assertEqual({'op': 1, 't': '#tombstone'}, header)
         self.assertEqual({
-            'seq': 6,
+            'seq': 10,
             'did': 'did:bob',
             'time': testutil.NOW.isoformat(),
         }, payload)
+
+    @patch('arroba.xrpc_sync.NEW_EVENTS_TIMEOUT', timedelta(seconds=2))
+    def test_subscribe_repos_skipped_seq(self, *_):
+        # https://github.com/snarfed/arroba/issues/34
+        received = []
+        delivered = Semaphore(value=0)
+        subscriber = Thread(target=self.subscribe,
+                              args=[received, delivered, 2])
+        subscriber.start()
+
+        # prepare two writes with seqs 4 and 5
+        write_4 = Write(Action.CREATE, 'co.ll', next_tid(), {'a': 'b'})
+        commit_4 = Repo.format_commit(repo=self.repo, writes=[write_4])
+        self.assertEqual(4, tid_to_int(commit_4.commit.decoded['rev']))
+
+        write_5 = Write(Action.CREATE, 'co.ll', next_tid(), {'x': 'y'})
+        commit_5 = Repo.format_commit(repo=self.repo, writes=[write_5])
+        self.assertEqual(5, tid_to_int(commit_5.commit.decoded['rev']))
+
+        prev = self.repo.head.cid
+
+        with self.assertLogs() as logs:
+            # first write, skip seq 4, write with seq 5 instead
+            self.repo.apply_commit(commit_5)
+            head_5 = self.repo.head.cid
+
+            # there's a small chance that this could be flaky, if >.2s elapses
+            # between starting the subscriber above and receiving the second
+            # write below
+            time.sleep(.1)
+
+            # shouldn't receive the event yet
+            self.assertEqual(0, len(received))
+
+            # second write, use seq 4 that we skipped above
+            self.repo.apply_commit(commit_4)
+
+            delivered.acquire()
+            delivered.acquire()
+
+        self.assertIn('WARNING:arroba.xrpc_sync:Waiting for seq 4', logs.output)
+
+        # should receive both commits
+        self.assertEqual(2, len(received))
+        self.assertCommitMessage(received[0], {'a': 'b'}, write=write_4,
+                                 cur=self.repo.head.cid, prev=prev, seq=4)
+        self.assertCommitMessage(received[1], {'x': 'y'}, write=write_5,
+                                 cur=head_5, prev=prev, seq=5, check_commit=False)
+
+        subscriber.join()
 
 
 class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
     STORAGE_CLS = DatastoreStorage
 
+    # getBlob depends on DatastoreStorage
     def test_get_blob(self):
         cid = 'bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq'
         AtpRemoteBlob(id='http://blob', cid=cid, size=13).put()
@@ -742,6 +898,7 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
         with self.assertRaises(Redirect) as r:
             resp = xrpc_sync.get_blob({}, did='did:web:user.com', cid=cid)
 
+        self.assertEqual(301, r.exception.status)
         self.assertEqual('http://blob', r.exception.to)
 
     def test_get_blob_missing(self):
@@ -767,4 +924,3 @@ class DatastoreSubscribeReposTest(SubscribeReposTest, testutil.DatastoreTest):
             # we may be in a separate thread; make a new ndb context
             with self.ndb_client.context():
                 super().subscribe(*args, **kwargs)
-

@@ -1,6 +1,8 @@
 """Common test utility code."""
+import contextlib
 from datetime import datetime, timezone
 import json
+import logging
 import random
 import os
 import unittest
@@ -103,6 +105,8 @@ class TestCase(unittest.TestCase):
         if not TestCase.key:
             TestCase.key = util.new_key(seed=2349872879569)
 
+        server.server._validate = server.server._truncate = False
+
         # clear caches
         did.resolve_handle.cache.clear()
         did.resolve_plc.cache.clear()
@@ -134,6 +138,25 @@ class TestCase(unittest.TestCase):
     @staticmethod
     def random_objects(num):
         return {next_tid(): {'foo': random.randint(1, 999999999)} for i in range(num)}
+
+    @contextlib.contextmanager
+    def assertLogs(self):
+        """Wraps :meth:`unittest.TestCase.assertLogs` and enables/disables logs.
+
+        Copied from bridgy-fed/tests/testutil.py
+        """
+        orig_disable_level = logging.root.manager.disable
+        logging.disable(logging.NOTSET)
+
+        try:
+            with super().assertLogs() as logs:
+                yield logs
+        finally:
+            # emit logs that were captured
+            for record in logs.records:
+                if record.levelno >= orig_disable_level:
+                    logging.root.handle(record)
+            logging.disable(orig_disable_level)
 
 
 class DatastoreTest(TestCase):
@@ -175,6 +198,8 @@ class XrpcTestCase(TestCase):
         self.request_context = self.app.test_request_context('/')
         self.request_context.push()
 
+    @staticmethod
+    def prepare_auth():
         os.environ.update({
             'REPO_PASSWORD': 'sooper-sekret',
             'REPO_TOKEN': 'towkin',

@@ -1,7 +1,7 @@
 arroba [![Circle CI](https://circleci.com/gh/snarfed/arroba.svg?style=svg)](https://circleci.com/gh/snarfed/arroba) [![Coverage Status](https://coveralls.io/repos/github/snarfed/arroba/badge.svg?branch=main)](https://coveralls.io/github/snarfed/arroba?branch=master)
 ===
 
-Python implementation of [Bluesky](https://blueskyweb.xyz/) [PDS](https://atproto.com/guides/data-repos) and [AT Protocol](https://atproto.com/specs/atp), including data repository, Merkle search tree, and [com.atproto.sync XRPC methods](https://atproto.com/lexicons/com-atproto-sync).
+Python implementation of [Bluesky](https://blueskyweb.xyz/) [PDS](https://atproto.com/guides/data-repos) and [AT Protocol](https://atproto.com/specs/atp), including data repository, Merkle search tree, and [XRPC methods](https://atproto.com/lexicons/com-atproto-sync).
 
 You can build your own PDS on top of arroba with just a few lines of Python and run it in any WSGI server. You can build a more involved PDS with custom logic and behavior. Or you can build a different ATProto service, eg an [AppView, relay (née BGS)](https://blueskyweb.xyz/blog/5-5-2023-federation-architecture), or something entirely new!
 
@@ -86,7 +86,8 @@ Configure arroba with these environment variables:
 Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_repo), [.server](https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_server), and [.sync](https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_sync) XRPC handlers:
 
 * `REPO_TOKEN`, static token to use as both `accessJwt` and `refreshJwt`, defaults to contents of `repo_token` file. Not required to be an actual JWT. If not set, XRPC methods that require auth will return HTTP 501 Not Implemented.
-* `ROLLBACK_WINDOW`, number of events to serve in the [`subscribeRepos` rollback window](https://atproto.com/specs/event-stream#sequence-numbers). Defaults to no limit.
+* `ROLLBACK_WINDOW`, number of events to serve in the [`subscribeRepos` rollback window](https://atproto.com/specs/event-stream#sequence-numbers), as an integer. Defaults to no limit.
+* `SUBSCRIBE_REPOS_BATCH_DELAY`, minimum time to wait between datastore queries in `com.atproto.sync.subscribeRepos`, in seconds, as a float. Defaults to 0 if unset.
 
 <!-- Only used in app.py:
 * `REPO_DID`, repo user's DID, defaults to contents of `repo_did` file
@@ -98,7 +99,51 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 
 ## Changelog
 
-### 0.6 - unreleased
+### 0.8 - unreleased
+
+_Breaking changes:_
+
+* `repo`:
+  * `apply_commit`, `apply_writes`: raise an exception if the repo is inactive.
+* `storage`:
+  * `load_repo`: don't raise an exception if the repo is tombstoned.
+* `util`:
+  * Rename `TombstonedRepo` to `InactiveRepo`.
+
+
+### 0.7 - 2024-11-08
+
+_Breaking changes:_
+
+* Add much more lexicon schema validation for records and XRPC method input, output, and parameters.
+* `storage`:
+  * Switch `Storage.write` to return `Block` instead of `CID`.
+
+_Non-breaking changes:_
+
+* `did`:
+  * Add new `update_plc` method.
+  * `create_plc`: add new `also_known_as` kwarg.
+  * `resolve_handle`: drop `Content-Type: text/plain` requirement for HTTPS method.
+* `mst`:
+  * Add new optional `start` kwarg to `load_all`.
+* `repo`:
+  * [Emit new #identity and #account events](https://github.com/snarfed/bridgy-fed/issues/1119) to `subscribeRepos` when creating new repos.
+* `storage`:
+  * Add new `deactivate_repo`, `activate_repo`, and `write_event` methods.
+  * Add new optional `repo` kwarg to `read_blocks_by_seq` and `read_events_by_seq` to limit returned results to a single repo.
+* `datastore_storage`:
+  * Add new `max_size` and `accept_types` kwarg to `AtpRemoteBlob.get_or_create` for the blob's `maxSize` and `accept` parameters in its lexicon. If the fetched file doesn't satisfy those constraints, raises `lexrpc.ValidationError.`
+  * `DatastoreStorage.read_blocks_by_seq`: use strong consistency for datastore query. May fix occasional `AssertionError` when serving `subscribeRepos`.
+* `xrpc_sync`:
+  * Switch `getBlob` from returning HTTP 302 to 301.
+  * Implement `since` param in `getRepo`.
+  * `subscribeRepos`: wait up to 60s on a skipped sequence number before giving up and emitting it as a gap.
+* `util`:
+  * `service_jwt`: add new `**claims` parameter for additional JWT claims, eg [`lxm`](https://github.com/bluesky-social/atproto/discussions/2687).
+
+
+### 0.6 - 2024-06-24
 
 _Breaking changes:_
 
@@ -110,13 +155,15 @@ _Breaking changes:_
   * Cache `resolve_plc`, `resolve_web`, and `resolve_handle` for 6h, up to 5000 total results per call.
 * `storage`: rename `Storage.read_commits_by_seq` to `read_events_by_seq` for new account tombstone support.
 * `xrpc_sync`: rename `send_new_commits` to `send_events`, ditto.
+* `xrpc_repo`: stop requiring auth for read methods: `getRecord`, `listRecords`, `describeRepo`.
 
 _Non-breaking changes:_
 
 * `did`:
   * Add `HANDLE_RE` regexp for handle validation.
 * `storage`:
-  * Add new `Storage.tombstone_repo` method, implement in `MemoryStorage` and `DatastoreStorage`. [Used to delete accounts.](https://github.com/bluesky-social/atproto/discussions/2503#discussioncomment-9502339) ([bridgy-fed#783](https://github.com/snarfed/bridgy-fed/issues/783))
+  * Add new `Storage.tombstone_repo` method, implemented in `MemoryStorage` and `DatastoreStorage`. [Used to delete accounts.](https://github.com/bluesky-social/atproto/discussions/2503#discussioncomment-9502339) ([bridgy-fed#783](https://github.com/snarfed/bridgy-fed/issues/783))
+  * Add new `Storage.load_repos` method, implemented in `MemoryStorage` and `DatastoreStorage`. Used for `com.atproto.sync.listRepos`.
 * `util`:
   * `service_jwt`: add optional `aud` kwarg.
 * `xrpc_sync`:
@@ -126,7 +173,11 @@ _Non-breaking changes:_
     * For commits with create or update operations, always include the record block, even if it already existed in the repo beforehand ([snarfed/bridgy-fed#1016](https://github.com/snarfed/bridgy-fed/issues/1016)).
     * Bug fix, populate the time each commit was created in `time` instead of the current time ([snarfed/bridgy-fed#1015](https://github.com/snarfed/bridgy-fed/issues/1015)).
   * Start serving `getRepo` queries with the `since` parameter. `since` still isn't actually implemented, but we now serve the entire repo instead of returning an error.
+  * Implement `getRepoStatus` method.
+  * Implement `listRepos` method.
   * `getRepo` bug fix: include the repo head commit block.
+* `xrpc_repo`:
+  * `getRecord`: encoded returned records correctly as [ATProto-flavored DAG-JSON](https://atproto.com/specs/data-model).
 * `xrpc_*`: return `RepoNotFound` and `RepoDeactivated` errors when appropriate ([snarfed/bridgy-fed#1083](https://github.com/snarfed/bridgy-fed/issues/1083)).
 
 
@@ -148,6 +199,7 @@ _Non-breaking changes:_
 * `xrpc_sync`:
   * Implement `getBlob`, right now only based on "remote" blobs stored in `AtpRemoteBlob`s in datastore storage.
 
+
 ### 0.4 - 2023-09-19
 
 * Migrate to [ATProto repo v3](https://atproto.com/blog/repo-sync-update). Specifically, the existing `subscribeRepos` sequence number is reused as the new `rev` field in commits. ([Discussion.](https://github.com/bluesky-social/atproto/discussions/1607)).
@@ -164,6 +216,7 @@ _Non-breaking changes:_
     * As part of this, replace `xrpc_sync.enqueue_commit` with new `send_new_commits` function that takes no parameters.
   * Drop bundled `app.bsky`/`com.atproto` lexicons, use [lexrpc](https://lexrpc.readthedocs.io/)'s instead.
 
+
 ### 0.3 - 2023-08-29
 
 Big milestone: arroba is successfully federating with the [ATProto sandbox](https://atproto.com/blog/federation-developer-sandbox)! See [app.py](https://github.com/snarfed/arroba/blob/main/app.py) for the minimal demo code needed to wrap arroba in a fully functional PDS.
@@ -173,9 +226,11 @@ Big milestone: arroba is successfully federating with the [ATProto sandbox](http
   * Notably, includes `subscribeRepos` server side over websocket.
 * ...and much more.
 
+
 ### 0.2 - 2023-05-18
 
 Implement repo and commit chain in new Repo class, including pluggable storage. This completes the first pass at all PDS data structures. Next release will include initial implementations of the `com.atproto.sync.*` XRPC methods.
+
 
 ### 0.1 - 2023-04-30
 
@@ -190,7 +245,7 @@ Here's how to package, test, and ship a new release.
 
     ```sh
     source local/bin/activate.csh
-    python3 -m unittest discover
+    python -m unittest discover
     ```
 1. Bump the version number in `pyproject.toml` and `docs/conf.py`. `git grep` the old version number to make sure it only appears in the changelog. Change the current changelog entry in `README.md` for this new version from _unreleased_ to the current date.
 1. Build the docs. If you added any new modules, add them to the appropriate file(s) in `docs/source/`. Then run `./docs/build.sh`. Check that the generated HTML looks fine by opening `docs/_build/html/index.html` and looking around.
@@ -201,27 +256,30 @@ Here's how to package, test, and ship a new release.
 1. Upload to [test.pypi.org](https://test.pypi.org/) for testing.
 
     ```sh
-    python3 -m build
+    python -m build
     twine upload -r pypitest dist/arroba-$ver*
     ```
 1. Install from test.pypi.org.
 
     ```sh
     cd /tmp
-    python3 -m venv local
+    python -m venv local
     source local/bin/activate.csh
     # make sure we force pip to use the uploaded version
-    pip3 uninstall arroba
-    pip3 install --upgrade pip
-    pip3 install -i https://test.pypi.org/simple --extra-index-url https://pypi.org/simple arroba==$ver
+    pip uninstall arroba
+    pip install --upgrade pip
+    pip install -i https://test.pypi.org/simple --extra-index-url https://pypi.org/simple arroba==$ver
     deactivate
     ```
 1. Smoke test that the code trivially loads and runs.
 
     ```sh
     source local/bin/activate.csh
-    python3
-    # TODO: test code
+    python
+
+    from arroba import did
+    did.resolve_handle('snarfed.org')
+
     deactivate
     ```
 1. Tag the release in git. In the tag message editor, delete the generated comments at bottom, leave the first line blank (to omit the release "title" in github), put `### Notable changes` on the second line, then copy and paste this version's changelog contents below it.

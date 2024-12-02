@@ -12,6 +12,7 @@ import random
 
 import dag_cbor
 
+from ..server import server
 from ..datastore_storage import DatastoreStorage
 from ..repo import Repo, Write, writes_to_commit_ops
 from ..storage import Action, CommitOp, MemoryStorage
@@ -26,8 +27,9 @@ class RepoTest(TestCase):
 
     def setUp(self):
         super().setUp()
+        server._validate = False
         self.storage = self.STORAGE_CLS()
-        self.repo = Repo.create(self.storage, 'did:web:user.com',
+        self.repo = Repo.create(self.storage, 'did:web:user.com', handle='user.com',
                                 signing_key=self.key)
 
     def assertCommitIs(self, commit_data, write, seq):
@@ -55,10 +57,28 @@ class RepoTest(TestCase):
 
         for block in commit_data.blocks.values():
             self.assertEqual(seq, block.seq)
+            self.assertEqual('did:web:user.com', block.repo)
 
     def test_metadata(self):
         self.assertEqual(3, self.repo.version)
         self.assertEqual('did:web:user.com', self.repo.did)
+
+    def test_create(self):
+        # setUp called Repo.create
+        events = list(self.storage.read_blocks_by_seq())
+        self.assertEqual([{
+            '$type': 'com.atproto.sync.subscribeRepos#identity',
+            'seq': 2,
+            'did': 'did:web:user.com',
+            'time': NOW.isoformat(),
+            'handle': 'user.com',
+        }, {
+            '$type': 'com.atproto.sync.subscribeRepos#account',
+            'seq': 3,
+            'did': 'did:web:user.com',
+            'time': NOW.isoformat(),
+            'active': True,
+        }], [e.decoded for e in events[2:]])
 
     def test_does_basic_operations(self):
         profile = {
@@ -165,13 +185,13 @@ class RepoTest(TestCase):
         self.repo.apply_writes([create])
 
         self.assertEqual(1, len(seen))
-        self.assertCommitIs(seen[0], create, 2)
+        self.assertCommitIs(seen[0], create, 4)
 
         # update object
         update = Write(Action.UPDATE, 'co.ll', tid, {'foo': 'baz'})
         self.repo.apply_writes([update])
         self.assertEqual(2, len(seen))
-        self.assertCommitIs(seen[1], update, 3)
+        self.assertCommitIs(seen[1], update, 5)
 
         # unset callback, update again
         self.repo.callback = None
@@ -188,7 +208,7 @@ class RepoTest(TestCase):
         self.repo.apply_commit(Repo.format_commit(repo=self.repo, writes=[create]))
 
         self.assertEqual(1, len(seen))
-        self.assertCommitIs(seen[0], create, 2)
+        self.assertCommitIs(seen[0], create, 4)
 
 
 class DatastoreRepoTest(RepoTest, DatastoreTest):

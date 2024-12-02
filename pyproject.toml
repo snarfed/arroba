@@ -9,7 +9,7 @@ where = ['.']
 
 [project]
 name = 'arroba'
-version = '0.5'
+version = '0.7'
 authors = [
     { name='Ryan Barrett', email='arroba@ryanb.org' },
 ]
@@ -22,9 +22,9 @@ dependencies = [
     'carbox>=0.3',
     'cryptography',
     'dag-cbor',
-    'dag-json',
+    'dag-json>=0.2',
     'dnspython>=2.0.0',
-    'lexrpc>=0.6',
+    'lexrpc>=0.8',
     'multiformats>=0.3.1',
     'pyjwt>=2.0.0',
     'simple-websocket',
