@@ -22,7 +22,7 @@ from . import xrpc_repo
 logger = logging.getLogger(__name__)
 
 # used by subscribe_repos and send_events
-NEW_EVENTS_TIMEOUT = timedelta(seconds=60)
+NEW_EVENTS_TIMEOUT = timedelta(seconds=20)
 new_events = Condition()
 
 
