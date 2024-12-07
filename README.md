@@ -110,6 +110,11 @@ _Breaking changes:_
 * `util`:
   * Rename `TombstonedRepo` to `InactiveRepo`.
 
+_Non-breaking changes:_
+* `datastore_storage`:
+  * `apply_commit`: handle deactivated repos.
+  * `create_repo`: propagate `Repo.status` into `AtpRepo`.
+
 
 ### 0.7 - 2024-11-08
 

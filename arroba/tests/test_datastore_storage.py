@@ -20,7 +20,14 @@ from ..datastore_storage import (
 )
 from ..repo import Action, Repo, Write
 from ..storage import Block, CommitData, MemoryStorage, SUBSCRIBE_REPOS_NSID
-from ..util import dag_cbor_cid, new_key, next_tid, TOMBSTONED
+from ..util import (
+    dag_cbor_cid,
+    DEACTIVATED,
+    InactiveRepo,
+    new_key,
+    next_tid,
+    TOMBSTONED,
+)
 
 from . import test_repo
 from .testutil import DatastoreTest, requests_response
@@ -77,6 +84,15 @@ class DatastoreStorageTest(DatastoreTest):
             format=serialization.PrivateFormat.PKCS8,
             encryption_algorithm=serialization.NoEncryption(),
         ), atp_repo.signing_key_pem)
+
+    def test_create_deactivated_repo(self):
+        # rotation_key = new_key(seed=4597489735324)
+        repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key,
+                           rotation_key=self.key, status=DEACTIVATED)
+
+        self.assertEqual(DEACTIVATED, repo.status)
+        self.assertEqual(DEACTIVATED, self.storage.load_repo('did:web:user.com').status)
+        self.assertEqual(DEACTIVATED, AtpRepo.get_by_id('did:web:user.com').status)
 
     def test_create_load_repo_no_handle(self):
         repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key,
@@ -301,6 +317,22 @@ class DatastoreStorageTest(DatastoreTest):
 
         atp_repo = AtpRepo.get_by_id('did:web:user.com')
         self.assertEqual(cid, CID.decode(atp_repo.head))
+
+    def test_apply_commit_inactive_repo(self):
+        repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key,
+                           status=DEACTIVATED)
+        head = repo.head
+
+        with self.assertRaises(InactiveRepo):
+            self.storage.apply_commit(Repo.format_commit(repo=repo, writes=[
+                Write(Action.CREATE, 'coll', next_tid(), {
+                    '$type': 'app.bsky.actor.profile',
+                    'displayName': 'Alice',
+                    'description': 'hi there',
+                })]))
+
+        repo = self.storage.load_repo('did:web:user.com')
+        self.assertEqual(head, repo.head)
 
     def test_create_remote_blob(self):
         mock_get = MagicMock(return_value=requests_response('blob contents', headers={

@@ -157,8 +157,8 @@ class Repo:
         return contents
 
     @classmethod
-    def create_from_commit(cls, storage, commit_data, *,
-                           signing_key, rotation_key=None, **kwargs):
+    def create_from_commit(cls, storage, commit_data, *, signing_key,
+                           rotation_key=None, **kwargs):
         """
 
         Args:

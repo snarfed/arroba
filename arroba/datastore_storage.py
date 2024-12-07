@@ -449,7 +449,8 @@ class DatastoreStorage(Storage):
         atp_repo = AtpRepo(id=repo.did, handles=handles,
                            head=repo.head.cid.encode('base32'),
                            signing_key_pem=signing_key_pem,
-                           rotation_key_pem=rotation_key_pem)
+                           rotation_key_pem=rotation_key_pem,
+                           status=repo.status)
         atp_repo.put()
         logger.info(f'Stored repo {atp_repo}')
 
@@ -577,7 +578,7 @@ class DatastoreStorage(Storage):
         commit = commit_data.commit.decoded
         if repo := AtpRepo.get_by_id(commit['did']):
             if repo.status:
-                raise InactiveRepo(repo.key.id(), self.status)
+                raise InactiveRepo(repo.key.id(), repo.status)
 
         seq = tid_to_int(commit_data.commit.decoded['rev'])
         assert seq
