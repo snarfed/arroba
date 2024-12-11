@@ -1,0 +1,3 @@
+[submodule "mst-test-suite"]
+	path = mst-test-suite
+	url = https://github.com/DavidBuchanan314/mst-test-suite
