@@ -506,6 +506,19 @@ class DatastoreStorage(Storage):
 
         update()
 
+    def store_repo(self, repo):
+        @ndb.transactional()
+        def store():
+            atp_repo = AtpRepo.get_by_id(repo.did)
+            atp_repo.populate(
+                handles=[repo.handle] if repo.handle else [],
+                status=repo.status,
+            )
+            atp_repo.put()
+            logger.info(f'Stored repo {atp_repo}')
+
+        store()
+
     @ndb_context
     def read(self, cid):
         block = AtpBlock.get_by_id(cid.encode('base32'))

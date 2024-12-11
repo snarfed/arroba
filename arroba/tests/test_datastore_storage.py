@@ -39,6 +39,7 @@ CIDS = [
 ]
 BLOB_CID = CID.decode('bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq')
 
+
 class DatastoreStorageTest(DatastoreTest):
 
     def test_atpsequence_allocate_new(self):

@@ -165,6 +165,18 @@ class Storage:
         """
         raise NotImplementedError()
 
+    def store_repo(self, repo):
+        """Writes a repo to storage.
+
+        Right now only writes some metadata:
+        * handle
+        * status
+
+        Args:
+          repo (Repo)
+        """
+        raise NotImplementedError()
+
     def load_repos(self, after=None, limit=500):
         """Loads multiple repos from storage.
 
@@ -460,6 +472,11 @@ class MemoryStorage(Storage):
         for repo in self.repos.values():
             if did_or_handle in (repo.did, repo.handle):
                 return repo
+
+    def store_repo(self, repo):
+        stored = self.repos[repo.did]
+        stored.handle = repo.handle
+        stored.statue = repo.status
 
     def load_repos(self, after=None, limit=500):
         it = iter(sorted(self.repos.values(), key=lambda repo: repo.did))

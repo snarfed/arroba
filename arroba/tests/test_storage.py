@@ -5,10 +5,11 @@ import dag_cbor
 from multiformats import CID
 
 from ..repo import Repo, Write
+from ..datastore_storage import DatastoreStorage
 from ..storage import Action, Block, MemoryStorage, SUBSCRIBE_REPOS_NSID
 from ..util import dag_cbor_cid, next_tid, DEACTIVATED, TOMBSTONED
 
-from .testutil import NOW, TestCase
+from .testutil import DatastoreTest, NOW, TestCase
 
 DECODED = {'foo': 'bar'}
 ENCODED = b'\xa1cfoocbar'
@@ -16,6 +17,12 @@ CID_ = CID.decode('bafyreiblaotetvwobe7cu2uqvnddr6ew2q3cu75qsoweulzku2egca4dxq')
 
 
 class StorageTest(TestCase):
+    STORAGE_CLS = MemoryStorage
+
+    def setUp(self):
+        super().setUp()
+        self.storage = self.STORAGE_CLS()
+
     def test_block_encoded(self):
         block = Block(encoded=ENCODED)
         self.assertEqual(DECODED, block.decoded)
@@ -33,8 +40,7 @@ class StorageTest(TestCase):
         self.assertEqual(id(Block(decoded=DECODED)), id(Block(encoded=ENCODED)))
 
     def test_read_events_by_seq(self):
-        storage = MemoryStorage()
-        repo = Repo.create(storage, 'did:web:user.com', signing_key=self.key)
+        repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
         init = repo.head.cid
 
         tid = next_tid()
@@ -46,7 +52,7 @@ class StorageTest(TestCase):
         repo.apply_writes([delete])
         delete = repo.head.cid
 
-        events = list(storage.read_events_by_seq())
+        events = list(self.storage.read_events_by_seq())
         self.assertEqual(5, len(events))
         self.assertEqual(init, events[0].commit.cid)
         self.assertEqual('com.atproto.sync.subscribeRepos#identity',
@@ -56,15 +62,14 @@ class StorageTest(TestCase):
         self.assertEqual(create, events[3].commit.cid)
         self.assertEqual(delete, events[4].commit.cid)
 
-        events = storage.read_events_by_seq(start=4)
+        events = self.storage.read_events_by_seq(start=4)
         self.assertEqual([create, delete], [cd.commit.cid for cd in events])
 
     def test_read_events_by_seq_repo(self):
-        storage = MemoryStorage()
-        alice = Repo.create(storage, 'did:alice', signing_key=self.key)
+        alice = Repo.create(self.storage, 'did:alice', signing_key=self.key)
         alice_init = alice.head.cid
 
-        bob = Repo.create(storage, 'did:bob', signing_key=self.key)
+        bob = Repo.create(self.storage, 'did:bob', signing_key=self.key)
 
         create = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})
         alice.apply_writes([create])
@@ -72,7 +77,7 @@ class StorageTest(TestCase):
         create = Write(Action.CREATE, 'co.ll', next_tid(), {'baz': 'biff'})
         bob.apply_writes([create])
 
-        events = list(storage.read_events_by_seq(repo='did:alice'))
+        events = list(self.storage.read_events_by_seq(repo='did:alice'))
         self.assertEqual(4, len(events))
         self.assertEqual(alice_init, events[0].commit.cid)
         self.assertEqual('com.atproto.sync.subscribeRepos#identity',
@@ -81,15 +86,14 @@ class StorageTest(TestCase):
                          events[2]['$type'])
         self.assertEqual(alice.head.cid, events[3].commit.cid)
 
-        events = storage.read_events_by_seq(repo='did:alice', start=4)
+        events = self.storage.read_events_by_seq(repo='did:alice', start=4)
         self.assertEqual([alice.head.cid], [cd.commit.cid for cd in events])
 
     def test_read_events_by_seq_include_record_block_even_if_preexisting(self):
         # https://github.com/snarfed/bridgy-fed/issues/1016#issuecomment-2109276344
         commit_cids = []
 
-        storage = MemoryStorage()
-        repo = Repo.create(storage, 'did:web:user.com', signing_key=self.key)
+        repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
         commit_cids.append(repo.head.cid)
 
         prev_prev = repo.head.cid
@@ -101,7 +105,7 @@ class StorageTest(TestCase):
         second = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})
         commit_cid = repo.apply_writes([second])
 
-        commits = list(storage.read_events_by_seq(start=4))
+        commits = list(self.storage.read_events_by_seq(start=4))
         self.assertEqual(2, len(commits))
 
         record = Block(decoded={'foo': 'bar'})
@@ -114,14 +118,13 @@ class StorageTest(TestCase):
         self.assertEqual(record, commits[1].blocks[record.cid])
 
     def test_read_events_tombstone_then_commit(self):
-        storage = MemoryStorage()
-        alice = Repo.create(storage, 'did:alice', signing_key=self.key)
+        alice = Repo.create(self.storage, 'did:alice', signing_key=self.key)
 
-        storage.tombstone_repo(alice)
+        self.storage.tombstone_repo(alice)
 
-        bob = Repo.create(storage, 'did:bob', signing_key=self.key)
+        bob = Repo.create(self.storage, 'did:bob', signing_key=self.key)
 
-        events = list(storage.read_events_by_seq())
+        events = list(self.storage.read_events_by_seq())
         self.assertEqual(alice.head.cid, events[0].commit.cid)
         self.assertEqual(1, events[0].commit.seq)
 
@@ -136,11 +139,10 @@ class StorageTest(TestCase):
         self.assertEqual(5, events[4].commit.seq)
 
     def test_read_events_commit_then_tombstone(self):
-        storage = MemoryStorage()
-        alice = Repo.create(storage, 'did:alice', signing_key=self.key)
-        storage.tombstone_repo(alice)
+        alice = Repo.create(self.storage, 'did:alice', signing_key=self.key)
+        self.storage.tombstone_repo(alice)
 
-        events = list(storage.read_events_by_seq())
+        events = list(self.storage.read_events_by_seq())
         self.assertEqual(4, len(events))
         self.assertEqual(alice.head.cid, events[0].commit.cid)
         self.assertEqual(1, events[0].commit.seq)
@@ -153,21 +155,27 @@ class StorageTest(TestCase):
         }, events[3])
 
     def test_load_repo(self):
-        storage = MemoryStorage()
-        created = Repo.create(storage, 'did:web:user.com', signing_key=self.key)
+        created = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
 
-        got = storage.load_repo('did:web:user.com')
+        got = self.storage.load_repo('did:web:user.com')
         self.assertEqual('did:web:user.com', got.did)
         self.assertEqual(created.head, got.head)
         self.assertIsNone(got.status)
 
-    def test_load_repos(self):
-        storage = MemoryStorage()
-        alice = Repo.create(storage, 'did:web:alice', signing_key=self.key)
-        bob = Repo.create(storage, 'did:plc:bob', signing_key=self.key)
-        storage.tombstone_repo(bob)
+    def test_store_repo(self):
+        repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
+        repo.handle = 'foo.bar'
+        self.storage.store_repo(repo)
 
-        got_bob, got_alice = storage.load_repos()
+        got = self.storage.load_repo('did:web:user.com')
+        self.assertEqual('foo.bar', repo.handle)
+
+    def test_load_repos(self):
+        alice = Repo.create(self.storage, 'did:web:alice', signing_key=self.key)
+        bob = Repo.create(self.storage, 'did:plc:bob', signing_key=self.key)
+        self.storage.tombstone_repo(bob)
+
+        got_bob, got_alice = self.storage.load_repos()
         self.assertEqual('did:web:alice', got_alice.did)
         self.assertEqual(alice.head, got_alice.head)
         self.assertIsNone(got_alice.status)
@@ -177,45 +185,42 @@ class StorageTest(TestCase):
         self.assertEqual('tombstoned', got_bob.status)
 
     def test_load_repos_after(self):
-        storage = MemoryStorage()
-        Repo.create(storage, 'did:web:alice', signing_key=self.key)
-        Repo.create(storage, 'did:plc:bob', signing_key=self.key)
+        Repo.create(self.storage, 'did:web:alice', signing_key=self.key)
+        Repo.create(self.storage, 'did:plc:bob', signing_key=self.key)
 
-        got = storage.load_repos(after='did:plc:bob')
+        got = self.storage.load_repos(after='did:plc:bob')
         self.assertEqual(1, len(got))
         self.assertEqual('did:web:alice', got[0].did)
 
-        got = storage.load_repos(after='did:web:a')
+        got = self.storage.load_repos(after='did:web:a')
         self.assertEqual(1, len(got))
         self.assertEqual('did:web:alice', got[0].did)
 
-        got = storage.load_repos(after='did:web:alice')
+        got = self.storage.load_repos(after='did:web:alice')
         self.assertEqual([], got)
 
     def test_load_repos_limit(self):
-        storage = MemoryStorage()
-        Repo.create(storage, 'did:web:alice', signing_key=self.key)
-        Repo.create(storage, 'did:plc:bob', signing_key=self.key)
+        Repo.create(self.storage, 'did:web:alice', signing_key=self.key)
+        Repo.create(self.storage, 'did:plc:bob', signing_key=self.key)
 
-        got = storage.load_repos(limit=2)
+        got = self.storage.load_repos(limit=2)
         self.assertEqual(2, len(got))
 
-        got = storage.load_repos(limit=1)
+        got = self.storage.load_repos(limit=1)
         self.assertEqual(1, len(got))
         self.assertEqual('did:plc:bob', got[0].did)
 
     def test_tombstone_repo(self):
         seen = []
-        storage = MemoryStorage()
-        repo = Repo.create(storage, 'did:user', signing_key=self.key)
-        self.assertEqual(3, storage.last_seq(SUBSCRIBE_REPOS_NSID))
+        repo = Repo.create(self.storage, 'did:user', signing_key=self.key)
+        self.assertEqual(3, self.storage.last_seq(SUBSCRIBE_REPOS_NSID))
 
         repo.callback = lambda event: seen.append(event)
-        storage.tombstone_repo(repo)
+        self.storage.tombstone_repo(repo)
 
         self.assertEqual(TOMBSTONED, repo.status)
 
-        self.assertEqual(4, storage.last_seq(SUBSCRIBE_REPOS_NSID))
+        self.assertEqual(4, self.storage.last_seq(SUBSCRIBE_REPOS_NSID))
         expected = {
             '$type': 'com.atproto.sync.subscribeRepos#tombstone',
             'seq': 4,
@@ -223,22 +228,21 @@ class StorageTest(TestCase):
             'time': NOW.isoformat(),
         }
         self.assertEqual([expected], seen)
-        self.assertEqual(expected, storage.read(dag_cbor_cid(expected)).decoded)
+        self.assertEqual(expected, self.storage.read(dag_cbor_cid(expected)).decoded)
         self.assertEqual(TOMBSTONED, repo.status)
-        self.assertEqual(TOMBSTONED, storage.load_repo('did:user').status)
+        self.assertEqual(TOMBSTONED, self.storage.load_repo('did:user').status)
 
     def test_deactivate_repo(self):
         seen = []
-        storage = MemoryStorage()
-        repo = Repo.create(storage, 'did:user', signing_key=self.key)
-        self.assertEqual(3, storage.last_seq(SUBSCRIBE_REPOS_NSID))
+        repo = Repo.create(self.storage, 'did:user', signing_key=self.key)
+        self.assertEqual(3, self.storage.last_seq(SUBSCRIBE_REPOS_NSID))
 
         repo.callback = lambda event: seen.append(event)
-        storage.deactivate_repo(repo)
+        self.storage.deactivate_repo(repo)
         self.assertEqual(DEACTIVATED, repo.status)
-        self.assertEqual(DEACTIVATED, storage.load_repo('did:user').status)
+        self.assertEqual(DEACTIVATED, self.storage.load_repo('did:user').status)
 
-        self.assertEqual(4, storage.last_seq(SUBSCRIBE_REPOS_NSID))
+        self.assertEqual(4, self.storage.last_seq(SUBSCRIBE_REPOS_NSID))
         expected = {
             '$type': 'com.atproto.sync.subscribeRepos#account',
             'seq': 4,
@@ -248,20 +252,19 @@ class StorageTest(TestCase):
             'status': 'deactivated',
         }
         self.assertEqual([expected], seen)
-        self.assertEqual(expected, storage.read(dag_cbor_cid(expected)).decoded)
+        self.assertEqual(expected, self.storage.read(dag_cbor_cid(expected)).decoded)
 
     def test_activate_repo(self):
         seen = []
-        storage = MemoryStorage()
-        repo = Repo.create(storage, 'did:user', signing_key=self.key,
+        repo = Repo.create(self.storage, 'did:user', signing_key=self.key,
                            status=DEACTIVATED)
-        self.assertEqual(3, storage.last_seq(SUBSCRIBE_REPOS_NSID))
+        self.assertEqual(3, self.storage.last_seq(SUBSCRIBE_REPOS_NSID))
 
         repo.callback = lambda event: seen.append(event)
-        storage.activate_repo(repo)
+        self.storage.activate_repo(repo)
         self.assertIsNone(repo.status)
 
-        self.assertEqual(4, storage.last_seq(SUBSCRIBE_REPOS_NSID))
+        self.assertEqual(4, self.storage.last_seq(SUBSCRIBE_REPOS_NSID))
         expected = {
             '$type': 'com.atproto.sync.subscribeRepos#account',
             'seq': 4,
@@ -270,16 +273,15 @@ class StorageTest(TestCase):
             'active': True,
         }
         self.assertEqual([expected], seen)
-        self.assertEqual(expected, storage.read(dag_cbor_cid(expected)).decoded)
+        self.assertEqual(expected, self.storage.read(dag_cbor_cid(expected)).decoded)
         self.assertIsNone(repo.status)
-        self.assertIsNone(storage.load_repo('did:user').status)
+        self.assertIsNone(self.storage.load_repo('did:user').status)
 
     def test_write_event(self):
-        storage = MemoryStorage()
-        repo = Repo.create(storage, 'did:user', signing_key=self.key)
-        self.assertEqual(3, storage.last_seq(SUBSCRIBE_REPOS_NSID))
+        repo = Repo.create(self.storage, 'did:user', signing_key=self.key)
+        self.assertEqual(3, self.storage.last_seq(SUBSCRIBE_REPOS_NSID))
 
-        block = storage.write_event(repo=repo, type='identity',
+        block = self.storage.write_event(repo=repo, type='identity',
                                     active=False, status='foo')
         self.assertEqual({
             '$type': 'com.atproto.sync.subscribeRepos#identity',
@@ -289,4 +291,9 @@ class StorageTest(TestCase):
             'active': False,
             'status': 'foo',
         }, block.decoded)
-        self.assertEqual(block, storage.read(block.cid))
+        self.assertEqual(block, self.storage.read(block.cid))
+
+
+class DatastoreStorageTest(StorageTest, DatastoreTest):
+    """Run all of StorageTest's tests with DatastoreStorage."""
+    STORAGE_CLS = DatastoreStorage
