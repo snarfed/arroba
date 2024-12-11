@@ -251,6 +251,7 @@ Here's how to package, test, and ship a new release.
     ```sh
     source local/bin/activate.csh
     python -m unittest discover
+    python -m unittest arroba.tests.mst_test_suite # more extensive, slower tests (deliberately excluded from autodiscovery)
     ```
 1. Bump the version number in `pyproject.toml` and `docs/conf.py`. `git grep` the old version number to make sure it only appears in the changelog. Change the current changelog entry in `README.md` for this new version from _unreleased_ to the current date.
 1. Build the docs. If you added any new modules, add them to the appropriate file(s) in `docs/source/`. Then run `./docs/build.sh`. Check that the generated HTML looks fine by opening `docs/_build/html/index.html` and looking around.
