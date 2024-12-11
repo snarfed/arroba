@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Tuple, BinaryIO
 
 import os
 import io
@@ -7,8 +7,6 @@ import json
 import dag_cbor
 import dag_cbor.random
 from multiformats import CID, varint
-
-from tqdm import tqdm
 
 from ..diff import Change, Diff, null_diff
 from ..mst import MST
@@ -33,7 +31,7 @@ class MSTSuiteTest(testutil.TestCase):
                 diff_testcases[path] = testcase
         self.diff_testcases = dict(sorted(diff_testcases.items())) # sort them because os.walk() uses a weird order
 
-    def parse_car(self, stream) -> Tuple[CID, List[Tuple[CID, bytes]]]:
+    def parse_car(self, stream: BinaryIO) -> Tuple[CID, List[Tuple[CID, bytes]]]:
         car_header = dag_cbor.decode(stream.read(varint.decode(stream)))
         blocks = []
         while True:
@@ -45,7 +43,6 @@ class MSTSuiteTest(testutil.TestCase):
         return car_header["roots"][0], blocks
 
     def populate_storage_from_car(self, storage: MemoryStorage, car_path: str) -> CID:
-        # ad-hoc CAR parser, returns the root CID
         with open(self.test_suite_base + car_path, "rb") as carfile:
             root, blocks = self.parse_car(carfile)
             for cid, value in blocks:
@@ -62,7 +59,7 @@ class MSTSuiteTest(testutil.TestCase):
         return car.getvalue()
 
     def test_diffs(self):
-        for testname, testcase in tqdm(self.diff_testcases.items()):
+        for testname, testcase in self.diff_testcases.items():
             storage = MemoryStorage()
             root_a = self.populate_storage_from_car(storage, testcase["inputs"]["mst_a"])
             root_b = self.populate_storage_from_car(storage, testcase["inputs"]["mst_b"])
@@ -97,15 +94,18 @@ class MSTSuiteTest(testutil.TestCase):
             deleted_list = sorted(cid.encode("base32") for cid in diff.removed_cids)
             ops_list.sort(key=lambda x: x["rpath"])
 
-            self.assertEqual(ops_list, testcase["results"]["record_ops"], f"{testname} record_ops")
-            self.assertEqual(created_list, testcase["results"]["created_nodes"], f"{testname} created_nodes") # currently fails!
-            self.assertEqual(deleted_list, testcase["results"]["deleted_nodes"], f"{testname} deleted_nodes")
-            # TODO: implement checks for proof_nodes, firehose_cids (test data hasn't been generated yet)
+            with self.subTest(testcase["description"] + ": record_ops"):
+                self.assertEqual(ops_list, testcase["results"]["record_ops"])
+            with self.subTest(testcase["description"] + ": created_nodes"):
+                self.assertEqual(created_list, testcase["results"]["created_nodes"]) # currently fails!
+            with self.subTest(testcase["description"] + ": deleted_nodes"):
+                self.assertEqual(deleted_list, testcase["results"]["deleted_nodes"])
+                # TODO: implement checks for proof_nodes, firehose_cids (test data hasn't been generated yet)
 
     def test_diffs_inverse(self):
         # we re-use the diff test cases but "backwards" - applying the op list
         # to the initial MST see if we end up at the correct final MST
-        for testname, testcase in tqdm(self.diff_testcases.items()):
+        for testname, testcase in self.diff_testcases.items():
             storage = MemoryStorage()
             root_a = self.populate_storage_from_car(storage, testcase["inputs"]["mst_a"])
             mst = MST.load(storage=storage, cid=root_a)
@@ -126,5 +126,7 @@ class MSTSuiteTest(testutil.TestCase):
 
             reference_cid_set = set(x[0] for x in reference_blocks) # just look at the cids from the car
 
-            self.assertEqual(root_b, reference_root, f"{testname} inverse: new root") # fails occasionally
-            self.assertEqual(diff.new_cids, reference_cid_set, f"{testname} inverse: new cid set") # basically always fails, I think I'm doing something wrong
+            with self.subTest(testcase["description"] + " (inverse): new root"):
+                self.assertEqual(root_b, reference_root) # fails occasionally
+            with self.subTest(testcase["description"] + " (inverse): new cid set"):
+                self.assertEqual(diff.new_cids, reference_cid_set) # basically always fails, I think I'm doing something wrong
