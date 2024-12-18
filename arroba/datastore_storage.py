@@ -402,24 +402,26 @@ class DatastoreStorage(Storage):
     See :class:`Storage` for method details.
     """
     ndb_client = None
+    ndb_context_kwargs = None
 
-    def __init__(self, *, ndb_client=None):
+    def __init__(self, *, ndb_client=None, ndb_context_kwargs=None):
         """Constructor.
 
         Args:
-          ndb_client (google.cloud.ndb.Client): used in :meth:`read_blocks_by_seq`;
-            it's used in the `subscribeRepos` event subscription, so lexrpc calls
-            it on a different thread, so it needs its own ndb client context.
+          ndb_client (google.cloud.ndb.Client): used when there isn't already
+            an ndb context active
+          ndb_context_kwargs (dict): optional, used when creating a new ndb context
         """
         super().__init__()
         self.ndb_client = ndb_client
+        self.ndb_context_kwargs = ndb_context_kwargs or {}
 
     def ndb_context(fn):
         @wraps(fn)
         def decorated(self, *args, **kwargs):
             ctx = context.get_context(raise_context_error=False)
 
-            with ctx.use() if ctx else self.ndb_client.context():
+            with ctx.use() if ctx else self.ndb_client.context(**self.ndb_context_kwargs):
                 ret = fn(self, *args, **kwargs)
 
             return ret
@@ -541,7 +543,7 @@ class DatastoreStorage(Storage):
 
         while True:
             ctx = context.get_context(raise_context_error=False)
-            with ctx.use() if ctx else self.ndb_client.context():
+            with ctx.use() if ctx else self.ndb_client.context(**self.ndb_context_kwargs):
                 # lexrpc event subscription handlers like subscribeRepos call this
                 # on a different thread, so if we're there, we need to create a new
                 # ndb context

@@ -103,6 +103,8 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 
 _Breaking changes:_
 
+* `datastore_storage`:
+  * `DatastoreStorage`: add new `ndb_context_kwargs` constructor kwarg.
 * `repo`:
   * `apply_commit`, `apply_writes`: raise an exception if the repo is inactive.
 * `storage`:
