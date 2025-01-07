@@ -1,5 +1,6 @@
 """Unit tests for datastore_storage.py."""
 import os
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from google.cloud import ndb
@@ -372,6 +373,22 @@ class DatastoreStorageTest(DatastoreTest):
         got = AtpRemoteBlob.get_or_create(url='http://my/blob.png')
         self.assertEqual(blob, got)
         mock_get.assert_not_called()
+
+    def test_create_remote_blob_image_aspect_ratio(self):
+        image_bytes = Path(__file__).with_name('keyboard.png').read_bytes()
+        cid = CID.decode('bafkreicjoxic5d37v2ae3wfxkjgxtvx5hsp4ejjemaog322z5dvm7kgtvq')
+        mock_get = MagicMock(return_value=requests_response(image_bytes))
+
+        blob = AtpRemoteBlob.get_or_create(url='http://my/blob.png', get_fn=mock_get)
+        mock_get.assert_called_with('http://my/blob.png', stream=True)
+        self.assertEqual({
+            '$type': 'blob',
+            'ref': cid,
+            'mimeType': 'image/png',
+            'size': 9003,
+        }, blob.as_object())
+        self.assertEqual(21, blob.width)
+        self.assertEqual(12, blob.height)
 
     def test_create_remote_blob_default_mime_type(self):
         mock_get = MagicMock(return_value=requests_response('blob contents'))

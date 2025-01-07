@@ -54,13 +54,18 @@ def requests_response(body, status=200, headers=None):
     if isinstance(body, (dict, list)):
         resp.headers['content-type'] = 'application/json'
         resp._text = json.dumps(body, indent=2)
-    else:
+        resp._content = resp._text.encode()
+    elif isinstance(body, str):
         resp._text = body
+        resp._content = resp._text.encode()
+    elif isinstance(body, bytes):
+        resp._content = body
+    else:
+        assert False, f'unknown type for body: {type(body)}'
 
     if headers:
         resp.headers.update(headers)
 
-    resp._content = resp._text.encode()
     resp.encoding = 'utf-8'
     resp.status_code = status
     return resp

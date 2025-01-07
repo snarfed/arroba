@@ -1,6 +1,7 @@
 """Google Cloud Datastore implementation of repo storage."""
 from datetime import timezone
 from functools import wraps
+from io import BytesIO
 import json
 import logging
 import mimetypes
@@ -15,6 +16,7 @@ from google.cloud.ndb import context
 from google.cloud.ndb.exceptions import ContextError
 from lexrpc import ValidationError
 from multiformats import CID, multicodec, multihash
+from PIL import Image, UnidentifiedImageError
 
 from .mst import MST
 from .repo import Repo
@@ -298,6 +300,11 @@ class AtpRemoteBlob(ndb.Model):
     size = ndb.IntegerProperty(required=True)
     mime_type = ndb.StringProperty(required=True, default='application/octet-stream')
 
+    # only populated if mime_type is image/*
+    # used in images.aspectRatio in app.bsky.embed.images
+    width = ndb.IntegerProperty()
+    height = ndb.IntegerProperty()
+
     created = ndb.DateTimeProperty(auto_now_add=True)
     updated = ndb.DateTimeProperty(auto_now=True)
 
@@ -368,6 +375,14 @@ class AtpRemoteBlob(ndb.Model):
         blob = cls(id=url, cid=cid, size=len(resp.content))
         if mime_type:
             blob.mime_type = mime_type
+
+        if mime_type and mime_type.startswith('image/'):
+            try:
+                with Image.open(BytesIO(resp.content)) as image:
+                    blob.width, blob.height = image.size
+            except UnidentifiedImageError as e:
+                logger.info(e)
+
         blob.put()
 
         # re-validate size in case the server didn't give us Content-Length.

@@ -103,8 +103,6 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 
 _Breaking changes:_
 
-* `datastore_storage`:
-  * `DatastoreStorage`: add new `ndb_context_kwargs` constructor kwarg.
 * `repo`:
   * `apply_commit`, `apply_writes`: raise an exception if the repo is inactive.
 * `storage`:
@@ -114,8 +112,12 @@ _Breaking changes:_
 
 _Non-breaking changes:_
 * `datastore_storage`:
-  * `apply_commit`: handle deactivated repos.
-  * `create_repo`: propagate `Repo.status` into `AtpRepo`.
+  * `DatastoreStorage`:
+    * Add new `ndb_context_kwargs` constructor kwarg.
+    * `apply_commit`: handle deactivated repos.
+    * `create_repo`: propagate `Repo.status` into `AtpRepo`.
+  * `AtpRemoteBlob`:
+    * Add `width` and `height` properties, populated for images, to be used in image embed `aspectRatio` ([snarfed/bridgy-fed#1571](https://github.com/snarfed/bridgy-fed/issues/1571)).
 
 
 ### 0.7 - 2024-11-08
