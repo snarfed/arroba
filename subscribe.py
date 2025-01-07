@@ -18,7 +18,7 @@ from lexrpc.client import Client
 
 if __name__ == '__main__':
     assert len(sys.argv) <= 3
-    host = sys.argv[1] if len(sys.argv) >= 2 else 'bgs.bsky-sandbox.dev'
+    host = sys.argv[1] if len(sys.argv) >= 2 else 'bsky.network'
     scheme = 'http' if host.split(':')[0] == 'localhost' else 'https'
     client = Client(f'{scheme}://{host}')
     kwargs = {'cursor': sys.argv[2]} if len(sys.argv) == 3 else {}
@@ -33,9 +33,11 @@ if __name__ == '__main__':
         if blocks:
             blocks = {block.cid: block for block in blocks}
             for op in payload.get('ops', []):
-                record = blocks[op['cid']].decoded if op['cid'] else ''
+                record = ''
+                if block := blocks.get(op['cid']):
+                    record = block.decoded
                 print('    ', op['action'], op['path'], record,
                       file=sys.stdout, flush=True)
 
         print()
-        # break
+        break
