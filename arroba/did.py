@@ -44,6 +44,9 @@ CACHE_TTL = timedelta(hours=6)
 HANDLE_RE = re.compile(
     r'^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$')
 
+# used as get_fn below. wrap so that we can mock requests.get in tests
+requests_get = lambda *args, **kwargs: requests.get(*args, **kwargs)
+
 
 def resolve(did, **kwargs):
     """Resolves a ``did:plc`` or ``did:web``.
@@ -69,7 +72,7 @@ def resolve(did, **kwargs):
 
 
 @cached(TTLCache(maxsize=CACHE_SIZE, ttl=CACHE_TTL.total_seconds()))
-def resolve_plc(did, get_fn=requests.get):
+def resolve_plc(did, get_fn=requests_get):
     """Resolves a ``did:plc`` by fetching its DID document from a PLC directory.
 
     The PLC directory hostname is specified in the ``PLC_HOST`` environment
@@ -90,7 +93,6 @@ def resolve_plc(did, get_fn=requests.get):
     Raises:
       ValueError: if the input did is not a ``did:plc`` str
       requests.RequestException: if the HTTP request fails
-
     """
     if not isinstance(did, str) or not did.startswith('did:plc:'):
         raise ValueError(f'{did} is not a did:plc')
@@ -121,7 +123,7 @@ def update_plc(did, **kwargs):
     # get CID of previous head operation for this DID from the directory
     # response is a JSON list with operations from earliest to latest
     # https://github.com/did-method-plc/did-method-plc#audit-logs
-    get_fn = kwargs.get('get_fn') or requests.get
+    get_fn = kwargs.get('get_fn') or requests_get
     resp = get_fn(f'https://{os.environ["PLC_HOST"]}/{did}/log/audit')
     last_op = resp.json()[-1]
 
@@ -139,7 +141,7 @@ def update_plc(did, **kwargs):
 
 def write_plc(did=None, handle=None, signing_key=None, rotation_key=None,
               pds_url=None, also_known_as=None, prev=None,
-              get_fn=requests.get, post_fn=requests.post):
+              get_fn=requests_get, post_fn=requests.post):
     """Writes a PLC operation to a PLC directory.
 
     Generally used to create a new ``did:plc`` or update an existing one.
@@ -337,7 +339,7 @@ def plc_operation_to_did_doc(op):
 
 
 @cached(TTLCache(maxsize=CACHE_SIZE, ttl=CACHE_TTL.total_seconds()))
-def resolve_web(did, get_fn=requests.get):
+def resolve_web(did, get_fn=requests_get):
     """Resolves a ``did:web`` by fetching its DID document.
 
     ``did:web`` spec: https://w3c-ccg.github.io/did-method-web/
@@ -368,7 +370,7 @@ def resolve_web(did, get_fn=requests.get):
 
 
 @cached(TTLCache(maxsize=CACHE_SIZE, ttl=CACHE_TTL.total_seconds()))
-def resolve_handle(handle, get_fn=requests.get):
+def resolve_handle(handle, get_fn=requests_get):
     """Resolves an ATProto handle to a DID.
 
     Supports the DNS TXT record and HTTPS well-known methods.

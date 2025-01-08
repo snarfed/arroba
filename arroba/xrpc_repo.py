@@ -7,8 +7,9 @@ import os
 import dag_json
 from flask import abort, make_response
 from lexrpc import Client
-from requests import HTTPError
+from requests import HTTPError, RequestException
 
+from . import did
 from .repo import Repo, Write
 from . import server
 from .storage import Action
@@ -172,15 +173,25 @@ def put_record(input):
 def describe_repo(input, repo=None):
     """Handler for ``com.atproto.repo.describeRepo`` XRPC method."""
     validate(input, repo=repo)
+
     repo = server.load_repo(input['repo'])
+
+    try:
+        did_doc = did.resolve(repo.did)
+    except (ConnectionError, OSError, RequestException, TimeoutError) as e:
+        raise ValueError(f"Couldn't resolve {repo.did}")
 
     return {
         'did': repo.did,
         'handle': repo.handle,
-        'didDoc': {'TODO': 'TODO'},
+        'didDoc': did_doc,
         'collections': [
             'app.bsky.actor.profile',
-            'TODO',
+            'app.bsky.feed.post',
+            'app.bsky.graph.block',
+            'app.bsky.graph.follow',
+            'app.bsky.feed.like',
+            'app.bsky.feed.repost',
         ],
         'handleIsCorrect': True,
     }

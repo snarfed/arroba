@@ -118,6 +118,8 @@ _Non-breaking changes:_
     * `create_repo`: propagate `Repo.status` into `AtpRepo`.
   * `AtpRemoteBlob`:
     * Add `width` and `height` properties, populated for images, to be used in image embed `aspectRatio` ([snarfed/bridgy-fed#1571](https://github.com/snarfed/bridgy-fed/issues/1571)).
+* `xrpc_repo`:
+  * `describe_server`: include all `app.bsky` collections, fetch and include DID doc.
 
 
 ### 0.7 - 2024-11-08

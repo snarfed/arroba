@@ -9,17 +9,19 @@ import os
 from urllib.parse import urlencode
 from unittest.mock import patch
 
-from arroba import xrpc_repo
 from flask import request
 from multiformats import CID
+import requests
 from werkzeug.exceptions import HTTPException
 
+from .. import did
 from ..datastore_storage import DatastoreStorage
 from ..repo import Repo, Write
 from .. import server
 from ..storage import Action
 from .. import util
 from . import testutil
+from .. import xrpc_repo
 
 CID1 = CID.decode('bafyreiblaotetvwobe7cu2uqvnddr6ew2q3cu75qsoweulzku2egca4dxq')
 CID2 = CID.decode('bafyreie7xn4ec3mhapvf7gefkxo7ktko5xkdijm7l7qn54tk3hda633wxy')
@@ -33,13 +35,35 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         tid = util.int_to_tid(util._tid_ts_last)
         return f'at://did:web:user.com/app.bsky.feed.post/{tid}'
 
-    def test_describe_repo(self):
+    @patch('requests.get', return_value=testutil.requests_response({'foo': 'bar'}))
+    def test_describe_repo(self, _):
         with self.assertRaises(ValueError):
             xrpc_repo.describe_repo({}, repo='unknown')
 
         resp = xrpc_repo.describe_repo({}, repo='did:web:user.com')
-        self.assertEqual('did:web:user.com', resp['did'])
-        self.assertEqual('han.dull', resp['handle'])
+        self.assertEqual({
+            'did': 'did:web:user.com',
+            'handle': 'han.dull',
+            'didDoc': {
+                'foo': 'bar',
+            },
+            'collections': [
+                'app.bsky.actor.profile',
+                'app.bsky.feed.post',
+                'app.bsky.graph.block',
+                'app.bsky.graph.follow',
+                'app.bsky.feed.like',
+                'app.bsky.feed.repost',
+            ],
+            'handleIsCorrect': True,
+        }, resp)
+
+    @patch('requests.get', return_value=testutil.requests_response('', status=500))
+    def test_describe_repo_did_doc_fetch_error(self, _):
+        with self.assertRaises(ValueError) as e:
+            resp = xrpc_repo.describe_repo({}, repo='did:web:user.com')
+
+        self.assertEqual("Couldn't resolve did:web:user.com", str(e.exception))
 
     # based on atproto/packages/pds/tests/crud.test.ts
     def test_create_record(self):
