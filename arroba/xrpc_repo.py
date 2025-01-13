@@ -187,11 +187,12 @@ def describe_repo(input, repo=None):
         'didDoc': did_doc,
         'collections': [
             'app.bsky.actor.profile',
+            'app.bsky.feed.like',
             'app.bsky.feed.post',
+            'app.bsky.feed.repost',
             'app.bsky.graph.block',
             'app.bsky.graph.follow',
-            'app.bsky.feed.like',
-            'app.bsky.feed.repost',
+            'chat.bsky.actor.declaration',
         ],
         'handleIsCorrect': True,
     }
