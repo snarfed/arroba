@@ -16,7 +16,7 @@ from google.cloud.ndb import context
 from google.cloud.ndb.exceptions import ContextError
 from lexrpc import ValidationError
 from multiformats import CID, multicodec, multihash
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
 
 from .mst import MST
 from .repo import Repo
@@ -380,7 +380,7 @@ class AtpRemoteBlob(ndb.Model):
             try:
                 with Image.open(BytesIO(resp.content)) as image:
                     blob.width, blob.height = image.size
-            except UnidentifiedImageError as e:
+            except (OSError, RuntimeError, Image.DecompressionBombError) as e:
                 logger.info(e)
 
         blob.put()
