@@ -15,3 +15,6 @@ python:
         extra_requirements:
           - datastore
       - requirements: docs/requirements.txt
+
+sphinx:
+  configuration: docs/conf.py
