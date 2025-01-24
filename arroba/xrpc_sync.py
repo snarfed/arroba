@@ -25,6 +25,8 @@ logger = logging.getLogger(__name__)
 NEW_EVENTS_TIMEOUT = timedelta(seconds=20)
 new_events = Condition()
 
+GET_BLOB_CACHE_CONTROL = {'Cache-Control': 'public, max-age=3600'}  # 1 hour
+
 
 @server.server.method('com.atproto.sync.getCheckout')
 def get_checkout(input, did=None):
@@ -293,7 +295,7 @@ def get_blob(input, did=None, cid=None):
     """
     blob = AtpRemoteBlob.query(AtpRemoteBlob.cid == cid).get()
     if blob:
-        raise Redirect(to=blob.key.id(), status=301)
+        raise Redirect(to=blob.key.id(), status=301, headers=GET_BLOB_CACHE_CONTROL)
 
     raise ValueError(f'No blob found for CID {cid}')
 

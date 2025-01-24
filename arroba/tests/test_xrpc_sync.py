@@ -900,6 +900,7 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
 
         self.assertEqual(301, r.exception.status)
         self.assertEqual('http://blob', r.exception.to)
+        self.assertIn('Cache-Control', r.exception.headers)
 
     def test_get_blob_missing(self):
         with self.assertRaises(ValueError):

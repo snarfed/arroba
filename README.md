@@ -120,6 +120,8 @@ _Non-breaking changes:_
     * Add `width` and `height` properties, populated for images, to be used in image embed `aspectRatio` ([snarfed/bridgy-fed#1571](https://github.com/snarfed/bridgy-fed/issues/1571)).
 * `xrpc_repo`:
     * `describe_server`: include all `app.bsky` collections and others like `chat.bsky.actor.declaration`; fetch and include DID doc.
+* `xrpc_sync`:
+  * `get_blob`: add HTTP `Cache-Control` to cache for 1h.
 
 
 ### 0.7 - 2024-11-08
