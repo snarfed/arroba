@@ -903,8 +903,10 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
         self.assertIn('Cache-Control', r.exception.headers)
 
     def test_get_blob_missing(self):
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ValueError) as e:
             resp = xrpc_sync.get_blob({}, did='did:web:user.com', cid='nope')
+
+        self.assertIn('Cache-Control', e.exception.headers)
 
 
 @patch('arroba.datastore_storage.AtpBlock.created._now',

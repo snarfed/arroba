@@ -297,7 +297,9 @@ def get_blob(input, did=None, cid=None):
     if blob:
         raise Redirect(to=blob.key.id(), status=301, headers=GET_BLOB_CACHE_CONTROL)
 
-    raise ValueError(f'No blob found for CID {cid}')
+    err = ValueError(f'No blob found for CID {cid}')
+    err.headers = GET_BLOB_CACHE_CONTROL
+    raise err
 
 
 # @server.server.method('com.atproto.sync.listBlobs')
