@@ -248,7 +248,7 @@ class AtpSequence(ndb.Model):
     updated = ndb.DateTimeProperty(auto_now=True)
 
     @classmethod
-    @ndb.transactional()
+    @ndb.transactional(retries=10)
     def allocate(cls, nsid):
         """Returns the next sequence number for a given NSID.
 
