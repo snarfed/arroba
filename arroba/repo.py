@@ -301,13 +301,6 @@ class Repo:
             block.repo = repo_did
         commit_blocks.update(unstored_blocks)
 
-        # ensure we're not missing any blocks that were removed and then
-        # re-added in this commit
-        diff = Diff.of(mst, orig_mst)
-        missing = diff.new_cids - commit_blocks.keys()
-        if missing:
-            commit_blocks.update(storage.read_many(missing))
-
         commit = util.sign({
             'did': repo_did,
             'version': 3,
