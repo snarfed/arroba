@@ -117,6 +117,7 @@ _Non-breaking changes:_
     * `apply_commit`: handle deactivated repos.
     * `create_repo`: propagate `Repo.status` into `AtpRepo`.
   * `AtpRemoteBlob`:
+    * `get_or_create`: drop datastore transaction.
     * Add `width` and `height` properties, populated for images, to be used in image embed `aspectRatio` ([snarfed/bridgy-fed#1571](https://github.com/snarfed/bridgy-fed/issues/1571)).
 * `xrpc_repo`:
     * `describe_server`: include all `app.bsky` collections and others like `chat.bsky.actor.declaration`; fetch and include DID doc.

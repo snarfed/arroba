@@ -309,7 +309,6 @@ class AtpRemoteBlob(ndb.Model):
     updated = ndb.DateTimeProperty(auto_now=True)
 
     @classmethod
-    @ndb.transactional()
     def get_or_create(cls, *, url=None, get_fn=requests.get, max_size=None,
                       accept_types=None, name=''):
         """Returns a new or existing :class:`AtpRemoteBlob` for a given URL.
