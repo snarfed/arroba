@@ -6,14 +6,19 @@ import json
 
 import dag_cbor
 import dag_cbor.random
+from google.cloud import ndb
 from multiformats import CID, varint
 
 from ..diff import Change, Diff, null_diff
 from ..mst import MST
-from ..storage import MemoryStorage, Block
+from ..storage import MemoryStorage, Block, Storage
+from ..datastore_storage import AtpBlock, AtpRepo, DatastoreStorage
 from . import testutil
 
-class MSTSuiteTest(testutil.TestCase):
+
+class MSTSuiteTest:
+    """Abstract base class. Concrete subclasses are below, one for each storage."""
+    STORAGE_CLASS = None
 
     def setUp(self):
         super().setUp()
@@ -42,12 +47,15 @@ class MSTSuiteTest(testutil.TestCase):
             blocks.append((CID.decode(block[:36]), block[36:]))
         return car_header["roots"][0], blocks
 
-    def populate_storage_from_car(self, storage: MemoryStorage, car_path: str) -> CID:
+    def populate_storage_from_car(self, storage: Storage, car_path: str) -> CID:
         with open(self.test_suite_base + car_path, "rb") as carfile:
             root, blocks = self.parse_car(carfile)
-            for cid, value in blocks:
-                storage.blocks[cid] = Block(cid=cid, encoded=value)
+            self.store_blocks(storage, blocks)
             return root
+
+    def store_blocks(self, storage: Storage, blocks: List[Tuple[CID, bytes]]):
+        """Abstract, implemented by subclasses."""
+        raise NotImplementedError()
 
     def serialise_canonical_car(self, root: CID, blocks: List[Tuple[CID, bytes]]) -> bytes:
         car = io.BytesIO()
@@ -60,7 +68,7 @@ class MSTSuiteTest(testutil.TestCase):
 
     def test_diffs(self):
         for testname, testcase in self.diff_testcases.items():
-            storage = MemoryStorage()
+            storage = self.STORAGE_CLASS()
             root_a = self.populate_storage_from_car(storage, testcase["inputs"]["mst_a"])
             root_b = self.populate_storage_from_car(storage, testcase["inputs"]["mst_b"])
             mst_a = MST.load(storage=storage, cid=root_a)
@@ -106,7 +114,7 @@ class MSTSuiteTest(testutil.TestCase):
         # we re-use the diff test cases but "backwards" - applying the op list
         # to the initial MST see if we end up at the correct final MST
         for testname, testcase in self.diff_testcases.items():
-            storage = MemoryStorage()
+            storage = self.STORAGE_CLASS()
             root_a = self.populate_storage_from_car(storage, testcase["inputs"]["mst_a"])
             mst = MST.load(storage=storage, cid=root_a)
 
@@ -130,3 +138,20 @@ class MSTSuiteTest(testutil.TestCase):
                 self.assertEqual(root_b, reference_root) # fails occasionally
             with self.subTest(testcase["description"] + " (inverse): new cid set"):
                 self.assertEqual(diff.new_cids, reference_cid_set) # basically always fails, I think I'm doing something wrong
+
+
+class MemoryMSTSuiteTest(MSTSuiteTest, testutil.TestCase):
+    STORAGE_CLASS = MemoryStorage
+
+    def store_blocks(self, storage: Storage, blocks: List[Tuple[CID, bytes]]):
+        for cid, value in blocks:
+            storage.blocks[cid] = Block(cid=cid, encoded=value)
+
+
+class DatastoreMSTSuiteTest(MSTSuiteTest, testutil.DatastoreTest):
+    STORAGE_CLASS = DatastoreStorage
+
+    def store_blocks(self, storage: Storage, blocks: List[Tuple[CID, bytes]]):
+        ndb.put_multi(AtpBlock(id=cid.encode('base32'), encoded=value, seq=0,
+                               repo=AtpRepo(id='unused').key)
+                      for cid, value in blocks)
