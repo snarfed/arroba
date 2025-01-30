@@ -113,7 +113,7 @@ def create_plc(handle, **kwargs):
 
 
 def update_plc(did, **kwargs):
-    """Creates a new ``did:plc`` in a PLC directory.
+    """Updates an existing ``did:plc`` in a PLC directory.
 
     Args are documented in :func:`write_plc`.
     """
