@@ -102,7 +102,7 @@ def send_events():
 
 @server.server.method('com.atproto.sync.subscribeRepos')
 def subscribe_repos(cursor=None):
-    """Firehose event stream XRPC (ie ``type: subscription``\) for all new commits.
+    """Firehose event stream XRPC (ie ``type: subscription``) for all new commits.
 
     Event stream details: https://atproto.com/specs/event-stream#framing
 

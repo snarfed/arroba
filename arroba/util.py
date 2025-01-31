@@ -372,7 +372,7 @@ def service_jwt(host, repo_did, privkey, expiration=timedelta(minutes=10),
       privkey (ec.EllipticCurvePrivateKey): repo's signing key
       expiration (timedelta): length of time this JWT will be valid, defaults to 10m
       aud (str): JWT audience. Default is ``did:web:[host]``, which works for relays
-        and AppViews, but others (eg mod services) have ``did:plc``\s instead.
+        and AppViews, but others (eg mod services) have ``did:plc`` instead.
       claims (dict): additional claims to include in the JWT, eg ``lxm``
 
     Returns:

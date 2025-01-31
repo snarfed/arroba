@@ -396,7 +396,7 @@ class AtpRemoteBlob(ndb.Model):
         https://atproto.com/specs/data-model#blob-type
 
         Returns:
-          dict: with ``$type: blob`` and ``ref``, ``mimeType``, and ``size` fields
+          dict: with ``$type: blob`` and ``ref``, ``mimeType``, and ``size`` fields
         """
         return {
             '$type': 'blob',
