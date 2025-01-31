@@ -24,12 +24,12 @@ License: This project is placed in the public domain. You may also use
 it under the `CC0
 License <https://creativecommons.org/publicdomain/zero/1.0/>`__.
 
--  `Usage <#usage>`__
--  `Overview <#overview>`__
--  `Configuration <#configuration>`__
--  `Docs <https://arroba.readthedocs.io/>`__
--  `Changelog <#changelog>`__
--  `Release instructions <#release-instructions>`__
+- `Usage <#usage>`__
+- `Overview <#overview>`__
+- `Configuration <#configuration>`__
+- `Docs <https://arroba.readthedocs.io/>`__
+- `Changelog <#changelog>`__
+- `Release instructions <#release-instructions>`__
 
 Usage
 -----
@@ -74,57 +74,57 @@ Overview
 
 Arroba consists of these parts:
 
--  **Data structures**:
+- **Data structures**:
 
-   -  `Repo <https://arroba.readthedocs.io/en/stable/source/arroba.html#arroba.repo.Repo>`__
-   -  `MST <https://arroba.readthedocs.io/en/stable/source/arroba.html#arroba.mst.MST>`__
-      (Merkle search tree)
+  - `Repo <https://arroba.readthedocs.io/en/stable/source/arroba.html#arroba.repo.Repo>`__
+  - `MST <https://arroba.readthedocs.io/en/stable/source/arroba.html#arroba.mst.MST>`__
+    (Merkle search tree)
 
--  **Storage**:
+- **Storage**:
 
-   -  `Storage <https://arroba.readthedocs.io/en/stable/source/arroba.html#arroba.storage.Storage>`__
-      abstract base class
-   -  `DatastoreStorage <https://arroba.readthedocs.io/en/stable/source/arroba.html#arroba.datastore_storage.DatastoreStorage>`__
-      (uses `Google Cloud
-      Datastore <https://cloud.google.com/datastore/docs/>`__)
-   -  `TODO: filesystem
-      storage <https://github.com/snarfed/arroba/issues/5>`__
+  - `Storage <https://arroba.readthedocs.io/en/stable/source/arroba.html#arroba.storage.Storage>`__
+    abstract base class
+  - `DatastoreStorage <https://arroba.readthedocs.io/en/stable/source/arroba.html#arroba.datastore_storage.DatastoreStorage>`__
+    (uses `Google Cloud
+    Datastore <https://cloud.google.com/datastore/docs/>`__)
+  - `TODO: filesystem
+    storage <https://github.com/snarfed/arroba/issues/5>`__
 
--  **XRPC handlers**:
+- **XRPC handlers**:
 
-   -  `com.atproto.repo <https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_repo>`__
-   -  `com.atproto.server <https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_server>`__
-   -  `com.atproto.sync <https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_sync>`__
+  - `com.atproto.repo <https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_repo>`__
+  - `com.atproto.server <https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_server>`__
+  - `com.atproto.sync <https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_sync>`__
 
--  **Utilities**:
+- **Utilities**:
 
-   -  `did <https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.did>`__:
-      create and resolve
-      `did:plc <https://atproto.com/specs/did-plc>`__\ s,
-      `did:web <https://w3c-ccg.github.io/did-method-web/>`__\ s,
-      and `domain handles <https://atproto.com/specs/handle>`__
-   -  `diff <https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.diff>`__:
-      find the deterministic minimal difference between two
-      `MST <https://arroba.readthedocs.io/en/stable/source/arroba.html#arroba.mst.MST>`__\ s
-   -  `util <https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.util>`__:
-      miscellaneous utilities for
-      `TIDs <https://atproto.com/specs/record-key#record-key-type-tid>`__,
-      `AT URIs <https://atproto.com/specs/at-uri-scheme>`__, `signing
-      and verifying
-      signatures <https://atproto.com/specs/repository#commit-objects>`__,
-      `generating
-      JWTs <https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification>`__,
-      encoding/decoding, and more
+  - `did <https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.did>`__:
+    create and resolve
+    `did:plc <https://atproto.com/specs/did-plc>`__\ s,
+    `did:web <https://w3c-ccg.github.io/did-method-web/>`__\ s, and
+    `domain handles <https://atproto.com/specs/handle>`__
+  - `diff <https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.diff>`__:
+    find the deterministic minimal difference between two
+    `MST <https://arroba.readthedocs.io/en/stable/source/arroba.html#arroba.mst.MST>`__\ s
+  - `util <https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.util>`__:
+    miscellaneous utilities for
+    `TIDs <https://atproto.com/specs/record-key#record-key-type-tid>`__,
+    `AT URIs <https://atproto.com/specs/at-uri-scheme>`__, `signing and
+    verifying
+    signatures <https://atproto.com/specs/repository#commit-objects>`__,
+    `generating
+    JWTs <https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification>`__,
+    encoding/decoding, and more
 
 Configuration
 -------------
 
 Configure arroba with these environment variables:
 
--  ``APPVIEW_HOST``, default ``api.bsky-sandbox.dev``
--  ``RELAY_HOST``, default ``bgs.bsky-sandbox.dev``
--  ``PLC_HOST``, default ``plc.bsky-sandbox.dev``
--  ``PDS_HOST``, where you’re running your PDS
+- ``APPVIEW_HOST``, default ``api.bsky-sandbox.dev``
+- ``RELAY_HOST``, default ``bgs.bsky-sandbox.dev``
+- ``PLC_HOST``, default ``plc.bsky-sandbox.dev``
+- ``PDS_HOST``, where you’re running your PDS
 
 Optional, only used in
 `com.atproto.repo <https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_repo>`__,
@@ -133,17 +133,17 @@ and
 `.sync <https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_sync>`__
 XRPC handlers:
 
--  ``REPO_TOKEN``, static token to use as both ``accessJwt`` and
-   ``refreshJwt``, defaults to contents of ``repo_token`` file. Not
-   required to be an actual JWT. If not set, XRPC methods that require
-   auth will return HTTP 501 Not Implemented.
--  ``ROLLBACK_WINDOW``, number of events to serve in the
-   `subscribeRepos`` rollback
-   window <https://atproto.com/specs/event-stream#sequence-numbers>`__,
-   as an integer. Defaults to no limit.
--  ``SUBSCRIBE_REPOS_BATCH_DELAY``, minimum time to wait between
-   datastore queries in ``com.atproto.sync.subscribeRepos``, in seconds,
-   as a float. Defaults to 0 if unset.
+- ``REPO_TOKEN``, static token to use as both ``accessJwt`` and
+  ``refreshJwt``, defaults to contents of ``repo_token`` file. Not
+  required to be an actual JWT. If not set, XRPC methods that require
+  auth will return HTTP 501 Not Implemented.
+- ``ROLLBACK_WINDOW``, number of events to serve in the
+  `subscribeRepos`` rollback
+  window <https://atproto.com/specs/event-stream#sequence-numbers>`__,
+  as an integer. Defaults to no limit.
+- ``SUBSCRIBE_REPOS_BATCH_DELAY``, minimum time to wait between
+  datastore queries in ``com.atproto.sync.subscribeRepos``, in seconds,
+  as a float. Defaults to 0 if unset.
 
 .. raw:: html
 
@@ -157,65 +157,96 @@ XRPC handlers:
 Changelog
 ---------
 
+0.8 - unreleased
+~~~~~~~~~~~~~~~~
+
+*Breaking changes:*
+
+- ``repo``:
+
+  - ``apply_commit``, ``apply_writes``: raise an exception if the repo
+    is inactive.
+
+- ``storage``:
+
+  - ``load_repo``: don’t raise an exception if the repo is tombstoned.
+
+- ``util``:
+
+  - Rename ``TombstonedRepo`` to ``InactiveRepo``.
+
+*Non-breaking changes:* \* ``datastore_storage``: \*
+``DatastoreStorage``: \* Add new ``ndb_context_kwargs`` constructor
+kwarg. \* ``apply_commit``: handle deactivated repos. \*
+``create_repo``: propagate ``Repo.status`` into ``AtpRepo``. \*
+``AtpRemoteBlob``: \* ``get_or_create``: drop datastore transaction. \*
+Add ``width`` and ``height`` properties, populated for images, to be
+used in image embed ``aspectRatio``
+(`snarfed/bridgy-fed#1571 <https://github.com/snarfed/bridgy-fed/issues/1571>`__).
+\* ``xrpc_repo``: \* ``describe_server``: include all ``app.bsky``
+collections and others like ``chat.bsky.actor.declaration``; fetch and
+include DID doc. \* ``xrpc_sync``: \* ``get_blob``: add HTTP
+``Cache-Control`` to cache for 1h.
+
 0.7 - 2024-11-08
 ~~~~~~~~~~~~~~~~
 
 *Breaking changes:*
 
--  Add much more lexicon schema validation for records and XRPC method
-   input, output, and parameters.
--  ``storage``:
+- Add much more lexicon schema validation for records and XRPC method
+  input, output, and parameters.
+- ``storage``:
 
-   -  Switch ``Storage.write`` to return ``Block`` instead of ``CID``.
+  - Switch ``Storage.write`` to return ``Block`` instead of ``CID``.
 
 *Non-breaking changes:*
 
--  ``did``:
+- ``did``:
 
-   -  Add new ``update_plc`` method.
-   -  ``create_plc``: add new ``also_known_as`` kwarg.
-   -  ``resolve_handle``: drop ``Content-Type: text/plain`` requirement
-      for HTTPS method.
+  - Add new ``update_plc`` method.
+  - ``create_plc``: add new ``also_known_as`` kwarg.
+  - ``resolve_handle``: drop ``Content-Type: text/plain`` requirement
+    for HTTPS method.
 
--  ``mst``:
+- ``mst``:
 
-   -  Add new optional ``start`` kwarg to ``load_all``.
+  - Add new optional ``start`` kwarg to ``load_all``.
 
--  ``repo``:
+- ``repo``:
 
-   -  `Emit new #identity and #account
-      events <https://github.com/snarfed/bridgy-fed/issues/1119>`__ to
-      ``subscribeRepos`` when creating new repos.
+  - `Emit new #identity and #account
+    events <https://github.com/snarfed/bridgy-fed/issues/1119>`__ to
+    ``subscribeRepos`` when creating new repos.
 
--  ``storage``:
+- ``storage``:
 
-   -  Add new ``deactivate_repo``, ``activate_repo``, and
-      ``write_event`` methods.
-   -  Add new optional ``repo`` kwarg to ``read_blocks_by_seq`` and
-      ``read_events_by_seq`` to limit returned results to a single repo.
+  - Add new ``deactivate_repo``, ``activate_repo``, and ``write_event``
+    methods.
+  - Add new optional ``repo`` kwarg to ``read_blocks_by_seq`` and
+    ``read_events_by_seq`` to limit returned results to a single repo.
 
--  ``datastore_storage``:
+- ``datastore_storage``:
 
-   -  Add new ``max_size`` and ``accept_types`` kwarg to
-      ``AtpRemoteBlob.get_or_create`` for the blob’s ``maxSize`` and
-      ``accept`` parameters in its lexicon. If the fetched file doesn’t
-      satisfy those constraints, raises ``lexrpc.ValidationError.``
-   -  ``DatastoreStorage.read_blocks_by_seq``: use strong consistency
-      for datastore query. May fix occasional ``AssertionError`` when
-      serving ``subscribeRepos``.
+  - Add new ``max_size`` and ``accept_types`` kwarg to
+    ``AtpRemoteBlob.get_or_create`` for the blob’s ``maxSize`` and
+    ``accept`` parameters in its lexicon. If the fetched file doesn’t
+    satisfy those constraints, raises ``lexrpc.ValidationError.``
+  - ``DatastoreStorage.read_blocks_by_seq``: use strong consistency for
+    datastore query. May fix occasional ``AssertionError`` when serving
+    ``subscribeRepos``.
 
--  ``xrpc_sync``:
+- ``xrpc_sync``:
 
-   -  Switch ``getBlob`` from returning HTTP 302 to 301.
-   -  Implement ``since`` param in ``getRepo``.
-   -  ``subscribeRepos``: wait up to 60s on a skipped sequence number
-      before giving up and emitting it as a gap.
+  - Switch ``getBlob`` from returning HTTP 302 to 301.
+  - Implement ``since`` param in ``getRepo``.
+  - ``subscribeRepos``: wait up to 60s on a skipped sequence number
+    before giving up and emitting it as a gap.
 
--  ``util``:
+- ``util``:
 
-   -  ``service_jwt``: add new ``**claims`` parameter for additional JWT
-      claims, eg
-      `lxm <https://github.com/bluesky-social/atproto/discussions/2687>`__.
+  - ``service_jwt``: add new ``**claims`` parameter for additional JWT
+    claims, eg
+    `lxm <https://github.com/bluesky-social/atproto/discussions/2687>`__.
 
 .. _section-1:
 
@@ -224,169 +255,167 @@ Changelog
 
 *Breaking changes:*
 
--  ``datastore_storage``:
+- ``datastore_storage``:
 
-   -  ``DatastoreStorage``: add new required ``ndb_client`` kwarg to
-      constructor, used to get new context in lexrpc websocket
-      subscription handlers that run server methods like
-      ``subscribeRepos`` in separate threads
-      (`snarfed/lexrpc#8 <https://github.com/snarfed/lexrpc/issues/8>`__).
-   -  ``DatastoreStorage.read_blocks_by_seq``: if the ndb context gets
-      closed while we’re still running, log a warning and return. (This
-      can happen in eg ``flask_server`` if the websocket client
-      disconnects early.)
-   -  ``AtpRemoteBlob``: if the blob URL doesn’t return the
-      ``Content-Type`` header, infer type from the URL, or fall back to
-      ``application/octet-stream``
-      (`bridgy-fed#1073 <https://github.com/snarfed/bridgy-fed/issues/1073>`__).
+  - ``DatastoreStorage``: add new required ``ndb_client`` kwarg to
+    constructor, used to get new context in lexrpc websocket
+    subscription handlers that run server methods like
+    ``subscribeRepos`` in separate threads
+    (`snarfed/lexrpc#8 <https://github.com/snarfed/lexrpc/issues/8>`__).
+  - ``DatastoreStorage.read_blocks_by_seq``: if the ndb context gets
+    closed while we’re still running, log a warning and return. (This
+    can happen in eg ``flask_server`` if the websocket client
+    disconnects early.)
+  - ``AtpRemoteBlob``: if the blob URL doesn’t return the
+    ``Content-Type`` header, infer type from the URL, or fall back to
+    ``application/octet-stream``
+    (`bridgy-fed#1073 <https://github.com/snarfed/bridgy-fed/issues/1073>`__).
 
--  ``did``:
+- ``did``:
 
-   -  Cache ``resolve_plc``, ``resolve_web``, and ``resolve_handle`` for
-      6h, up to 5000 total results per call.
+  - Cache ``resolve_plc``, ``resolve_web``, and ``resolve_handle`` for
+    6h, up to 5000 total results per call.
 
--  ``storage``: rename ``Storage.read_commits_by_seq`` to
-   ``read_events_by_seq`` for new account tombstone support.
--  ``xrpc_sync``: rename ``send_new_commits`` to ``send_events``, ditto.
--  ``xrpc_repo``: stop requiring auth for read methods: ``getRecord``,
-   ``listRecords``, ``describeRepo``.
+- ``storage``: rename ``Storage.read_commits_by_seq`` to
+  ``read_events_by_seq`` for new account tombstone support.
+- ``xrpc_sync``: rename ``send_new_commits`` to ``send_events``, ditto.
+- ``xrpc_repo``: stop requiring auth for read methods: ``getRecord``,
+  ``listRecords``, ``describeRepo``.
 
 *Non-breaking changes:*
 
--  ``did``:
+- ``did``:
 
-   -  Add ``HANDLE_RE`` regexp for handle validation.
+  - Add ``HANDLE_RE`` regexp for handle validation.
 
--  ``storage``:
+- ``storage``:
 
-   -  Add new ``Storage.tombstone_repo`` method, implemented in
-      ``MemoryStorage`` and ``DatastoreStorage``. `Used to delete
-      accounts. <https://github.com/bluesky-social/atproto/discussions/2503#discussioncomment-9502339>`__
-      (`bridgy-fed#783 <https://github.com/snarfed/bridgy-fed/issues/783>`__)
-   -  Add new ``Storage.load_repos`` method, implemented in
-      ``MemoryStorage`` and ``DatastoreStorage``. Used for
-      ``com.atproto.sync.listRepos``.
+  - Add new ``Storage.tombstone_repo`` method, implemented in
+    ``MemoryStorage`` and ``DatastoreStorage``. `Used to delete
+    accounts. <https://github.com/bluesky-social/atproto/discussions/2503#discussioncomment-9502339>`__
+    (`bridgy-fed#783 <https://github.com/snarfed/bridgy-fed/issues/783>`__)
+  - Add new ``Storage.load_repos`` method, implemented in
+    ``MemoryStorage`` and ``DatastoreStorage``. Used for
+    ``com.atproto.sync.listRepos``.
 
--  ``util``:
+- ``util``:
 
-   -  ``service_jwt``: add optional ``aud`` kwarg.
+  - ``service_jwt``: add optional ``aud`` kwarg.
 
--  ``xrpc_sync``:
+- ``xrpc_sync``:
 
-   -  ``subscribeRepos``:
+  - ``subscribeRepos``:
 
-      -  Add support for non-commit events, starting with account
-         tombstones.
-      -  Add ``ROLLBACK_WINDOW`` environment variable to limit size of
-         `rollback
-         window <https://atproto.com/specs/event-stream#sequence-numbers>`__.
-         Defaults to no limit.
-      -  For commits with create or update operations, always include
-         the record block, even if it already existed in the repo
-         beforehand
-         (`snarfed/bridgy-fed#1016 <https://github.com/snarfed/bridgy-fed/issues/1016>`__).
-      -  Bug fix, populate the time each commit was created in ``time``
-         instead of the current time
-         (`snarfed/bridgy-fed#1015 <https://github.com/snarfed/bridgy-fed/issues/1015>`__).
+    - Add support for non-commit events, starting with account
+      tombstones.
+    - Add ``ROLLBACK_WINDOW`` environment variable to limit size of
+      `rollback
+      window <https://atproto.com/specs/event-stream#sequence-numbers>`__.
+      Defaults to no limit.
+    - For commits with create or update operations, always include the
+      record block, even if it already existed in the repo beforehand
+      (`snarfed/bridgy-fed#1016 <https://github.com/snarfed/bridgy-fed/issues/1016>`__).
+    - Bug fix, populate the time each commit was created in ``time``
+      instead of the current time
+      (`snarfed/bridgy-fed#1015 <https://github.com/snarfed/bridgy-fed/issues/1015>`__).
 
-   -  Start serving ``getRepo`` queries with the ``since`` parameter.
-      ``since`` still isn’t actually implemented, but we now serve the
-      entire repo instead of returning an error.
-   -  Implement ``getRepoStatus`` method.
-   -  Implement ``listRepos`` method.
-   -  ``getRepo`` bug fix: include the repo head commit block.
+  - Start serving ``getRepo`` queries with the ``since`` parameter.
+    ``since`` still isn’t actually implemented, but we now serve the
+    entire repo instead of returning an error.
+  - Implement ``getRepoStatus`` method.
+  - Implement ``listRepos`` method.
+  - ``getRepo`` bug fix: include the repo head commit block.
 
--  ``xrpc_repo``:
+- ``xrpc_repo``:
 
-   -  ``getRecord``: encoded returned records correctly as
-      `ATProto-flavored
-      DAG-JSON <https://atproto.com/specs/data-model>`__.
+  - ``getRecord``: encoded returned records correctly as
+    `ATProto-flavored
+    DAG-JSON <https://atproto.com/specs/data-model>`__.
 
--  ``xrpc_*``: return ``RepoNotFound`` and ``RepoDeactivated`` errors
-   when appropriate
-   (`snarfed/bridgy-fed#1083 <https://github.com/snarfed/bridgy-fed/issues/1083>`__).
+- ``xrpc_*``: return ``RepoNotFound`` and ``RepoDeactivated`` errors
+  when appropriate
+  (`snarfed/bridgy-fed#1083 <https://github.com/snarfed/bridgy-fed/issues/1083>`__).
 
 .. _section-2:
 
 0.5 - 2024-03-16
 ~~~~~~~~~~~~~~~~
 
--  Bug fix: base32-encode TIDs in record keys, ``at://`` URIs, commit
-   ``rev``\ s, etc. Before, we were using the integer UNIX timestamp
-   directly, which happened to be the same 13 character length. Oops.
--  Switch from ``BGS_HOST`` environment variable to ``RELAY_HOST``.
-   ``BGS_HOST`` is still supported for backward compatibility.
--  ``datastore_storage``:
+- Bug fix: base32-encode TIDs in record keys, ``at://`` URIs, commit
+  ``rev``\ s, etc. Before, we were using the integer UNIX timestamp
+  directly, which happened to be the same 13 character length. Oops.
+- Switch from ``BGS_HOST`` environment variable to ``RELAY_HOST``.
+  ``BGS_HOST`` is still supported for backward compatibility.
+- ``datastore_storage``:
 
-   -  Bug fix for ``DatastoreStorage.last_seq``, handle new NSID.
-   -  Add new ``AtpRemoteBlob`` class for storing “remote” blobs,
-      available at public HTTP URLs, that we don’t store ourselves.
+  - Bug fix for ``DatastoreStorage.last_seq``, handle new NSID.
+  - Add new ``AtpRemoteBlob`` class for storing “remote” blobs,
+    available at public HTTP URLs, that we don’t store ourselves.
 
--  ``did``:
+- ``did``:
 
-   -  ``create_plc``: strip padding from genesis operation signature
-      (for
-      `did-method-plc#54 <https://github.com/did-method-plc/did-method-plc/pull/54>`__,
-      `atproto#1839 <https://github.com/bluesky-social/atproto/pull/1839>`__).
-   -  ``resolve_handle``: return None on bad domain, eg ``.foo.com``.
-   -  ``resolve_handle`` bug fix: handle ``charset`` specifier in HTTPS
-      method response ``Content-Type``.
+  - ``create_plc``: strip padding from genesis operation signature (for
+    `did-method-plc#54 <https://github.com/did-method-plc/did-method-plc/pull/54>`__,
+    `atproto#1839 <https://github.com/bluesky-social/atproto/pull/1839>`__).
+  - ``resolve_handle``: return None on bad domain, eg ``.foo.com``.
+  - ``resolve_handle`` bug fix: handle ``charset`` specifier in HTTPS
+    method response ``Content-Type``.
 
--  ``util``:
+- ``util``:
 
-   -  ``new_key``: add ``seed`` kwarg to allow deterministic key
-      generation.
+  - ``new_key``: add ``seed`` kwarg to allow deterministic key
+    generation.
 
--  ``xrpc_repo``:
+- ``xrpc_repo``:
 
-   -  ``getRecord``: try to load record locally first; if not available,
-      forward to AppView.
+  - ``getRecord``: try to load record locally first; if not available,
+    forward to AppView.
 
--  ``xrpc_sync``:
+- ``xrpc_sync``:
 
-   -  Implement ``getBlob``, right now only based on “remote” blobs
-      stored in ``AtpRemoteBlob``\ s in datastore storage.
+  - Implement ``getBlob``, right now only based on “remote” blobs stored
+    in ``AtpRemoteBlob``\ s in datastore storage.
 
 .. _section-3:
 
 0.4 - 2023-09-19
 ~~~~~~~~~~~~~~~~
 
--  Migrate to `ATProto repo
-   v3 <https://atproto.com/blog/repo-sync-update>`__. Specifically, the
-   existing ``subscribeRepos`` sequence number is reused as the new
-   ``rev`` field in commits.
-   (`Discussion. <https://github.com/bluesky-social/atproto/discussions/1607>`__).
--  Add new ``did`` module with utilities to create and resolve
-   ``did:plc``\ s and resolve ``did:web``\ s.
--  Add new ``util.service_jwt`` function that generates `ATProto
-   inter-service
-   JWTs <https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification>`__.
--  ``Repo``:
+- Migrate to `ATProto repo
+  v3 <https://atproto.com/blog/repo-sync-update>`__. Specifically, the
+  existing ``subscribeRepos`` sequence number is reused as the new
+  ``rev`` field in commits.
+  (`Discussion. <https://github.com/bluesky-social/atproto/discussions/1607>`__).
+- Add new ``did`` module with utilities to create and resolve
+  ``did:plc``\ s and resolve ``did:web``\ s.
+- Add new ``util.service_jwt`` function that generates `ATProto
+  inter-service
+  JWTs <https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification>`__.
+- ``Repo``:
 
-   -  Add new ``signing_key``/``rotation_key`` attributes. Generate
-      store, and load both in ``datastore_storage``.
-   -  Remove ``format_init_commit``, migrate existing calls to
-      ``format_commit``.
+  - Add new ``signing_key``/``rotation_key`` attributes. Generate store,
+    and load both in ``datastore_storage``.
+  - Remove ``format_init_commit``, migrate existing calls to
+    ``format_commit``.
 
--  ``Storage``:
+- ``Storage``:
 
-   -  Rename ``read_from_seq`` => ``read_blocks_by_seq`` (and in
-      ``MemoryStorage`` and ``DatastoreStorage``), add new
-      ``read_commits_by_seq`` method.
-   -  Merge ``load_repo`` ``did``/``handle`` kwargs into
-      ``did_or_handle``.
+  - Rename ``read_from_seq`` => ``read_blocks_by_seq`` (and in
+    ``MemoryStorage`` and ``DatastoreStorage``), add new
+    ``read_commits_by_seq`` method.
+  - Merge ``load_repo`` ``did``/``handle`` kwargs into
+    ``did_or_handle``.
 
--  XRPCs:
+- XRPCs:
 
-   -  Make ``subscribeRepos`` check storage for all new commits every
-      time it wakes up.
+  - Make ``subscribeRepos`` check storage for all new commits every time
+    it wakes up.
 
-      -  As part of this, replace ``xrpc_sync.enqueue_commit`` with new
-         ``send_new_commits`` function that takes no parameters.
+    - As part of this, replace ``xrpc_sync.enqueue_commit`` with new
+      ``send_new_commits`` function that takes no parameters.
 
-   -  Drop bundled ``app.bsky``/``com.atproto`` lexicons, use
-      `lexrpc <https://lexrpc.readthedocs.io/>`__\ ’s instead.
+  - Drop bundled ``app.bsky``/``com.atproto`` lexicons, use
+    `lexrpc <https://lexrpc.readthedocs.io/>`__\ ’s instead.
 
 .. _section-4:
 
@@ -398,13 +427,13 @@ sandbox <https://atproto.com/blog/federation-developer-sandbox>`__! See
 `app.py <https://github.com/snarfed/arroba/blob/main/app.py>`__ for the
 minimal demo code needed to wrap arroba in a fully functional PDS.
 
--  Add Google Cloud Datastore implementation of repo storage.
--  Implement ``com.atproto`` XRPC methods needed to federate with
-   sandbox, including most of ``repo`` and ``sync``.
+- Add Google Cloud Datastore implementation of repo storage.
+- Implement ``com.atproto`` XRPC methods needed to federate with
+  sandbox, including most of ``repo`` and ``sync``.
 
-   -  Notably, includes ``subscribeRepos`` server side over websocket.
+  - Notably, includes ``subscribeRepos`` server side over websocket.
 
--  …and much more.
+- …and much more.
 
 .. _section-5:
 
@@ -436,6 +465,7 @@ Here’s how to package, test, and ship a new release.
 
        source local/bin/activate.csh
        python -m unittest discover
+       python -m unittest arroba.tests.mst_test_suite # more extensive, slower tests (deliberately excluded from autodiscovery)
 
 2.  Bump the version number in ``pyproject.toml`` and ``docs/conf.py``.
     ``git grep`` the old version number to make sure it only appears in

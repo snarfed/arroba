@@ -367,12 +367,12 @@ def service_jwt(host, repo_did, privkey, expiration=timedelta(minutes=10),
     https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification
 
     Args:
-      host (str): hostname of the service this JWT is for, eg ``bgs.bsky-sandbox.dev``
+      host (str): hostname of the service this JWT is for, eg ``bsky.network``
       repo_did (str): DID of the repo this JWT is for
       privkey (ec.EllipticCurvePrivateKey): repo's signing key
       expiration (timedelta): length of time this JWT will be valid, defaults to 10m
       aud (str): JWT audience. Default is ``did:web:[host]``, which works for relays
-        and AppViews, but others (eg mod services) have ``did:plc``s instead.
+        and AppViews, but others (eg mod services) have ``did:plc``\s instead.
       claims (dict): additional claims to include in the JWT, eg ``lxm``
 
     Returns:

@@ -102,7 +102,7 @@ def send_events():
 
 @server.server.method('com.atproto.sync.subscribeRepos')
 def subscribe_repos(cursor=None):
-    """Firehose event stream XRPC (ie ``type: subscription``) for all new commits.
+    """Firehose event stream XRPC (ie ``type: subscription``\) for all new commits.
 
     Event stream details: https://atproto.com/specs/event-stream#framing
 
@@ -112,13 +112,12 @@ def subscribe_repos(cursor=None):
     WSGI workers.
 
     See :func:`send_events` for an example thread-based callback to
-    register with :class:`Repo` to deliver all new commits to subscribers.
+    register with :class:`repo.Repo` to deliver all new commits to subscribers.
     Here's how to register that callback and this XRPC method in a threaded
     context:
 
         server.repo.callback = lambda commit_data: xrpc_sync.send_events()
-        server.server.register('com.atproto.sync.subscribeRepos',
-                               xrpc_sync.subscribe_repos)
+        server.server.register('com.atproto.sync.subscribeRepos', xrpc_sync.subscribe_repos)
 
     Args:
       cursor (int): try to serve commits from this sequence number forward
