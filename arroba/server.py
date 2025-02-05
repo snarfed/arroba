@@ -1,9 +1,13 @@
 """Temporary!"""
 import os
 
-from flask import request
 from lexrpc.base import XrpcError
 from lexrpc.server import Server
+
+try:
+    import flask
+except ImportError:
+    flask = None
 
 from .util import parse_at_uri
 
@@ -21,7 +25,7 @@ def auth():
       raise NotImplementedError(
           'Authenticated XRPC methods are not currently supported')
 
-    if request.headers.get('Authorization') != f'Bearer {token}':
+    if flask and flask.request.headers.get('Authorization') != f'Bearer {token}':
         raise ValueError('Invalid bearer token in Authorization header')
 
 
