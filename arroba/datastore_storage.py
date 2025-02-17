@@ -17,6 +17,7 @@ from google.cloud.ndb.exceptions import ContextError
 from lexrpc import ValidationError
 from multiformats import CID, multicodec, multihash
 from PIL import Image
+from pymediainfo import MediaInfo
 
 from .mst import MST
 from .repo import Repo
@@ -300,8 +301,9 @@ class AtpRemoteBlob(ndb.Model):
     size = ndb.IntegerProperty(required=True)
     mime_type = ndb.StringProperty(required=True, default='application/octet-stream')
 
-    # only populated if mime_type is image/*
+    # only populated if mime_type is image/* or video/*
     # used in images.aspectRatio in app.bsky.embed.images
+    # and aspectRatio in app.bsky.embed.video
     width = ndb.IntegerProperty()
     height = ndb.IntegerProperty()
 
@@ -380,6 +382,15 @@ class AtpRemoteBlob(ndb.Model):
                 with Image.open(BytesIO(resp.content)) as image:
                     blob.width, blob.height = image.size
             except (OSError, RuntimeError, Image.DecompressionBombError) as e:
+                logger.info(e)
+        elif mime_type and mime_type.startswith('video/'):
+            try:
+                media_info = MediaInfo.parse(BytesIO(resp.content))
+                if len(media_info.video_tracks) == 1:
+                    track = media_info.video_tracks[0]
+                    blob.width = track.width
+                    blob.height = track.height
+            except (OSError, RuntimeError) as e:
                 logger.info(e)
 
         blob.put()

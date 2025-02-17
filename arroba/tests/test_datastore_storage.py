@@ -390,6 +390,22 @@ class DatastoreStorageTest(DatastoreTest):
         self.assertEqual(21, blob.width)
         self.assertEqual(12, blob.height)
 
+    def test_create_remote_blob_video_aspect_ratio(self):
+        image_bytes = Path(__file__).with_name('video.mp4').read_bytes()
+        cid = CID.decode('bafkreihjtnvgcwfv2owgyazgts2hzeofov2imfplnialwmknjha2v33p6a')
+        mock_get = MagicMock(return_value=requests_response(image_bytes))
+
+        blob = AtpRemoteBlob.get_or_create(url='http://my/blob.mp4', get_fn=mock_get)
+        mock_get.assert_called_with('http://my/blob.mp4', stream=True)
+        self.assertEqual({
+            '$type': 'blob',
+            'ref': cid,
+            'mimeType': 'video/mp4',
+            'size': 3294368,
+        }, blob.as_object())
+        self.assertEqual(1714, blob.width)
+        self.assertEqual(964, blob.height)
+
     def test_create_remote_blob_default_mime_type(self):
         mock_get = MagicMock(return_value=requests_response('blob contents'))
 

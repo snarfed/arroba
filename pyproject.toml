@@ -28,6 +28,7 @@ dependencies = [
     'multiformats>=0.3.1',
     'pillow',
     'pyjwt>=2.0.0',
+    'pymediainfo',
     'simple-websocket',
 ]
 classifiers = [
