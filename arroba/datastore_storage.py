@@ -16,7 +16,7 @@ from google.cloud.ndb import context
 from google.cloud.ndb.exceptions import ContextError
 from lexrpc import ValidationError
 from multiformats import CID, multicodec, multihash
-from PIL import Image
+from PIL import Image, ImageFile
 from pymediainfo import MediaInfo
 
 from .mst import MST
@@ -34,6 +34,10 @@ from .util import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Allow bad .ico files with truncated transparency masks
+# https://github.com/python-pillow/Pillow/issues/6507#issuecomment-2199724849
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
 class WriteOnce:
