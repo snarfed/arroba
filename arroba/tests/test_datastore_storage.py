@@ -507,3 +507,11 @@ class DatastoreStorageTest(DatastoreTest):
                                         accept_types=['baz/biff'])
 
         mock_get.assert_not_called()
+
+    def test_create_remote_blob_video_over_max_duration(self):
+        video_bytes = Path(__file__).with_name('long_video.mp4').read_bytes()
+        mock_get = MagicMock(return_value=requests_response(video_bytes, headers={
+            'Content-Type': 'video/mp4',
+        }))
+        with self.assertRaises(ValidationError):
+            AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get)

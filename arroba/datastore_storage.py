@@ -307,6 +307,10 @@ class AtpRemoteBlob(ndb.Model):
     width = ndb.IntegerProperty()
     height = ndb.IntegerProperty()
 
+    # only populated if mime_type is video/*
+    # used to enforce maximum duration
+    duration = ndb.IntegerProperty()
+
     created = ndb.DateTimeProperty(auto_now_add=True)
     updated = ndb.DateTimeProperty(auto_now=True)
 
@@ -332,17 +336,26 @@ class AtpRemoteBlob(ndb.Model):
 
         Raises:
           requests.RequestException: if the HTTP request to fetch the blob failed
-          lexrpc.ValidationError: if the blob is over ``max_size`` or its type is
-            not in ``accept_types``
+          lexrpc.ValidationError: if the blob is over ``max_size``, its type is
+            not in ``accept_types`` or it is a video with a duration above the 60s
+            limit
         """
         def validate_size(size):
             if max_size and size > max_size:
                 raise ValidationError(f'{url} Content-Length {size} is over {name} blob maxSize {max_size}')
 
+        def validate_duration(duration):
+            # enforce maximum video duration
+            # https://bsky.social/about/blog/09-11-2024-video
+            max_duration = 60_000 # milliseconds
+            if duration and duration > max_duration:
+                raise ValidationError(f'{url} duration {duration / 1000} is over {max_duration / 1000}s')
+
         assert url
         blob = cls.get_by_id(url)
         if blob:
             validate_size(blob.size)
+            validate_duration(blob.duration)
             server.validate_mime_type(blob.mime_type, accept_types, name=url)
             return blob
 
@@ -390,6 +403,7 @@ class AtpRemoteBlob(ndb.Model):
                     track = media_info.video_tracks[0]
                     blob.width = track.width
                     blob.height = track.height
+                    blob.duration = track.duration
             except (OSError, RuntimeError) as e:
                 logger.info(e)
 
@@ -398,6 +412,8 @@ class AtpRemoteBlob(ndb.Model):
         # re-validate size in case the server didn't give us Content-Length.
         # do this after storing blob so that we don't re-download it next time.
         validate_size(len(resp.content))
+
+        validate_duration(blob.duration)
 
         return blob
 
