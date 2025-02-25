@@ -292,9 +292,12 @@ def get_blob(input, did=None, cid=None):
     Right now only supports redirecting to "remote" blobs based on stored
     :class:`AtpRemoteBlob`\s.
     """
-    blob = AtpRemoteBlob.query(AtpRemoteBlob.cid == cid).get()
-    if blob:
-        raise Redirect(to=blob.key.id(), status=301, headers=GET_BLOB_CACHE_CONTROL)
+    blobs, _, more = AtpRemoteBlob.query(AtpRemoteBlob.cid == cid).fetch_page(20)
+    if blobs:
+        if more:
+            logger.warning(f'More than 20 stored blobs with CID {cid}! May not be serving the latest one')
+        latest = sorted(blobs, key=lambda b: b.updated)[-1]
+        raise Redirect(to=latest.key.id(), status=301, headers=GET_BLOB_CACHE_CONTROL)
 
     err = ValueError(f'No blob found for CID {cid}')
     err.headers = GET_BLOB_CACHE_CONTROL

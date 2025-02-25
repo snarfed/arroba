@@ -122,7 +122,9 @@ _Non-breaking changes:_
 * `xrpc_repo`:
     * `describe_server`: include all `app.bsky` collections and others like `chat.bsky.actor.declaration`; fetch and include DID doc.
 * `xrpc_sync`:
-  * `get_blob`: add HTTP `Cache-Control` to cache for 1h.
+  * `get_blob`:
+    * If we have more than one blob URL for the same CID, serve the latest one ([bridgy-fed#1650](https://github.com/snarfed/bridgy-fed/issues/1650).
+    * Add HTTP `Cache-Control` to cache for 1h.
 
 
 ### 0.7 - 2024-11-08

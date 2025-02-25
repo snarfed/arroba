@@ -908,6 +908,19 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
 
         self.assertIn('Cache-Control', e.exception.headers)
 
+    def test_get_blob_multiple(self):
+        cid = 'bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq'
+        now = testutil.NOW.replace(tzinfo=None)
+        AtpRemoteBlob(id='http://blob/a', cid=cid, size=13, updated=now).put()
+        AtpRemoteBlob(id='http://blob/b', cid=cid, size=13,
+                      updated=now + timedelta(days=1)).put()
+
+        with self.assertRaises(Redirect) as r:
+            resp = xrpc_sync.get_blob({}, did='did:web:user.com', cid=cid)
+
+        self.assertEqual(301, r.exception.status)
+        self.assertEqual('http://blob/b', r.exception.to)
+
 
 @patch('arroba.datastore_storage.AtpBlock.created._now',
        return_value=testutil.NOW.replace(tzinfo=None))
