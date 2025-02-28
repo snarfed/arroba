@@ -167,7 +167,7 @@ def write_plc(did=None, handle=None, signing_key=None, rotation_key=None,
       rotation_key (ec.EllipticCurvePrivateKey): The curve must be SECP256K1.
         If omitted, a new keypair will be created.
       pds_url (str): PDS base URL to associate with this DID. If omitted,
-        defaults to ``https://[PDS_HOST]/``
+        defaults to ``https://[PDS_HOST]``
       also_known_as (str or sequence of str): additional URI or URIs to add to
         ``alsoKnownAs``
       prev (str): if an update, the CID of the previous operation for this DID
@@ -187,8 +187,8 @@ def write_plc(did=None, handle=None, signing_key=None, rotation_key=None,
         raise ValueError(f'{handle} is not a valid handle')
 
     if not pds_url:
-        pds_url = f'https://{os.environ["PDS_HOST"]}/'
-    assert pds_url.endswith('/')
+        pds_url = f'https://{os.environ["PDS_HOST"]}'
+    assert not pds_url.endswith('/')
 
     for key in signing_key, rotation_key:
         if key and not isinstance(key.curve, ec.SECP256K1):

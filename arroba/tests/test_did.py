@@ -94,7 +94,7 @@ class DidTest(TestCase):
             'services': {
                 'atproto_pds': {
                     'type': 'AtprotoPersonalDataServer',
-                    'endpoint': 'https://localhost:8080/',
+                    'endpoint': 'https://localhost:8080',
                 }
             },
             'prev': None,
@@ -117,7 +117,7 @@ class DidTest(TestCase):
             'service': [{
                 'id': '#atproto_pds',
                 'type': 'AtprotoPersonalDataServer',
-                'serviceEndpoint': 'https://localhost:8080/',
+                'serviceEndpoint': 'https://localhost:8080',
             }],
         }, did_plc.doc)
 
@@ -166,7 +166,7 @@ class DidTest(TestCase):
         self.assertEqual([{
             'id': '#atproto_pds',
             'type': 'AtprotoPersonalDataServer',
-            'serviceEndpoint': 'https://localhost:8080/',
+            'serviceEndpoint': 'https://localhost:8080',
         }], did_plc.doc['service'])
 
         mock_post.assert_called_once()
@@ -183,7 +183,7 @@ class DidTest(TestCase):
 
         expected = copy.deepcopy(op)
         expected['prev'] = 'orig'
-        expected['services']['atproto_pds']['endpoint'] = 'https://localhost:8080/'
+        expected['services']['atproto_pds']['endpoint'] = 'https://localhost:8080'
         self.assertEqual(expected, update_op)
 
     def test_update_plc_new_handle_pds(self):
@@ -196,7 +196,7 @@ class DidTest(TestCase):
         mock_post = MagicMock(return_value=requests_response('OK'))
 
         did_plc = did.update_plc('did:plc:xyz', get_fn=mock_get, post_fn=mock_post,
-                                 handle='new.ie', pds_url='http://sur.vur/',
+                                 handle='new.ie', pds_url='http://sur.vur',
                                  signing_key=self.key, rotation_key=self.key)
         self.assertEqual('did:plc:xyz', did_plc.did)
         self.assertEqual(self.key, did_plc.signing_key)
@@ -205,7 +205,7 @@ class DidTest(TestCase):
         self.assertEqual([{
             'id': '#atproto_pds',
             'type': 'AtprotoPersonalDataServer',
-            'serviceEndpoint': 'http://sur.vur/',
+            'serviceEndpoint': 'http://sur.vur',
         }], did_plc.doc['service'])
 
         mock_post.assert_called_once()
@@ -227,7 +227,7 @@ class DidTest(TestCase):
             'services': {
                 'atproto_pds': {
                     'type': 'AtprotoPersonalDataServer',
-                    'endpoint': 'http://sur.vur/',
+                    'endpoint': 'http://sur.vur',
                 },
             },
             'alsoKnownAs': ['at://new.ie', 'http://han.dy'],
