@@ -143,16 +143,15 @@ class XrpcSyncTest(testutil.XrpcTestCase):
         expected_eve = {
             'did': 'did:plc:eve',
             'head': eve.head.cid.encode('base32'),
-            'rev': eve.head.seq,
+            'rev': '2222222222722',
             'active': False,
             'status': 'deactivated',
         }
         expected_user = {
             'did': 'did:web:user.com',
             'head': self.repo.head.cid.encode('base32'),
-            'rev': self.repo.head.seq,
+            'rev': '2222222222622',
             'active': True,
-            'status': None,
         }
 
         self.assertEqual(

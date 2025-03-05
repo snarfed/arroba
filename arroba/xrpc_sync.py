@@ -77,13 +77,17 @@ def list_repos(input, limit=500, cursor=None):
     """Handler for ``com.atproto.sync.listRepos`` XRPC method."""
     STATUSES = {'tombstoned': 'deactivated'}
 
-    repos = [{
-        'did': repo.did,
-        'head': repo.head.cid.encode('base32'),
-        'rev': repo.head.seq,
-        'active': repo.status is None,
-        'status': STATUSES.get(repo.status) or repo.status,
-    } for repo in server.storage.load_repos(limit=limit, after=cursor)]
+    repos = []
+    for repo in server.storage.load_repos(limit=limit, after=cursor):
+        repo_obj = {
+            'did': repo.did,
+            'head': repo.head.cid.encode('base32'),
+            'rev': util.int_to_tid(repo.head.seq, clock_id=0),
+            'active': repo.status is None,
+        }
+        if repo.status:
+            repo_obj['status'] = STATUSES.get(repo.status) or repo.status
+        repos.append(repo_obj)
 
     ret = {'repos': repos}
     if len(repos) == limit:

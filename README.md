@@ -127,6 +127,9 @@ _Non-breaking changes:_
   * `get_blob`:
     * If we have more than one blob URL for the same CID, serve the latest one ([bridgy-fed#1650](https://github.com/snarfed/bridgy-fed/issues/1650).
     * Add HTTP `Cache-Control` to cache for 1h.
+  * `list_repos`:
+    * Bug fix: Use string TID for `rev`, not integer sequence number.
+    * Bug fix: don't set status to `null` if the account is active.
 
 
 ### 0.7 - 2024-11-08
