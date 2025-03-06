@@ -107,6 +107,8 @@ _Breaking changes:_
   * `apply_commit`, `apply_writes`: raise an exception if the repo is inactive.
 * `storage`:
   * `load_repo`: don't raise an exception if the repo is tombstoned.
+* `datastore_storage`:
+  * Stop storing `AtpBlock.decoded` in the datastore, it's now just an in memory `@property`.
 * `util`:
   * Rename `TombstonedRepo` to `InactiveRepo`.
 

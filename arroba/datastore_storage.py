@@ -167,7 +167,7 @@ class AtpBlock(ndb.Model):
 
     created = ndb.DateTimeProperty(auto_now_add=True)
 
-    @ComputedJsonProperty
+    @property
     def decoded(self):
         return json.loads(dag_json.encode(dag_cbor.decode(self.encoded)))
 
