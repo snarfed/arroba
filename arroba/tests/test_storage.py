@@ -293,6 +293,20 @@ class StorageTest(TestCase):
         }, block.decoded)
         self.assertEqual(block, self.storage.read(block.cid))
 
+    def test_write_blocks(self):
+        repo = Repo.create(self.storage, 'did:user', signing_key=self.key)
+
+        existing = self.storage.write('did:first', {'foo': 'bar'}, seq=123)
+
+        blocks = [
+            Block(repo='did:a', decoded={'foo': 'bar'}, seq=456),
+            Block(repo='did:b', decoded={'foo': 'baz'}, seq=789),
+        ]
+        self.storage.write_blocks(blocks)
+
+        got = self.storage.read_many([b.cid for b in blocks])
+        self.assertEqual(blocks, list(got.values()))
+
 
 class DatastoreStorageTest(StorageTest, DatastoreTest):
     """Run all of StorageTest's tests with DatastoreStorage."""

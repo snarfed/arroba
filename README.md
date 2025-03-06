@@ -123,6 +123,8 @@ _Non-breaking changes:_
     * Add `width` and `height` properties, populated for images and videos, to be used in image/video embed `aspectRatio` ([snarfed/bridgy-fed#1571](https://github.com/snarfed/bridgy-fed/issues/1571)).
 * `did`:
   * `create_plc`: remove trailing slash from `services.atproto_pds.endpoint`.
+* `storage`:
+  * `Storage`: add new `write_blocks` method, implement in `MemoryStorage` and `DatastoreStorage`.
 * `xrpc_repo`:
     * `describe_server`: include all `app.bsky` collections and others like `chat.bsky.actor.declaration`; fetch and include DID doc.
 * `xrpc_sync`:

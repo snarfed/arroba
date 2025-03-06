@@ -403,6 +403,17 @@ class Storage:
             repo.callback(block.decoded)
         return block
 
+    def write_blocks(self, blocks):
+        """Batch write blocks to storage.
+
+        Overwrites any existing stored blocks with the same CIDs! Does not
+        allocate sequence numbers!
+
+        Args:
+          blocks (sequence of :class:`Block`)
+        """
+        raise NotImplementedError()
+
     def apply_commit(self, commit_data):
         """Writes a commit to storage.
 
@@ -516,6 +527,9 @@ class MemoryStorage(Storage):
         if block not in self.blocks:
             self.blocks[block.cid] = block
         return block
+
+    def write_blocks(self, blocks):
+        self.blocks.update({b.cid: b for b in blocks})
 
     def apply_commit(self, commit_data):
         if repo := self.repos.get(commit_data.commit.repo):
