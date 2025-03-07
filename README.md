@@ -123,6 +123,7 @@ _Non-breaking changes:_
     * `get_or_create`: drop datastore transaction.
     * Add `width` and `height` properties, populated for images and videos, to be used in image/video embed `aspectRatio` ([snarfed/bridgy-fed#1571](https://github.com/snarfed/bridgy-fed/issues/1571)).
 * `did`:
+  * Add new `get_signing_key` function.
   * `create_plc`: remove trailing slash from `services.atproto_pds.endpoint`.
 * `storage`:
   * `Storage`: add new `write_blocks` method, implement in `MemoryStorage` and `DatastoreStorage`.

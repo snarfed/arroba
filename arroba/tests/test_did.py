@@ -241,6 +241,29 @@ class DidTest(TestCase):
         decoded = did.decode_did_key(did_key)
         self.assertEqual(self.key.public_key(), decoded)
 
+    def test_get_signing_key(self):
+        self.assertIsNone(did.get_signing_key({}))
+
+        self.assertIsNone(did.get_signing_key({
+            'id': 'did:plc:123abc',
+            'verificationMethod': [{
+                'id': 'did:plc:other#atproto',
+                'publicKeyMultibase': 'unused',
+            }],
+        }))
+
+        got = did.get_signing_key({
+            'id': 'did:plc:123abc',
+            'verificationMethod': [{
+                'id': 'did:plc:123abc#atproto',
+                'type': 'Multikey',
+                'controller': 'did:plc:5zspv27pk4iqtrl2ql2nykjh',
+                'publicKeyMultibase': did.encode_did_key(self.key.public_key()),
+            }],
+        })
+        self.assertEqual(self.key.public_key(), got)
+
+
     def test_plc_operation_to_did_doc(self):
         self.assertEqual({
             '@context': [

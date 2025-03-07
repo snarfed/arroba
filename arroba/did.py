@@ -298,6 +298,23 @@ def decode_did_key(did_key):
     return ec.EllipticCurvePublicKey.from_encoded_point(curve, data)
 
 
+def get_signing_key(did_doc):
+    """Extracts and returns a DID's signing key.
+
+    Args:
+      did_doc (dict): DID document
+
+    Returns:
+      ec.EllipticCurvePublicKey, or None if the DID doc has no ATProto signing key
+    """
+    if not (did := did_doc.get('id')):
+        return None
+
+    for method in did_doc.get('verificationMethod', []):
+        if method.get('id') == f'{did}#atproto':
+            if key := method.get('publicKeyMultibase'):
+                return decode_did_key(key)
+
 def plc_operation_to_did_doc(op):
     """Converts a PLC directory operation to a DID document.
 
