@@ -216,7 +216,7 @@ def import_repo(input):
 
     # read and prepare blocks
     blocks = []
-    did = None
+    repo_did = None
     head = None
     for car_block in car_blocks:
         # note seq 0, since we won't emit these over the firehose
@@ -228,23 +228,24 @@ def import_repo(input):
             # old PDS's signing key. that doesn't matter since we make a new
             # commit below when we create the repo.
             head = block
-            did = car_block.decoded['did']
-            if server.storage.load_repo(did):
-                raise ValueError(f'repo already exists for DID {did}')
+            repo_did = car_block.decoded['did']
+            if server.storage.load_repo(repo_did):
+                raise ValueError(f'repo already exists for DID {repo_did}')
 
-            # # TODO, need to fetch signing key
-            # if not verify_sig(car_block.decoded):
-            #     raise ValueError(f"Couldn't verify signature on head commit {head_cid.encode('base32')}")
+            did_doc = did.resolve(repo_did)
+            signing_key = did.get_signing_key(did_doc)
+            if not signing_key or not verify_sig(car_block.decoded, signing_key):
+                raise ValueError(f"Couldn't verify signature on head commit {head_cid.encode('base32')}")
 
     if not head:
         raise ValueError("Couldn't find head commit block")
-    elif not did:
+    elif not repo_did:
         raise ValueError("Head commit block missing DID")
 
-    logger.info(f'importing repo for {did}')
+    logger.info(f'importing repo for {repo_did}')
 
     for block in blocks:
-        block.repo = did
+        block.repo = repo_did
     server.storage.write_blocks(blocks)
 
     mst = MST.load(storage=server.storage, cid=head.decoded['data'])

@@ -377,7 +377,15 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         with self.assertRaises(ValueError):
             xrpc_repo.import_repo(SNARFED2_CAR)
 
-    def test_import_repo_new(self):
+    @patch('requests.get', return_value=testutil.requests_response({
+        "id": "did:plc:5zspv27pk4iqtrl2ql2nykjh",
+        "alsoKnownAs": ["at://snarfed2.bsky.social"],
+        "verificationMethod": [{
+            "id": "did:plc:5zspv27pk4iqtrl2ql2nykjh#atproto",
+            "publicKeyMultibase": "zQ3shuteTZT6t9ek6UcKu7UfVES2AJgpadj2bT5zD8NHFqLce",
+        }],
+    }))
+    def test_import_repo(self, _):
         self.prepare_auth()
 
         self.assertIsNone(server.storage.load_repo(SNARFED2_DID))
@@ -386,6 +394,24 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         repo = server.storage.load_repo(SNARFED2_DID)
         self.assertDictEqual(SNARFED2_RECORDS, dict(repo.get_contents()))
         self.assertEqual(SNARFED2_HEAD, repo.head.cid)
+
+    @patch('requests.get')
+    def test_import_repo_bad_signature(self, mock_get):
+        self.prepare_auth()
+        mock_get.return_value = testutil.requests_response({
+            "id": "did:plc:5zspv27pk4iqtrl2ql2nykjh",
+            "alsoKnownAs": ["at://snarfed2.bsky.social"],
+            "verificationMethod": [{
+                "id": "did:plc:5zspv27pk4iqtrl2ql2nykjh#atproto",
+                "publicKeyMultibase": did.encode_did_key(self.key.public_key()),
+            }],
+        })
+
+        with self.assertRaises(ValueError) as e:
+            xrpc_repo.import_repo(SNARFED2_CAR)
+
+        self.assertTrue(str(e.exception).startswith("Couldn't verify signature"),
+                        e.exception)
 
     # def test_fails_on_user_mismatch(self):
     #     # Authentication Required
