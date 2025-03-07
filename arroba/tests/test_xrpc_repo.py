@@ -378,11 +378,11 @@ class XrpcRepoTest(testutil.XrpcTestCase):
             xrpc_repo.import_repo(SNARFED2_CAR)
 
     @patch('requests.get', return_value=testutil.requests_response({
-        "id": "did:plc:5zspv27pk4iqtrl2ql2nykjh",
-        "alsoKnownAs": ["at://snarfed2.bsky.social"],
-        "verificationMethod": [{
-            "id": "did:plc:5zspv27pk4iqtrl2ql2nykjh#atproto",
-            "publicKeyMultibase": "zQ3shuteTZT6t9ek6UcKu7UfVES2AJgpadj2bT5zD8NHFqLce",
+        'id': 'did:plc:5zspv27pk4iqtrl2ql2nykjh',
+        'alsoKnownAs': ['at://snarfed2.bsky.social'],
+        'verificationMethod': [{
+            'id': 'did:plc:5zspv27pk4iqtrl2ql2nykjh#atproto',
+            'publicKeyMultibase': 'zQ3shuteTZT6t9ek6UcKu7UfVES2AJgpadj2bT5zD8NHFqLce',
         }],
     }))
     def test_import_repo(self, _):
@@ -394,16 +394,18 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         repo = server.storage.load_repo(SNARFED2_DID)
         self.assertDictEqual(SNARFED2_RECORDS, dict(repo.get_contents()))
         self.assertEqual(SNARFED2_HEAD, repo.head.cid)
+        self.assertEqual('did:plc:5zspv27pk4iqtrl2ql2nykjh', repo.did)
+        self.assertEqual('snarfed2.bsky.social', repo.handle)
 
     @patch('requests.get')
     def test_import_repo_bad_signature(self, mock_get):
         self.prepare_auth()
         mock_get.return_value = testutil.requests_response({
-            "id": "did:plc:5zspv27pk4iqtrl2ql2nykjh",
-            "alsoKnownAs": ["at://snarfed2.bsky.social"],
-            "verificationMethod": [{
-                "id": "did:plc:5zspv27pk4iqtrl2ql2nykjh#atproto",
-                "publicKeyMultibase": did.encode_did_key(self.key.public_key()),
+            'id': 'did:plc:5zspv27pk4iqtrl2ql2nykjh',
+            'alsoKnownAs': ['at://snarfed2.bsky.social'],
+            'verificationMethod': [{
+                'id': 'did:plc:5zspv27pk4iqtrl2ql2nykjh#atproto',
+                'publicKeyMultibase': did.encode_did_key(self.key.public_key()),
             }],
         })
 

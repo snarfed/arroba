@@ -250,9 +250,9 @@ def import_repo(input):
 
     mst = MST.load(storage=server.storage, cid=head.decoded['data'])
 
-    # TODO: handle
-    repo = Repo(storage=server.storage, mst=mst, head=head, status='deactivated',
-                signing_key=new_key(), rotation_key=new_key())
+    handle = did.get_handle(did_doc)
+    repo = Repo(storage=server.storage, mst=mst, head=head, handle=handle,
+                status='deactivated', signing_key=new_key(), rotation_key=new_key())
     server.storage.create_repo(repo)
 
 
