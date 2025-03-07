@@ -186,7 +186,7 @@ class Repo:
         storage.write_event(repo=repo, type='account', active=True)
         storage.apply_commit(commit_data)
 
-        storage.create_repo(repo, signing_key=signing_key, rotation_key=rotation_key)
+        storage.create_repo(repo)
         if repo.callback:
             repo.callback(commit_data)
 

@@ -474,20 +474,20 @@ class DatastoreStorage(Storage):
         return decorated
 
     @ndb_context
-    def create_repo(self, repo, *, signing_key, rotation_key=None):
+    def create_repo(self, repo):
         assert repo.did
         assert repo.head
 
         handles = [repo.handle] if repo.handle else []
 
-        signing_key_pem = signing_key.private_bytes(
+        signing_key_pem = repo.signing_key.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
             encryption_algorithm=serialization.NoEncryption(),
         )
         rotation_key_pem = None
-        if rotation_key:
-            rotation_key_pem = rotation_key.private_bytes(
+        if repo.rotation_key:
+            rotation_key_pem = repo.rotation_key.private_bytes(
                 encoding=serialization.Encoding.PEM,
                 format=serialization.PrivateFormat.PKCS8,
                 encryption_algorithm=serialization.NoEncryption(),

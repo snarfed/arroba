@@ -22,8 +22,8 @@ storage = None
 def auth():
     token = os.environ.get('REPO_TOKEN')
     if not token:
-      raise NotImplementedError(
-          'Authenticated XRPC methods are not currently supported')
+        raise NotImplementedError(
+            'Authenticated XRPC methods are not currently supported')
 
     if flask and flask.request.headers.get('Authorization') != f'Bearer {token}':
         raise ValueError('Invalid bearer token in Authorization header')

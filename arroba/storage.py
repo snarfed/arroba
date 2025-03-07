@@ -138,7 +138,7 @@ class Storage:
     """
     head = None
 
-    def create_repo(self, repo, *, signing_key, rotation_key=None):
+    def create_repo(self, repo):
         """Stores a new repo's metadata in storage.
 
         Only stores the repo's DID, handle, and head commit :class:`CID`, not
@@ -149,8 +149,6 @@ class Storage:
 
         Args:
           repo (Repo)
-          signing_key (ec.EllipticCurvePrivateKey)
-          rotation_key (ec.EllipticCurvePrivateKey): optional
         """
         raise NotImplementedError()
 
@@ -473,8 +471,7 @@ class MemoryStorage(Storage):
         self.repos = {}
         self.sequences = {}
 
-    def create_repo(self, repo, *, signing_key, rotation_key=None):
-        assert repo.did not in self.repos
+    def create_repo(self, repo):
         self.repos[repo.did] = repo
 
     def load_repo(self, did_or_handle):

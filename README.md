@@ -106,6 +106,7 @@ _Breaking changes:_
 * `repo`:
   * `apply_commit`, `apply_writes`: raise an exception if the repo is inactive.
 * `storage`:
+  * `create_repo`: remove `signing_key` and `rotation_key` kwargs, read them from input repo instead.
   * `load_repo`: don't raise an exception if the repo is tombstoned.
 * `datastore_storage`:
   * Stop storing `AtpBlock.decoded` in the datastore, it's now just an in memory `@property`.
