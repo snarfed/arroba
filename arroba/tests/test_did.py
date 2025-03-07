@@ -241,6 +241,14 @@ class DidTest(TestCase):
         decoded = did.decode_did_key(did_key)
         self.assertEqual(self.key.public_key(), decoded)
 
+    def test_get_handle(self):
+        for doc in {}, {'alsoKnownAs': []},  {'alsoKnownAs': ['asdf']}:
+            self.assertIsNone(did.get_handle(doc))
+
+        self.assertEqual('did:123', did.get_handle({
+            'alsoKnownAs': ['foo', 'did:nope', 'at://did:123', 'bar'],
+        }))
+
     def test_get_signing_key(self):
         self.assertIsNone(did.get_signing_key({}))
 
@@ -262,7 +270,6 @@ class DidTest(TestCase):
             }],
         })
         self.assertEqual(self.key.public_key(), got)
-
 
     def test_plc_operation_to_did_doc(self):
         self.assertEqual({

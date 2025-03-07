@@ -298,6 +298,24 @@ def decode_did_key(did_key):
     return ec.EllipticCurvePublicKey.from_encoded_point(curve, data)
 
 
+def get_handle(did_doc):
+    """Extracts and returns a DID's handle.
+
+    Doesn't do bidirectional handle resolution! Just returns the handle in the
+    first ``at://`` URI in ``alsoKnownAs``.
+
+    Args:
+      did_doc (dict): DID document
+
+    Returns:
+      str: handle, or None if the DID doc doens't have one
+    """
+    for aka in did_doc.get('alsoKnownAs', []):
+        if aka.startswith('at://'):
+            handle, _, _ = util.parse_at_uri(aka)
+            if handle:
+                return handle
+
 def get_signing_key(did_doc):
     """Extracts and returns a DID's signing key.
 
