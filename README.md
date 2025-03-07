@@ -128,6 +128,7 @@ _Non-breaking changes:_
   * `Storage`: add new `write_blocks` method, implement in `MemoryStorage` and `DatastoreStorage`.
 * `xrpc_repo`:
     * `describe_server`: include all `app.bsky` collections and others like `chat.bsky.actor.declaration`; fetch and include DID doc.
+    * Implement `com.atproto.repo.importRepo`.
 * `xrpc_sync`:
   * `get_blob`:
     * If we have more than one blob URL for the same CID, serve the latest one ([bridgy-fed#1650](https://github.com/snarfed/bridgy-fed/issues/1650).

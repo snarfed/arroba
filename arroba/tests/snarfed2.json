@@ -1,0 +1,45 @@
+{
+  "app.bsky.actor.profile": {
+    "self": {
+	  "$type": "app.bsky.actor.profile",
+	  "avatar": {
+		"$type": "blob",
+		"mimeType": "image/jpeg",
+		"ref": {
+		  "/": "bafkreidezhynguld5tluez36gwjshsjvex2moalvti7hv5akihjioez5te"
+		},
+		"size": 212326
+	  },
+	  "createdAt": "2024-08-23T00:55:18.353Z",
+	  "displayName": ""
+    }
+  },
+  "app.bsky.feed.like": {
+    "3lbkj25b7pi2l": {
+	  "$type": "app.bsky.feed.like",
+	  "createdAt": "2024-11-22T17:31:18.980Z",
+	  "subject": {
+		"cid": "bafyreifwzs4ewtkrfnwj6jbrctftqknpsmbbfcgznotgj6pwnp322mn3r4",
+		"uri": "at://did:plc:bg5udl25mvzg3rt7l5n2hzet/app.bsky.feed.post/3l3yw3dbdzks2"
+	  }
+    }
+  },
+  "app.bsky.graph.follow": {
+    "3l73bi5dczu2g": {
+	  "$type": "app.bsky.graph.follow",
+	  "createdAt": "2024-10-22T05:15:39.538Z",
+	  "subject": "did:plc:xbifsywyv5pka5jlknhv5yv3"
+    },
+    "3l2dwxdp22d2q": {
+	  "$type": "app.bsky.graph.follow",
+	  "createdAt": "2024-08-23T00:55:17.972Z",
+	  "subject": "did:plc:z72i7hdynmk6r22z27h6tvur"
+    }
+  },
+  "chat.bsky.actor.declaration": {
+    "self": {
+	  "$type": "chat.bsky.actor.declaration",
+	  "allowIncoming": "all"
+    }
+  }
+}

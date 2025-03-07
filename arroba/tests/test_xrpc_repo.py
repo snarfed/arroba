@@ -5,10 +5,14 @@ TODO:
 * paging, cursors
 """
 import itertools
+import json
 import os
+from pathlib import Path
 from urllib.parse import urlencode
 from unittest.mock import patch
 
+# from carbox import write_car
+# from carbox.car import Block
 from flask import request
 from multiformats import CID
 import requests
@@ -27,6 +31,15 @@ CID1 = CID.decode('bafyreiblaotetvwobe7cu2uqvnddr6ew2q3cu75qsoweulzku2egca4dxq')
 CID2 = CID.decode('bafyreie7xn4ec3mhapvf7gefkxo7ktko5xkdijm7l7qn54tk3hda633wxy')
 CID1_STR = CID1.encode('base32')
 CID2_STR = CID2.encode('base32')
+
+SNARFED2_DID = 'did:plc:5zspv27pk4iqtrl2ql2nykjh'
+SNARFED2_HEAD = CID.decode('bafyreihrulqpzqf2vrjc6ef3phj27x2ohidkpf2ctk23mlk2fdyitegqeu')
+with open(Path(__file__).parent / 'snarfed2.car', 'rb') as f:
+    SNARFED2_CAR = f.read()
+with open(Path(__file__).parent / 'snarfed2.json') as f:
+    SNARFED2_RECORDS = json.load(f)
+    blob = SNARFED2_RECORDS['app.bsky.actor.profile']['self']['avatar']
+    blob['ref'] = CID.decode(blob['ref']['/'])
 
 
 class XrpcRepoTest(testutil.XrpcTestCase):
@@ -350,6 +363,29 @@ class XrpcRepoTest(testutil.XrpcTestCase):
             rkey='self',
         )
         self.assertEqual({'displayName': 'Mr. Bob'}, resp['value'])
+
+    def test_import_repo_not_authed(self):
+        with self.assertRaises(ValueError):
+            xrpc_repo.import_repo(SNARFED2_CAR)
+
+    def test_import_repo_existing(self):
+        self.prepare_auth()
+
+        Repo.create(server.storage, SNARFED2_DID, handle='han.dull',
+                    signing_key=self.key)
+
+        with self.assertRaises(ValueError):
+            xrpc_repo.import_repo(SNARFED2_CAR)
+
+    def test_import_repo_new(self):
+        self.prepare_auth()
+
+        self.assertIsNone(server.storage.load_repo(SNARFED2_DID))
+
+        xrpc_repo.import_repo(SNARFED2_CAR)
+        repo = server.storage.load_repo(SNARFED2_DID)
+        self.assertDictEqual(SNARFED2_RECORDS, dict(repo.get_contents()))
+        self.assertEqual(SNARFED2_HEAD, repo.head.cid)
 
     # def test_fails_on_user_mismatch(self):
     #     # Authentication Required

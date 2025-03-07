@@ -155,7 +155,7 @@ class AtpBlock(ndb.Model):
     ``com.atproto.sync.subscribeRepos#tombstone``.
 
     Properties:
-    * repo (str): DID of the first repo that included this block
+    * repo (google.cloud.ndb.Key): DID of the first repo that included this block
     * encoded (bytes): DAG-CBOR encoded value
     * data (dict): DAG-JSON value, only used for human debugging
     * seq (int): sequence number for the subscribeRepos event stream
