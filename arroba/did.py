@@ -316,6 +316,7 @@ def get_handle(did_doc):
             if handle:
                 return handle
 
+
 def get_signing_key(did_doc):
     """Extracts and returns a DID's signing key.
 
