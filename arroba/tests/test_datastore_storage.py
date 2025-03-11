@@ -1,15 +1,16 @@
 """Unit tests for datastore_storage.py."""
+from collections import namedtuple
 import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from google.cloud import ndb
-
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 import dag_cbor
+from google.cloud import ndb
 from lexrpc import ValidationError
 from multiformats import CID
+from pymediainfo import MediaInfo
 
 from ..datastore_storage import (
     AtpBlock,
@@ -508,10 +509,16 @@ class DatastoreStorageTest(DatastoreTest):
 
         mock_get.assert_not_called()
 
-    def test_create_remote_blob_video_over_max_duration(self):
-        video_bytes = Path(__file__).with_name('long_video.mp4').read_bytes()
-        mock_get = MagicMock(return_value=requests_response(video_bytes, headers={
+    @patch.object(MediaInfo, 'parse')
+    def test_create_remote_blob_video_over_max_duration(self, mock_parse):
+        # Track = namedtuple('Track', ('width', 'height', 'duration'))
+        track = MagicMock(width=123, height=456, duration=5* 60_000)
+        mock_parse.return_value = MagicMock(video_tracks=[track])
+
+        mock_get = MagicMock(return_value=requests_response(b'some video', headers={
             'Content-Type': 'video/mp4',
         }))
         with self.assertRaises(ValidationError):
             AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get)
+
+        self.assertEqual(b'some video', mock_parse.call_args.args[0].read())

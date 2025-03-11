@@ -122,6 +122,7 @@ _Non-breaking changes:_
   * `AtpRemoteBlob`:
     * `get_or_create`: drop datastore transaction.
     * Add `width` and `height` properties, populated for images and videos, to be used in image/video embed `aspectRatio` ([snarfed/bridgy-fed#1571](https://github.com/snarfed/bridgy-fed/issues/1571)).
+    * Check video length, raise `ValidationError` on [videos over 3 minutes](https://bsky.app/profile/bsky.app/post/3lk26lxn6sk2u).
 * `did`:
   * Add new `get_signing_key`, `get_handle` functions.
   * `create_plc`: remove trailing slash from `services.atproto_pds.endpoint`.

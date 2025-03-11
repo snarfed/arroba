@@ -341,7 +341,7 @@ class AtpRemoteBlob(ndb.Model):
         Raises:
           requests.RequestException: if the HTTP request to fetch the blob failed
           lexrpc.ValidationError: if the blob is over ``max_size``, its type is
-            not in ``accept_types`` or it is a video with a duration above the 60s
+            not in ``accept_types`` or it is a video with a duration above the 3m
             limit
         """
         def validate_size(size):
@@ -349,9 +349,9 @@ class AtpRemoteBlob(ndb.Model):
                 raise ValidationError(f'{url} Content-Length {size} is over {name} blob maxSize {max_size}')
 
         def validate_duration(duration):
-            # enforce maximum video duration
-            # https://bsky.social/about/blog/09-11-2024-video
-            max_duration = 60_000 # milliseconds
+            # enforce 3m maximum video duration
+            # https://bsky.app/profile/bsky.app/post/3lk26lxn6sk2u
+            max_duration = 3 * 60_000 # milliseconds
             if duration and duration > max_duration:
                 raise ValidationError(f'{url} duration {duration / 1000} is over {max_duration / 1000}s')
 
