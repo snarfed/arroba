@@ -157,7 +157,7 @@ XRPC handlers:
 Changelog
 ---------
 
-0.8 - unreleased
+0.8 - 2025-03-13
 ~~~~~~~~~~~~~~~~
 
 *Breaking changes:*
@@ -169,7 +169,14 @@ Changelog
 
 - ``storage``:
 
+  - ``create_repo``: remove ``signing_key`` and ``rotation_key`` kwargs,
+    read them from input repo instead.
   - ``load_repo``: don’t raise an exception if the repo is tombstoned.
+
+- ``datastore_storage``:
+
+  - Stop storing ``AtpBlock.decoded`` in the datastore, it’s now just an
+    in memory ``@property``.
 
 - ``util``:
 
@@ -180,13 +187,26 @@ Changelog
 kwarg. \* ``apply_commit``: handle deactivated repos. \*
 ``create_repo``: propagate ``Repo.status`` into ``AtpRepo``. \*
 ``AtpRemoteBlob``: \* ``get_or_create``: drop datastore transaction. \*
-Add ``width`` and ``height`` properties, populated for images, to be
-used in image embed ``aspectRatio``
+Add ``width`` and ``height`` properties, populated for images and
+videos, to be used in image/video embed ``aspectRatio``
 (`snarfed/bridgy-fed#1571 <https://github.com/snarfed/bridgy-fed/issues/1571>`__).
-\* ``xrpc_repo``: \* ``describe_server``: include all ``app.bsky``
-collections and others like ``chat.bsky.actor.declaration``; fetch and
-include DID doc. \* ``xrpc_sync``: \* ``get_blob``: add HTTP
-``Cache-Control`` to cache for 1h.
+\* Check video length, raise ``ValidationError`` on `videos over 3
+minutes <https://bsky.app/profile/bsky.app/post/3lk26lxn6sk2u>`__. \*
+``did``: \* Add new ``get_signing_key``, ``get_handle`` functions. \*
+``create_plc``: remove trailing slash from
+``services.atproto_pds.endpoint``. \* ``storage``: \* ``Storage``: add
+new ``write_blocks`` method, implement in ``MemoryStorage`` and
+``DatastoreStorage``. \* ``xrpc_repo``: \* ``describe_server``: include
+all ``app.bsky`` collections and others like
+``chat.bsky.actor.declaration``; fetch and include DID doc. \* Implement
+``com.atproto.repo.importRepo``. \* ``xrpc_sync``: \* ``get_blob``: \*
+If we have more than one blob URL for the same CID, serve the latest one
+(`bridgy-fed#1650 <https://github.com/snarfed/bridgy-fed/issues/1650>`__.
+\* Add HTTP ``Cache-Control`` to cache for 1h. \* ``list_repos``: \* Bug
+fix: Use string TID for ``rev``, not integer sequence number. \* Bug
+fix: don’t set status to ``null`` if the account is active.
+
+.. _section-1:
 
 0.7 - 2024-11-08
 ~~~~~~~~~~~~~~~~
@@ -248,7 +268,7 @@ include DID doc. \* ``xrpc_sync``: \* ``get_blob``: add HTTP
     claims, eg
     `lxm <https://github.com/bluesky-social/atproto/discussions/2687>`__.
 
-.. _section-1:
+.. _section-2:
 
 0.6 - 2024-06-24
 ~~~~~~~~~~~~~~~~
@@ -336,7 +356,7 @@ include DID doc. \* ``xrpc_sync``: \* ``get_blob``: add HTTP
   when appropriate
   (`snarfed/bridgy-fed#1083 <https://github.com/snarfed/bridgy-fed/issues/1083>`__).
 
-.. _section-2:
+.. _section-3:
 
 0.5 - 2024-03-16
 ~~~~~~~~~~~~~~~~
@@ -376,7 +396,7 @@ include DID doc. \* ``xrpc_sync``: \* ``get_blob``: add HTTP
   - Implement ``getBlob``, right now only based on “remote” blobs stored
     in ``AtpRemoteBlob``\ s in datastore storage.
 
-.. _section-3:
+.. _section-4:
 
 0.4 - 2023-09-19
 ~~~~~~~~~~~~~~~~
@@ -417,7 +437,7 @@ include DID doc. \* ``xrpc_sync``: \* ``get_blob``: add HTTP
   - Drop bundled ``app.bsky``/``com.atproto`` lexicons, use
     `lexrpc <https://lexrpc.readthedocs.io/>`__\ ’s instead.
 
-.. _section-4:
+.. _section-5:
 
 0.3 - 2023-08-29
 ~~~~~~~~~~~~~~~~
@@ -435,7 +455,7 @@ minimal demo code needed to wrap arroba in a fully functional PDS.
 
 - …and much more.
 
-.. _section-5:
+.. _section-6:
 
 0.2 - 2023-05-18
 ~~~~~~~~~~~~~~~~
@@ -445,7 +465,7 @@ storage. This completes the first pass at all PDS data structures. Next
 release will include initial implementations of the
 ``com.atproto.sync.*`` XRPC methods.
 
-.. _section-6:
+.. _section-7:
 
 0.1 - 2023-04-30
 ~~~~~~~~~~~~~~~~
