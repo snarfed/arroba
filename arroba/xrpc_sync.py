@@ -27,6 +27,10 @@ new_events = Condition()
 
 GET_BLOB_CACHE_CONTROL = {'Cache-Control': 'public, max-age=3600'}  # 1 hour
 
+# number of rollback events to serve before we manually yield control from the thread
+# https://github.com/snarfed/bridgy-fed/issues/1641
+SUBSCRIBE_REPOS_YIELD_WINDOW = 100
+
 
 @server.server.method('com.atproto.sync.getCheckout')
 def get_checkout(input, did=None):
@@ -189,8 +193,13 @@ def subscribe_repos(cursor=None):
                 cursor = rollback_start
 
         logger.info(f'fetching existing events from seq {cursor}')
-        for event in server.storage.read_events_by_seq(start=cursor):
+        for i, event in enumerate(server.storage.read_events_by_seq(start=cursor)):
             yield handle(event)
+            if i and i % SUBSCRIBE_REPOS_YIELD_WINDOW == 0:
+                # this stops rollback subscribers from monopolizing the CPU and
+                # starving other subscribers
+                # https://github.com/snarfed/bridgy-fed/issues/1641
+                time.sleep(.0001)
 
     # serve new events as they happen. if we see a sequence number skipped, wait
     # for it up to NEW_EVENTS_TIMEOUT before giving up on it and moving on
