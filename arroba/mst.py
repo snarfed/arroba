@@ -1070,7 +1070,7 @@ def ensure_valid_key(key):
     Raises:
       ValueError: if key is not a valid MST key
     """
-    valid = re.compile('[a-zA-Z0-9_\-:.]*$')
+    valid = re.compile(r'[a-zA-Z0-9_\-:.]*$')
     split = key.split('/')
     if not (len(key) <= 256 and
             len(split) == 2 and

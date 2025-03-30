@@ -11,7 +11,7 @@ import random
 import dag_cbor.random
 from multiformats import CID
 
-from ..mst import common_prefix_len, ensure_valid_key, MST
+from ..mst import common_prefix_len, MST
 from .. import util
 from . import testutil
 
