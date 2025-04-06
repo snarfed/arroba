@@ -129,6 +129,12 @@ def subscribe_repos(cursor=None):
     Returns:
       (dict, dict) tuple: (header, payload)
     """
+    # bad client on 152.53.36.179 that keeps reconnecting with this cursor
+    # XXX TODO: check again and remove before next release!
+    if cursor == 14675627:
+        logger.info('Rejecting connection from 152.53.36.179 with cursor 14675627')
+        raise TooManyRequests("Your client is misconfigured and keeps reconnecting with cursor 14675627. Try keeping track of the last cursor you've seen and reconnect with that instead.")
+
     cur_seq = server.storage.last_seq(SUBSCRIBE_REPOS_NSID)
 
     def handle(event):
@@ -220,7 +226,6 @@ def subscribe_repos(cursor=None):
 
         if delay := os.getenv('SUBSCRIBE_REPOS_BATCH_DELAY'):
             time.sleep(float(delay))
-
 
 
 @server.server.method('com.atproto.sync.getBlocks')

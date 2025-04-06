@@ -270,6 +270,8 @@ Release instructions
 ---
 Here's how to package, test, and ship a new release.
 
+0. __Remove the cursor 14675627 hack in xrpc_sync.subscribe_repos!__
+
 1. Run the unit tests.
 
     ```sh
