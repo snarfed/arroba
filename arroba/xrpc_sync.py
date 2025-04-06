@@ -12,6 +12,7 @@ from lexrpc.base import XrpcError
 from lexrpc.server import Redirect
 from multiformats import CID
 from multiformats.multibase import MultibaseKeyError, MultibaseValueError
+from werkzeug.exceptions import TooManyRequests
 
 from .datastore_storage import AtpBlock, AtpRemoteBlob, AtpRepo, DatastoreStorage
 from . import server
