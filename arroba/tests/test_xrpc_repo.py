@@ -11,8 +11,6 @@ from pathlib import Path
 from urllib.parse import urlencode
 from unittest.mock import patch
 
-# from carbox import write_car
-# from carbox.car import Block
 from flask import request
 from multiformats import CID
 import requests
@@ -33,6 +31,14 @@ CID1_STR = CID1.encode('base32')
 CID2_STR = CID2.encode('base32')
 
 SNARFED2_DID = 'did:plc:5zspv27pk4iqtrl2ql2nykjh'
+SNARFED2_DID_DOC = {
+    'id': 'did:plc:5zspv27pk4iqtrl2ql2nykjh',
+    'alsoKnownAs': ['at://snarfed2.bsky.social'],
+    'verificationMethod': [{
+        'id': 'did:plc:5zspv27pk4iqtrl2ql2nykjh#atproto',
+        'publicKeyMultibase': 'zQ3shuteTZT6t9ek6UcKu7UfVES2AJgpadj2bT5zD8NHFqLce',
+    }],
+}
 SNARFED2_HEAD = CID.decode('bafyreihrulqpzqf2vrjc6ef3phj27x2ohidkpf2ctk23mlk2fdyitegqeu')
 with open(Path(__file__).parent / 'snarfed2.car', 'rb') as f:
     SNARFED2_CAR = f.read()
@@ -377,14 +383,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         with self.assertRaises(ValueError):
             xrpc_repo.import_repo(SNARFED2_CAR)
 
-    @patch('requests.get', return_value=testutil.requests_response({
-        'id': 'did:plc:5zspv27pk4iqtrl2ql2nykjh',
-        'alsoKnownAs': ['at://snarfed2.bsky.social'],
-        'verificationMethod': [{
-            'id': 'did:plc:5zspv27pk4iqtrl2ql2nykjh#atproto',
-            'publicKeyMultibase': 'zQ3shuteTZT6t9ek6UcKu7UfVES2AJgpadj2bT5zD8NHFqLce',
-        }],
-    }))
+    @patch('requests.get', return_value=testutil.requests_response(SNARFED2_DID_DOC))
     def test_import_repo(self, _):
         self.prepare_auth()
 
