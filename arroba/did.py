@@ -44,8 +44,11 @@ CACHE_TTL = timedelta(hours=6)
 HANDLE_RE = re.compile(
     r'^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$')
 
-# used as get_fn below. wrap so that we can mock requests.get in tests
-requests_get = lambda *args, **kwargs: requests.get(*args, **kwargs)
+
+def requests_get(*args, **kwargs):
+    """Used as get_fn below. Wrapped so that we can mock requests.get in tests."""
+    logger.info(f'requests.get {args} {kwargs}')
+    return requests.get(*args, **kwargs)
 
 
 def resolve(did, **kwargs):
