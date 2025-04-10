@@ -1,2 +1,2 @@
-exclude build/** dist/** docs/** examples/** l/** local/** arroba/tests/**
+exclude build/** dist/** docs/** examples/** l/** local/**
 

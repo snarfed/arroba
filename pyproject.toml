@@ -7,14 +7,19 @@ build-backend = 'setuptools.build_meta'
 [tool.setuptools.packages.find]
 where = ['.']
 
+# https://setuptools.pypa.io/en/latest/userguide/datafiles.html#package-data
+[tool.setuptools.package-data]
+'*' = ['tests/*']
+
 [project]
 name = 'arroba'
-version = '0.8'
+version = '0.9'
 authors = [
     { name='Ryan Barrett', email='arroba@ryanb.org' },
 ]
 description = "Python implementation of Bluesky PDS and AT Protocol, including repo, MST, and sync methods"
 readme = 'README.md'
+license = 'CC0-1.0'
 requires-python = '>=3.9'
 keywords = ['arroba', 'AT Protocol', 'ATP', 'Bluesky']
 dependencies = [
@@ -34,7 +39,6 @@ dependencies = [
 classifiers = [
     'Programming Language :: Python :: 3',
     'Programming Language :: Python :: 3.9',
-    'License :: Public Domain',
     'Operating System :: OS Independent',
     'Intended Audience :: Developers',
     'Development Status :: 3 - Alpha',
