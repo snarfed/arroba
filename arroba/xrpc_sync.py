@@ -28,6 +28,9 @@ new_events = Condition()
 
 GET_BLOB_CACHE_CONTROL = {'Cache-Control': 'public, max-age=3600'}  # 1 hour
 
+# for subscribeRepos
+BLOCKED_CURSORS = (14675627, 9683361)
+
 
 @server.server.method('com.atproto.sync.getCheckout')
 def get_checkout(input, did=None):
@@ -132,9 +135,9 @@ def subscribe_repos(cursor=None):
     """
     # bad client on 152.53.36.179 that keeps reconnecting with this cursor
     # XXX TODO: check again and remove before next release!
-    if cursor == 14675627:
-        logger.info('Rejecting connection from 152.53.36.179 with cursor 14675627')
-        raise TooManyRequests("Your client is misconfigured and keeps reconnecting with cursor 14675627. Try keeping track of the last cursor you've seen and reconnect with that instead.")
+    if cursor in BLOCKED_CURSORS:
+        logger.info(f'Rejecting connection, blocked cursor')
+        raise TooManyRequests(f"Your client is misconfigured and keeps reconnecting with cursor {cursor}. Try keeping track of the last cursor you've seen and reconnect with that instead.")
 
     cur_seq = server.storage.last_seq(SUBSCRIBE_REPOS_NSID)
 

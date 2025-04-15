@@ -99,6 +99,10 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 
 ## Changelog
 
+### 0.9 - unreleased
+
+TODO: remove blocked cursor hack in subscribeRepos before releasing?
+
 ### 0.8 - 2025-03-13
 
 _Breaking changes:_
