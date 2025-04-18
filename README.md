@@ -103,6 +103,10 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 
 TODO: remove blocked cursor hack in subscribeRepos before releasing?
 
+* `mst`:
+  * Add new `MST.cids_for_path` method.
+
+
 ### 0.8 - 2025-03-13
 
 _Breaking changes:_

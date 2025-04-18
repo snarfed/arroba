@@ -18,7 +18,7 @@ The MST is an ordered, insert-order-independent, deterministic tree.
 Data keys are laid out in alphabetic order.
 The key insight of an MST is that each key is hashed and starting 0s are counted
 to determine which layer it falls on (5 zeros for ~32 fanout).
-This is a merkle tree, so each subtree is referred to by it's hash (CID).
+This is a merkle tree, so each subtree is referred to by its hash (CID).
 When a leaf is changed, ever tree on the path to that leaf is changed as well,
 thereby updating the root hash.
 
@@ -906,24 +906,27 @@ class MST:
         for cid, block in leaf_blocks.items():
             yield cid, block.encoded
 
-#     def cids_for_path(self, key):
-#         """Returns the CIDs in a given key path. ???
-#
-#         Args:
-#           key (str):
-#
-#         Returns:
-#           sequence of :class:`CID`
-#         """
-#         cids: CID[] = [self.get_pointer()]
-#         index = self.find_gt_or_equal_leaf_index(key)
-#         found = self.at_index(index)
-#         if found and isinstance(found, Leaf) and found.key == key:
-#             return cids + [found.value]
-#         prev = self.at_index(index - 1)
-#         if prev and isinstance(prev, MST):
-#             return cids + prev.cids_for_path(key)
-#         return cids
+    def cids_for_path(self, key):
+        """Returns the CIDs in a given key path.
+
+        Args:
+          key (str):
+
+        Returns:
+          sequence of :class:`CID`
+        """
+        cids = [self.get_pointer()]
+
+        index = self.find_gt_or_equal_leaf_index(key)
+        found = self.at_index(index)
+        if isinstance(found, Leaf) and found.key == key:
+            return cids + [found.value]
+
+        prev = self.at_index(index - 1)
+        if isinstance(prev, MST):
+            return cids + prev.cids_for_path(key)
+
+        return cids
 
 
 def leading_zeros_on_hash(key):

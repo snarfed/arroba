@@ -283,9 +283,30 @@ class MstTest(testutil.TestCase):
         self.assertEqual(2, mst.layer)
         self.assertEqual(l2root, mst.get_pointer().encode('base32'))
 
-    # def test_saves_and_loads_from_blockstore(self):
-    #     root = util.save_mst(blockstore, mst)
-    #     loaded = MST.load(blockstore, root)
-    #     orig_nodes = mst.all_nodes()
-    #     loaded_nodes = loaded.all_nodes()
-    #     self.assertEqual(orig_nodes, loaded_nodes)
+        return mst
+
+    def test_cids_for_path(self):
+        # based on "two deep leafless split" in commit-proof-fixtures.json
+        for key in ('A0/501344', 'B2/303249', 'C0/535043'):
+            self.mst = self.mst.add(key, CID1)
+
+        def cfp(key):
+            return [c.encode('base32') for c in self.mst.cids_for_path(key)]
+
+        cid1 = CID1.encode('base32')
+        self.assertEqual([
+            'bafyreifoy7ierkqljk37wozudqhqjuuahjnubqvd3qprx5ocwcfrx5v3hm',
+            'bafyreihexby6fnhajsjzzqkmegqpqt2lrr3rpesyl6kt3t3xppid7tuvfy',
+            'bafyreiciix65xuk62hu6ew6jdy3m2swqstvnuhuwcwffidk3nduf7eaoh4',
+            cid1,
+        ], cfp('A0/501344'))
+        self.assertEqual([
+            'bafyreifoy7ierkqljk37wozudqhqjuuahjnubqvd3qprx5ocwcfrx5v3hm',
+            cid1,
+        ], cfp('B2/303249'))
+        self.assertEqual([
+            'bafyreifoy7ierkqljk37wozudqhqjuuahjnubqvd3qprx5ocwcfrx5v3hm',
+            'bafyreiagiwrefvm27hvgryirykp7reqcpz56v6txzksgbargjlibtpsqwu',
+            'bafyreiewdvzcopoza6bdntvhmvdfqeolql6sckkiu75jpvfnwwnfi57jia',
+            cid1,
+        ], cfp('C0/535043'))
