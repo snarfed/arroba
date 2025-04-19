@@ -26,7 +26,7 @@ def render(tree):
 
     def name(node):
         if isinstance(node, MST):
-            return node.pointer.encode("base32")
+            return node.get_pointer().encode("base32")
         else:
             return f'{node.value.encode("base32")}_{node.key.replace("/", "_")}'
 
@@ -37,7 +37,7 @@ def render(tree):
             key = f'{entry.key}\\n'
         else:
             assert isinstance(entry, MST)
-            cid = entry.pointer
+            cid = entry.get_pointer()
             shape = 'circle'
             key = ''
 
