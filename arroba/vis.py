@@ -18,7 +18,6 @@ def render(tree):
 
     Args:
       tree (mst.MST)
-      stream (file): where to output
 
     Returns:
       str: GraphViz rendering
@@ -57,8 +56,7 @@ if __name__ == '__main__':
     for case in json.load((Path(os.path.dirname(__file__))
                            / 'tests/testdata/commit-proof-fixtures.json'
                            ).open()):
-        storage = MemoryStorage()
-        tree = MST.create(storage=storage)
+        tree = MST.create(storage=MemoryStorage())
         val = CID.decode(case['leafValue'])
 
         # initial tree
