@@ -1,16 +1,21 @@
 """Visualizes an MST via GraphViz.
 
-Usage: python -m arroba.vis
+Usage: python -m arroba.vis [-v]
 """
 import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 
 from multiformats import CID
 
-from .mst import Leaf, MST
+from .mst import Data, Entry, Leaf, MST
 from .storage import Action, Block, CommitData, CommitOp, MemoryStorage
+
+
+# render CIDS as last 7 chars of base32, for readability
+CID.__str__ = CID.__repr__ = lambda cid: '…' + cid.encode('base32')[-7:]
 
 
 def render(tree):
@@ -34,15 +39,27 @@ def render(tree):
         if isinstance(entry, Leaf):
             cid = entry.value
             shape = 'box'
-            key = f'{entry.key}\\n'
+            info = f'\\n{entry.key}'
         else:
             assert isinstance(entry, MST)
             cid = entry.get_pointer()
-            shape = 'circle'
-            key = ''
+            shape = 'ellipse'
+            info = ''
+
+            if sys.argv[-1] == '-v':
+                data = Data(**tree.storage.read(cid).decoded)
+                info = f'\\nl {data.l}'
+
+                children = []
+                for child in data.e:
+                    child = Entry(**child)
+                    children.append(f'{child.p} of k {child.k.decode()} v {child.v} t {child.t}')
+
+                children_str = '\\n'.join(children)
+                info += f'\\n[ {children_str} ]'
 
         label = f'{key}…{cid.encode("base32")[-7:]}'
-        out += f'{name(entry)} [shape = {shape}, label = "{label}"]\n'
+        out += f'{name(entry)} [shape = {shape}, label = "{cid}{info}"]\n'
 
         if isinstance(entry, MST):
             for child in entry.get_entries():
@@ -56,12 +73,16 @@ if __name__ == '__main__':
     for case in json.load((Path(os.path.dirname(__file__))
                            / 'tests/testdata/commit-proof-fixtures.json'
                            ).open()):
-        tree = MST.create(storage=MemoryStorage())
+        storage = MemoryStorage()
+        tree = MST.create(storage=storage)
         val = CID.decode(case['leafValue'])
 
         # initial tree
         for key in case['keys']:
           tree = tree.add(key, val)
+
+        _, blocks = tree.get_unstored_blocks()
+        storage.write_blocks(blocks.values())
 
         filename = f'vis_{case.get("comment", "").replace(" ", "_").replace("-", "_")}'
         with open(f'{filename}_before.png', 'wb') as f:
@@ -73,6 +94,9 @@ if __name__ == '__main__':
 
         for key in case['dels']:
             tree = tree.delete(key)
+
+        _, blocks = tree.get_unstored_blocks()
+        storage.write_blocks(blocks.values())
 
         with open(f'{filename}_after.png', 'wb') as f:
             subprocess.run(['dot', '-Tpng'], input=render(tree).encode(), stdout=f)
