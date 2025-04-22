@@ -59,16 +59,15 @@ from .util import dag_cbor_cid
 
 logger = logging.getLogger(__name__)
 
-# this is treeEntry in mst.ts
 Entry = namedtuple('Entry', [
     'p',  # int, length of prefix that this data key shares with the prev data key
     'k',  # bytes, the rest of the data key outside the shared prefix
-    'v',  # str CID, value
-    't',  # str CID, next subtree (to the right of leaf), or None
+    'v',  # CID, value
+    't',  # CID, next subtree (to the right of leaf), or None
 ])
 
 Data = namedtuple('Data', [
-    'l',  # str CID, left-most subtree, or None
+    'l',  # CID, left-most subtree, or None
     'e',  # list of Entry
 ])
 
@@ -928,6 +927,84 @@ class MST:
 
         return cids
 
+    def get_covering_proofs(self, commit):
+        """Returns blocks needed for covering proofs of a commit's operations.
+
+        https://github.com/bluesky-social/proposals/tree/main/0006-sync-iteration#commit-validation-mst-operation-inversion
+
+        Args:
+          commit (CommitData)
+
+        Returns:
+          sequence of Block:
+        """
+        blocks = {}  # CID => Block; MST nodes in proofs
+
+        def load(cid, name):
+            logger.log(1, (name, cid))
+            if cid not in blocks:
+                blocks[cid] = self.storage.read(cid)
+            return blocks[cid]
+
+        # find paths to each operation's key, collecting adjacent nodes
+        for op in commit.commit.ops:
+            logger.log(1, op)
+            cur_block = load(self.get_pointer(), 'head')
+
+            while True:  # tree layer
+                data = Data(**cur_block.decoded)
+                cur_cid = left_cid = right_cid = data.l
+
+                entries = [Entry(**e) for e in data.e]
+
+                last_key = ''
+                for cur in entries:
+                    if not (right_cid := cur.t):
+                        continue
+                    key = last_key[:cur.p] + cur.k.decode()
+
+                    if key == op.path:
+                        cur_cid = None
+                        break
+
+                    if key > op.path:
+                        break
+
+                    cur_cid = left_cid = right_cid
+                    last_key = key
+
+                left_block = None
+                if left_cid:
+                    left_block = load(left_cid, 'L')
+
+                right_block = None
+                if right_cid:
+                    right_block = load(right_cid, 'R')
+
+                if not cur_cid:
+                    break
+                cur_block = load(cur_cid, 'C')
+                logger.log(1, 'next layer')
+
+            # found key. collect remaining nodes on either side, down to the bottom
+            logger.log(1, 'cleanup')
+
+            # right-most nodes of the left side
+            if left_block:
+                while True:
+                    data = Data(**left_block.decoded)
+                    next_cid = Entry(**data.e[-1]).t if data.e else data.l
+                    if not next_cid:
+                        break
+                    left_block = load(next_cid, 'L')
+
+            # left-most nodes of the left side
+            if right_block:
+                while l := Data(**right_block.decoded).l:
+                    right_block = load(l, 'R')
+
+        return blocks
+
 
 def leading_zeros_on_hash(key):
     """Returns the number of leading zeros in a key's hash.
@@ -944,11 +1021,11 @@ def leading_zeros_on_hash(key):
     leading_zeros = 0
     for byte in sha256(key).digest():
         if byte < 64:
-             leading_zeros += 1
+            leading_zeros += 1
         if byte < 16:
-             leading_zeros += 1
+            leading_zeros += 1
         if byte < 4:
-             leading_zeros += 1
+            leading_zeros += 1
         if byte == 0:
             leading_zeros += 1
         else:
@@ -975,6 +1052,7 @@ def deserialize_node_data(*, storage=None, data=None, layer=None):
     Args:
       storage (Storage)
       data (Data)
+      layer (int)
 
     Returns:
       sequence of MST and Leaf:

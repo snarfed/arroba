@@ -5,6 +5,9 @@ https://github.com/bluesky-social/atproto/blob/main/packages/repo/tests/mst.test
 
 Huge thanks to the Bluesky team for working in the public, in open source, and to
 Daniel Holmgren and Devin Ivy for this code specifically!
+
+Also see more MST tests in test_testdata.py, eg for get_covering_proofs based on
+commit-proof-fixtures.json.
 """
 import random
 
