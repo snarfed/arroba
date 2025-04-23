@@ -17,14 +17,14 @@ from werkzeug.exceptions import TooManyRequests
 from .datastore_storage import AtpBlock, AtpRemoteBlob, AtpRepo, DatastoreStorage
 from .mst import MST
 from . import server
-from .storage import CommitData, SUBSCRIBE_REPOS_NSID
+from .storage import Action, CommitData, SUBSCRIBE_REPOS_NSID
 from . import util
 from . import xrpc_repo
 
 logger = logging.getLogger(__name__)
 
 # used by subscribe_repos and send_events
-NEW_EVENTS_TIMEOUT = timedelta(seconds=20)
+NEW_EVENTS_TIMEOUT = timedelta(seconds=5)
 new_events = Condition()
 
 GET_BLOB_CACHE_CONTROL = {'Cache-Control': 'public, max-age=3600'}  # 1 hour
@@ -179,9 +179,9 @@ def subscribe_repos(cursor=None):
                 event_op = {
                     'action': op.action.name.lower(),
                     'path': op.path,
-                    'cid': op.cid,
+                    'cid': None if op.action == Action.DELETE else op.cid,
                 }
-                if op.prev_cid:
+                if op.action != Action.CREATE:
                     event_op['prev'] = op.prev_cid
                 ops.append(event_op)
 

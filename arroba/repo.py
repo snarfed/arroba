@@ -55,7 +55,10 @@ def writes_to_commit_ops(writes, repo=None):
     ops = []
     for write in writes:
         path = f'{write.collection}/{write.rkey}'
-        cid = util.dag_cbor_cid(write.record) if write.record else None
+        cid = None
+        if write.action in (Action.CREATE, Action.UPDATE):
+            assert write.record is not None
+            cid = util.dag_cbor_cid(write.record)
 
         # sync v1.1: or UPDATE and DELETE, load the previous record's CID
         # https://github.com/bluesky-social/proposals/tree/main/0006-sync-iteration#commit-validation-mst-operation-inversion

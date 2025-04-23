@@ -215,6 +215,34 @@ class RepoTest(TestCase):
         self.assertEqual(1, len(seen))
         self.assertCommitIs(seen[0], create, 4)
 
+    def test_writes_to_commit_ops(self):
+        tid = next_tid()
+        path = f'co.ll/{tid}'
+        create = Write(Action.CREATE, 'co.ll', tid, {'foo': 'bar'})
+        foo_bar_cid = util.dag_cbor_cid({'foo': 'bar'})
+        expected_create = CommitOp(action=Action.CREATE, path=path, cid=foo_bar_cid)
+        self.assertEqual([expected_create], writes_to_commit_ops([create]))
+
+        self.repo.apply_writes([create])
+
+        foo_baz_cid = util.dag_cbor_cid({'foo': 'baz'})
+        update = Write(Action.UPDATE, 'co.ll', tid, {'foo': 'baz'})
+        expected_update = CommitOp(action=Action.UPDATE, path=path, cid=foo_baz_cid,
+                                   prev_cid=foo_bar_cid)
+        self.assertEqual([expected_update], writes_to_commit_ops([update], repo=self.repo))
+
+        delete = Write(Action.DELETE, 'co.ll', tid)
+        expected_delete = CommitOp(action=Action.DELETE, path=path, prev_cid=foo_bar_cid)
+        self.assertEqual([expected_delete], writes_to_commit_ops([delete], repo=self.repo))
+
+        # even if we set record for a delete, writes_to_commit_ops shouldn't include cid
+        delete = Write(Action.DELETE, 'co.ll', tid, record={'foo': 'bar'})
+        self.assertEqual([expected_delete], writes_to_commit_ops([delete], repo=self.repo))
+
+        self.assertEqual([expected_create, expected_update, expected_delete],
+                         writes_to_commit_ops([create, update, delete], repo=self.repo))
+
+
 
 class DatastoreRepoTest(RepoTest, DatastoreTest):
     """Run all of RepoTest's tests with DatastoreStorage."""

@@ -594,9 +594,11 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             ops = [{
                 'action': write.action.name.lower(),
                 'path': f'{write.collection}/{write.rkey}',
-                'cid': util.dag_cbor_cid(write.record) if write.record else None,
+                'cid': (util.dag_cbor_cid(write.record)
+                        if write.action in (Action.CREATE, Action.UPDATE) else None),
             }]
             if write.action in (Action.UPDATE, Action.DELETE):
+                assert prev_record
                 ops[0]['prev'] = prev_record
 
         self.assertEqual({
@@ -652,7 +654,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         if record:
             self.assertIn(record, msg_records)
 
-    def test_subscribe_repos(self, *_):
+    def test_basic(self, *_):
         received_a = []
         delivered_a = Semaphore(value=0)
         subscriber_a = Thread(target=self.subscribe,
@@ -707,12 +709,33 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         subscriber_b.join()
 
+    def test_delete(self, *_):
+        orig_commit = self.repo.head
+        tid = next_tid()
+
+        create = Write(Action.CREATE, 'co.ll', tid, {'foo': 'bar'})
+        self.repo.apply_writes([create])
+        after_create = self.repo.head
+        record_cid = self.repo.mst.get(f'co.ll/{tid}')
+
+        delete = Write(Action.DELETE, 'co.ll', tid)
+        self.repo.apply_writes([delete])
+        after_delete = self.repo.head
+
+        received = []
+        self.subscribe(received, limit=5, cursor=0)
+
+        self.assertCommitMessage(received[3], {'foo': 'bar'}, cur=after_create.cid,
+                                 write=create, prev=orig_commit, seq=4)
+        self.assertCommitMessage(received[4], cur=after_delete.cid, write=delete,
+                                 prev=after_create, prev_record=record_cid, seq=5)
+
     @patch.dict(os.environ, SUBSCRIBE_REPOS_BATCH_DELAY='.01')
     @patch('arroba.xrpc_sync.NEW_EVENTS_TIMEOUT', timedelta(seconds=.01))
-    def test_subscribe_repos_batch_delay(self, *_):
-        self.test_subscribe_repos()
+    def test_batch_delay(self, *_):
+        self.test_basic()
 
-    def test_subscribe_repos_cursor_zero(self, *_):
+    def test_cursor_zero(self, *_):
         orig_commit = self.repo.head
         record_cids = []
         tid = next_tid()
@@ -743,7 +766,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             received[5], {'foo': 'biff'}, cur=commits[2].cid, write=writes[2],
             prev=commits[1], prev_record=record_cids[1], seq=6)
 
-    def test_subscribe_repos_cursor_past_current_seq(self, *_):
+    def test_cursor_past_current_seq(self, *_):
         received = []
         self.subscribe(received, cursor=999)
         self.assertEqual([
@@ -755,7 +778,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         ], received)
 
     @patch.dict(os.environ, ROLLBACK_WINDOW='2')
-    def test_subscribe_repos_cursor_before_rollback_window(self, *_):
+    def test_cursor_before_rollback_window(self, *_):
         while seq := server.storage.allocate_seq(SUBSCRIBE_REPOS_NSID):
             if seq >= 5:
                 break
@@ -863,7 +886,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         }, payload)
 
     @patch('arroba.xrpc_sync.NEW_EVENTS_TIMEOUT', timedelta(seconds=2))
-    def test_subscribe_repos_skipped_seq(self, *_):
+    def test_skipped_seq(self, *_):
         # https://github.com/snarfed/arroba/issues/34
         received = []
         delivered = Semaphore(value=0)

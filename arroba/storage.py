@@ -31,14 +31,14 @@ CommitData = namedtuple('CommitData', [
     'commit',  # Block
     'blocks',  # dict of CID to Block
     'prev',    # CID or None
-], defaults=[None])  # for prev
+], defaults=[None])  # prev
 
 CommitOp = namedtuple('CommitOp', [  # for subscribeRepos
     'action',  # Action
     'path',    # str
     'cid',     # CID, or None for DELETE
     'prev_cid', # previous CID for UPDATE and DELETE operations, None for CREATE
-], defaults=[None])  # for prev_cid
+], defaults=[None, None])  # cid, prev_cid
 
 # commit record format is:
 # https://atproto.com/specs/repository#commit-objects
