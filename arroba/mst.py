@@ -927,18 +927,22 @@ class MST:
 
         return cids
 
-    def get_covering_proofs(self, commit):
-        """Returns blocks needed for covering proofs of a commit's operations.
+    def add_covering_proofs(self, commit, blocks=None):
+        """Finds and adds blocks needed for covering proofs of a commit's operations.
 
         https://github.com/bluesky-social/proposals/tree/main/0006-sync-iteration#commit-validation-mst-operation-inversion
 
         Args:
           commit (CommitData)
+          blocks (dict, CID => Block): optional; if provided, covering proof blocks
+            will be added to this dict, in place.
 
         Returns:
-          sequence of Block:
+        sequence of Block: all blocks in covering proofs for this commit. If the
+          ``blocks`` arg was provided, this is it.
         """
-        blocks = {}  # CID => Block; MST nodes in proofs
+        if blocks is None:
+            blocks = {}
 
         def load(cid, name):
             logger.log(1, (name, cid))

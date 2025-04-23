@@ -15,6 +15,7 @@ from multiformats.multibase import MultibaseKeyError, MultibaseValueError
 from werkzeug.exceptions import TooManyRequests
 
 from .datastore_storage import AtpBlock, AtpRemoteBlob, AtpRepo, DatastoreStorage
+from .mst import MST
 from . import server
 from .storage import CommitData, SUBSCRIBE_REPOS_NSID
 from . import util
@@ -156,19 +157,40 @@ def subscribe_repos(cursor=None):
 
         cur_seq = event.commit.seq
         commit = event.commit.decoded
-        car_blocks = [car.Block(cid=block.cid, data=block.encoded,
-                                decoded=block.decoded)
+
+        # sync v1.1 aka inductive firehose: including blocks for "covering proofs" of
+        # new/updated/deleted records
+        # https://github.com/bluesky-social/proposals/tree/main/0006-sync-iteration
+        tree = MST(storage=server.storage, pointer=event.commit.decoded['data'])
+        tree.add_covering_proofs(event, blocks=event.blocks)
+        car_blocks = [car.Block(cid=block.cid, data=block.encoded, decoded=block.decoded)
                       for block in event.blocks.values()]
+
+        # previous commit's data CID goes into prevData field
+        prev_data = None
+        if prev_commit_cid := commit['prev']:
+            if prev_commit := server.storage.read(prev_commit_cid):
+                prev_data = prev_commit.decoded.get('data')
+
+        # records' previous CIDs go into operations' prev fields
+        ops = []
+        if event.commit.ops:
+            for op in event.commit.ops:
+                event_op = {
+                    'action': op.action.name.lower(),
+                    'path': op.path,
+                    'cid': op.cid,
+                }
+                if op.prev_cid:
+                    event_op['prev'] = op.prev_cid
+                ops.append(event_op)
+
         return ({  # header
             'op': 1,
             't': '#commit',
         }, {  # payload
             'repo': commit['did'],
-            'ops': [{
-                'action': op.action.name.lower(),
-                'path': op.path,
-                'cid': op.cid,
-            } for op in (event.commit.ops or [])],
+            'ops': ops,
             'commit': event.commit.cid,
             'blocks': car.write_car([event.commit.cid], car_blocks),
             'time': event.commit.time.replace(tzinfo=timezone.utc).isoformat(),
@@ -178,6 +200,7 @@ def subscribe_repos(cursor=None):
             'rebase': False,
             'tooBig': False,
             'blobs': [],
+            'prevData': prev_data,
         })
 
     if cursor is not None:

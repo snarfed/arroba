@@ -32,7 +32,7 @@ class RepoTest(TestCase):
         self.repo = Repo.create(self.storage, 'did:web:user.com', handle='user.com',
                                 signing_key=self.key)
 
-    def assertCommitIs(self, commit_data, write, seq):
+    def assertCommitIs(self, commit_data, write, seq, prev_record=None):
         self.assertEqual(3, commit_data.commit.decoded['version'])
         self.assertEqual('did:web:user.com', commit_data.commit.decoded['did'])
         self.assertEqual(util.int_to_tid(seq, clock_id=0),
@@ -53,7 +53,12 @@ class RepoTest(TestCase):
             self.assertEqual(write.record,
                              commit_data.blocks[record_cid].decoded)
 
-        self.assertEqual(writes_to_commit_ops([write]), commit_data.commit.ops)
+        self.assertEqual([CommitOp(
+            action=write.action,
+            path=f'{write.collection}/{write.rkey}',
+            cid=util.dag_cbor_cid(write.record) if write.record else None,
+            prev_cid=prev_record,
+        )], commit_data.commit.ops)
 
         for block in commit_data.blocks.values():
             self.assertEqual(seq, block.seq)
@@ -191,7 +196,7 @@ class RepoTest(TestCase):
         update = Write(Action.UPDATE, 'co.ll', tid, {'foo': 'baz'})
         self.repo.apply_writes([update])
         self.assertEqual(2, len(seen))
-        self.assertCommitIs(seen[1], update, 5)
+        self.assertCommitIs(seen[1], update, 5, prev_record=util.dag_cbor_cid({'foo': 'bar'}))
 
         # unset callback, update again
         self.repo.callback = None

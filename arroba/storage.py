@@ -309,11 +309,11 @@ class Storage:
 
         def make_commit():
             for op in commit_block.ops:
-                if (op.action in (Action.CREATE, Action.UPDATE)
-                        and op.cid not in blocks):
+                if op.action in (Action.CREATE, Action.UPDATE) and op.cid not in blocks:
                     record = self.read(op.cid)
                     assert record
                     blocks[op.cid] = record
+
             return CommitData(blocks=blocks, commit=commit_block,
                               prev=commit_block.decoded.get('prev'))
 

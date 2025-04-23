@@ -80,10 +80,10 @@ for e in load_json_list('commit-proof-fixtures.json'):
             _, blocks = tree.get_unstored_blocks()
             storage.write_blocks(blocks.values())
 
-            # check get_covering_proofs
+            # check add_covering_proofs
             commit = CommitData(commit=Block(decoded={'x': 'y'}, ops=ops),
                                 blocks={val: Block(decoded={'a': 'b'})})
-            proofs = tree.get_covering_proofs(commit)
+            proofs = tree.add_covering_proofs(commit)
             self.assertCountEqual([CID.decode(cid) for cid in e['blocksInProof']],
                                   proofs.keys())
 

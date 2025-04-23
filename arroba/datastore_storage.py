@@ -100,7 +100,8 @@ class CommitOp(ndb.Model):
     """
     action = ndb.StringProperty(required=True, choices=('create', 'update', 'delete'))
     path = ndb.StringProperty(required=True)
-    cid = ndb.StringProperty()  # unset for deletes
+    cid = ndb.StringProperty()       # unset for deletes
+    prev_cid = ndb.StringProperty()  # unset for creates
 
 
 class AtpRepo(ndb.Model):
@@ -209,7 +210,8 @@ class AtpBlock(ndb.Model):
           Block
         """
         ops = [storage.CommitOp(action=Action[op.action.upper()], path=op.path,
-                                cid=CID.decode(op.cid) if op.cid else None)
+                                cid=CID.decode(op.cid) if op.cid else None,
+                                prev_cid=CID.decode(op.prev_cid) if op.prev_cid else None)
                for op in self.ops]
         return Block(cid=self.cid, encoded=self.encoded, seq=self.seq, ops=ops,
                      time=self.created, repo=self.repo)
@@ -226,7 +228,8 @@ class AtpBlock(ndb.Model):
           AtpBlock
         """
         ops = [CommitOp(action=op.action.name.lower(), path=op.path,
-                        cid=op.cid.encode('base32') if op.cid else None)
+                        cid=op.cid.encode('base32') if op.cid else None,
+                        prev_cid=op.prev_cid.encode('base32') if op.prev_cid else None)
                for op in (block.ops or [])]
         created = block.time.astimezone(timezone.utc).replace(tzinfo=None)
         return AtpBlock(id=block.cid.encode('base32'), encoded=block.encoded,

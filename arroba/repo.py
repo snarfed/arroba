@@ -39,11 +39,12 @@ Write = namedtuple('Write', [
 ], defaults=[None] * 4)
 
 
-def writes_to_commit_ops(writes):
+def writes_to_commit_ops(writes, repo=None):
     r"""Converts :class:`Write`\s to :class:`CommitOp`\s.
 
     Args:
       write (iterable): of :class:`Write`
+      repo (Repo): optional; required if the writes include updates or deletes
 
     Returns:
       list of :class:`repo.CommitOp`
@@ -51,11 +52,24 @@ def writes_to_commit_ops(writes):
     if not writes:
         return writes
 
-    return [CommitOp(action=write.action,
-                     path=f'{write.collection}/{write.rkey}',
-                     cid=util.dag_cbor_cid(write.record) if write.record else None)
-            for write in writes]
+    ops = []
+    for write in writes:
+        path = f'{write.collection}/{write.rkey}'
+        cid = util.dag_cbor_cid(write.record) if write.record else None
 
+        # sync v1.1: or UPDATE and DELETE, load the previous record's CID
+        # https://github.com/bluesky-social/proposals/tree/main/0006-sync-iteration#commit-validation-mst-operation-inversion
+        prev_cid = None
+        if write.action in (Action.UPDATE, Action.DELETE):
+            prev_cid = repo.mst.get(path)
+            assert prev_cid
+            # this would be nice, but sometimes we end up with updates of a record to
+            # the same record :/
+            # assert prev_cid != cid, (prev_cid, cid)
+
+        ops.append(CommitOp(action=write.action, path=path, cid=cid, prev_cid=prev_cid))
+
+    return ops
 
 class Repo:
     """AT Protocol data repo implementation, storage agnostic.
@@ -249,7 +263,7 @@ class Repo:
         :class:`MST` resulting from applying this commit.
 
         Args:
-          repo (Repo): optional
+          repo (Repo): optional; required if the writes include updates or deletes
           storage (Storage): optional
           repo_did (str): optional
           signing_key (ec.EllipticCurvePrivateKey): optional
@@ -311,8 +325,8 @@ class Repo:
             'prev': cur_head,
             'data': root,
         }, signing_key)
-        commit_block = Block(decoded=commit, ops=writes_to_commit_ops(writes),
-                             repo=repo_did)
+        commit_block = Block(decoded=commit, repo=repo_did,
+                             ops=writes_to_commit_ops(writes, repo=repo))
         commit_blocks[commit_block.cid] = commit_block
 
         if repo:
