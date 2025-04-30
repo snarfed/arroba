@@ -169,7 +169,7 @@ class DatastoreTest(TestCase):
 
     def setUp(self):
         super().setUp()
-        self.storage = DatastoreStorage(ndb_client=self.ndb_client)
+        server.storage = self.storage = DatastoreStorage(ndb_client=self.ndb_client)
 
         # clear datastore
         requests.post(f'http://{self.ndb_client.host}/reset')
