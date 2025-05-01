@@ -23,12 +23,9 @@ from .testutil import DatastoreTest, NOW, TestCase
 
 
 class RepoTest(TestCase):
-    STORAGE_CLS = MemoryStorage
-
     def setUp(self):
         super().setUp()
         server._validate = False
-        self.storage = self.STORAGE_CLS()
         self.repo = Repo.create(self.storage, 'did:web:user.com', handle='user.com',
                                 signing_key=self.key)
 
@@ -246,4 +243,4 @@ class RepoTest(TestCase):
 
 class DatastoreRepoTest(RepoTest, DatastoreTest):
     """Run all of RepoTest's tests with DatastoreStorage."""
-    STORAGE_CLS = DatastoreStorage
+    pass

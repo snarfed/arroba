@@ -110,6 +110,7 @@ class TestCase(unittest.TestCase):
         if not TestCase.key:
             TestCase.key = util.new_key(seed=2349872879569)
 
+        self.storage = server.storage = MemoryStorage()
         server.server._validate = server.server._truncate = False
 
         # clear caches
@@ -169,7 +170,7 @@ class DatastoreTest(TestCase):
 
     def setUp(self):
         super().setUp()
-        server.storage = self.storage = DatastoreStorage(ndb_client=self.ndb_client)
+        self.storage = server.storage = DatastoreStorage(ndb_client=self.ndb_client)
 
         # clear datastore
         requests.post(f'http://{self.ndb_client.host}/reset')
@@ -190,13 +191,11 @@ class DatastoreTest(TestCase):
 
 
 class XrpcTestCase(TestCase):
-    STORAGE_CLS = MemoryStorage
     app = Flask(__name__, static_folder=None)
 
     def setUp(self):
         super().setUp()
 
-        server.storage = self.STORAGE_CLS()
         self.repo = Repo.create(server.storage, 'did:web:user.com',
                                 handle='han.dull', signing_key=self.key)
 

@@ -17,12 +17,6 @@ CID_ = CID.decode('bafyreiblaotetvwobe7cu2uqvnddr6ew2q3cu75qsoweulzku2egca4dxq')
 
 
 class StorageTest(TestCase):
-    STORAGE_CLS = MemoryStorage
-
-    def setUp(self):
-        super().setUp()
-        self.storage = self.STORAGE_CLS()
-
     def test_block_encoded(self):
         block = Block(encoded=ENCODED)
         self.assertEqual(DECODED, block.decoded)
@@ -310,4 +304,4 @@ class StorageTest(TestCase):
 
 class DatastoreStorageTest(StorageTest, DatastoreTest):
     """Run all of StorageTest's tests with DatastoreStorage."""
-    STORAGE_CLS = DatastoreStorage
+    pass

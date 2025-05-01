@@ -938,8 +938,6 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
 
 class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
-    STORAGE_CLS = DatastoreStorage
-
     # getBlob depends on DatastoreStorage
     def test_get_blob(self):
         cid = 'bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq'
@@ -975,8 +973,6 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
 @patch('arroba.datastore_storage.AtpBlock.created._now',
        return_value=testutil.NOW.replace(tzinfo=None))
 class DatastoreSubscribeReposTest(SubscribeReposTest, testutil.DatastoreTest):
-    STORAGE_CLS = DatastoreStorage
-
     @patch('arroba.datastore_storage.AtpBlock.created._now',
            return_value=testutil.NOW.replace(tzinfo=None))
     def setUp(self, _):

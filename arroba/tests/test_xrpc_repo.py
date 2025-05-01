@@ -862,4 +862,4 @@ class XrpcRepoTest(testutil.XrpcTestCase):
 
 
 class DatastoreXrpcRepoTest(XrpcRepoTest, testutil.DatastoreTest):
-    STORAGE_CLS = DatastoreStorage
+    pass
