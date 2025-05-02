@@ -556,4 +556,4 @@ class MemoryStorage(Storage):
 
     def last_seq(self, nsid):
         assert nsid
-        return self.sequences[nsid] - 1
+        return self.sequences.setdefault(nsid, 1) - 1
