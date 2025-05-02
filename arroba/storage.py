@@ -522,8 +522,7 @@ class MemoryStorage(Storage):
             seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
 
         block = Block(decoded=obj, seq=seq, repo=repo_did)
-        if block not in self.blocks:
-            self.blocks[block.cid] = block
+        self.blocks.setdefault(block.cid, block)
         return block
 
     def write_blocks(self, blocks):
