@@ -24,6 +24,7 @@ for module in ('google.cloud', 'oauthlib', 'requests', 'requests_oauthlib',
   logging.getLogger(module).setLevel(logging.INFO)
 
 from arroba.datastore_storage import DatastoreStorage
+from arroba import firehose
 from arroba.repo import Repo
 from arroba import server
 from arroba import util
@@ -131,7 +132,7 @@ with ndb_client.context():
                                   rotation_key=privkey, signing_key=privkey,
                                   handle=os.environ['REPO_HANDLE'])
 
-server.repo.callback = lambda commit_data: xrpc_sync.send_events()
+server.repo.callback = lambda commit_data: firehose.send_events()
 if server.repo.handle != os.environ['REPO_HANDLE']:
     logger.warning(f"$REPO_HANDLE is {os.environ['REPO_HANDLE']} but loaded repo's handle is {server.repo.handle} !")
 

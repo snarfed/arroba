@@ -1,7 +1,8 @@
 """Unit tests for xrpc_sync.py."""
+import copy
 from datetime import timedelta
 from io import BytesIO
-from threading import Semaphore, Thread
+from threading import Event, Semaphore, Thread
 import time
 from unittest import skip
 from unittest.mock import patch
@@ -17,6 +18,7 @@ import os
 
 from .. import datastore_storage
 from ..datastore_storage import AtpRemoteBlob, DatastoreStorage
+from .. import firehose
 from ..repo import Repo, Write, writes_to_commit_ops
 from .. import server
 from ..storage import Action, Storage, SUBSCRIBE_REPOS_NSID
@@ -535,21 +537,34 @@ class XrpcSyncTest(testutil.XrpcTestCase):
 class SubscribeReposTest(testutil.XrpcTestCase):
     def setUp(self):
         super().setUp()
-        self.repo.callback = lambda commit_data: xrpc_sync.send_events()
+        self.repo.callback = lambda _: firehose.send_events()
+        firehose.reset()
 
-    def subscribe(self, received, delivered=None, limit=None, cursor=None):
+    def tearDown(self):
+        if firehose.collector:
+            firehose.collector.join(timeout=2)
+            self.assertFalse(firehose.collector.is_alive())
+
+        super().tearDown()
+
+    def subscribe(self, received, delivered=None, started=None, limit=None,
+                  cursor=None):
         """subscribeRepos websocket client. May be run in a thread.
 
         Args:
           received: list, each received (header, payload) tuple will be appended
           delivered: :class:`Semaphore`, optional, released once after receiving
             each message
+          started: :class:`Event`, optional, notified once the thread has started
           limit: integer, optional. If set, returns after receiving this many
             messages
           cursor: integer, passed to subscribeRepos
         """
-        for i, (header, payload) in enumerate(
-                xrpc_sync.subscribe_repos(cursor=cursor)):
+        subscription = xrpc_sync.subscribe_repos(cursor=cursor)
+        if started:
+            started.set()
+
+        for i, (header, payload) in enumerate(subscription):
             self.assertIn(header, [
                 {'op': 1, 't': '#account'},
                 {'op': 1, 't': '#commit'},
@@ -563,16 +578,16 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             if limit and i == limit - 1:
                 return
 
-    def assertCommitMessage(self, commit_msg, record=None, write=None,
-                            repo=None, cur=None, prev=None, prev_record=None,
-                            seq=None, check_commit=True):
+    def assertCommit(self, event, record=None, write=None, repo=None, cur=None,
+                     prev=None, prev_record=None, seq=None, check_commit=True):
         """
         Args:
-          commit_msg ((header, payload) tuple)
+          event ((header, payload) tuple)
           record (dict)
           write (write)
           repo (Repo)
-          prev (Block): previous head commit, or None if this is the repo's first commit
+          prev (Block): previous head commit, or None if this is the repo's
+            first commit
           prev_record (CID): for updates and deletes, the previous version of the
             updated/deleted record
           seq (int)
@@ -582,7 +597,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         if not cur:
             cur = repo.head.cid
 
-        header, payload = commit_msg
+        header, payload = copy.deepcopy(event)
         self.assertEqual({'op': 1, 't': '#commit'}, header)
 
         blocks = payload.pop('blocks')
@@ -655,11 +670,16 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             self.assertIn(record, msg_records)
 
     def test_basic(self, *_):
+        firehose.start(limit=3)
+
         received_a = []
         delivered_a = Semaphore(value=0)
+        started_a = Event()
         subscriber_a = Thread(target=self.subscribe,
-                              args=[received_a, delivered_a, 2])
+                              args=[received_a, delivered_a, started_a, 2])
         subscriber_a.start()
+        # print('@ waiting a')
+        started_a.wait()
 
         # create, subscriber_a
         prev = self.repo.head
@@ -668,16 +688,18 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         self.repo.apply_writes([create])
         delivered_a.acquire()
 
-        self.assertEqual(1, len(received_a))
-        self.assertCommitMessage(received_a[0], {'foo': 'bar'}, write=create,
-                                 prev=prev, seq=4)
+        self.assertCommit(received_a[0], {'foo': 'bar'}, write=create, prev=prev,
+                          seq=4)
 
         # update, subscriber_a and subscriber_b
         received_b = []
         delivered_b = Semaphore(value=0)
+        started_b = Event()
         subscriber_b = Thread(target=self.subscribe,
-                              args=[received_b, delivered_b, 2])
+                              args=[received_b, delivered_b, started_b, 2])
         subscriber_b.start()
+        # print('@ waiting b')
+        started_b.wait()
 
         prev = self.repo.head
         prev_record = self.repo.mst.get(f'co.ll/{tid}')
@@ -686,12 +708,10 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         delivered_a.acquire()
         delivered_b.acquire()
 
-        self.assertEqual(2, len(received_a))
-        self.assertCommitMessage(received_a[1], {'foo': 'baz'}, write=update,
-                                 prev=prev, prev_record=prev_record, seq=5)
-        self.assertEqual(1, len(received_b))
-        self.assertCommitMessage(received_b[0], {'foo': 'baz'}, write=update,
-                                 prev=prev, prev_record=prev_record, seq=5)
+        self.assertCommit(received_a[1], {'foo': 'baz'}, write=update, prev=prev,
+                          prev_record=prev_record, seq=5)
+        self.assertCommit(received_b[0], {'foo': 'baz'}, write=update, prev=prev,
+                          prev_record=prev_record, seq=5)
 
         subscriber_a.join()
 
@@ -702,14 +722,14 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         self.repo.apply_writes([delete])
         delivered_b.acquire()
 
-        self.assertEqual(2, len(received_a))
-        self.assertEqual(2, len(received_b))
-        self.assertCommitMessage(received_b[1], write=delete, seq=6,
-                                 prev=prev, prev_record=prev_record)
+        self.assertCommit(received_b[1], write=delete, seq=6, prev=prev,
+                          prev_record=prev_record)
 
         subscriber_b.join()
 
     def test_delete(self, *_):
+        firehose.start(limit=2)
+
         orig_commit = self.repo.head
         tid = next_tid()
 
@@ -723,19 +743,22 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         after_delete = self.repo.head
 
         received = []
-        self.subscribe(received, limit=5, cursor=0)
+        self.subscribe(received, limit=2, cursor=4)
 
-        self.assertCommitMessage(received[3], {'foo': 'bar'}, cur=after_create.cid,
-                                 write=create, prev=orig_commit, seq=4)
-        self.assertCommitMessage(received[4], cur=after_delete.cid, write=delete,
-                                 prev=after_create, prev_record=record_cid, seq=5)
+        self.assertEqual(2, len(received))
+        self.assertCommit(received[0], {'foo': 'bar'}, cur=after_create.cid,
+                          write=create, prev=orig_commit, seq=4)
+        self.assertCommit(received[1], cur=after_delete.cid, write=delete,
+                          prev=after_create, prev_record=record_cid, seq=5)
 
-    @patch.dict(os.environ, SUBSCRIBE_REPOS_BATCH_DELAY='.01')
-    @patch('arroba.xrpc_sync.NEW_EVENTS_TIMEOUT', timedelta(seconds=.01))
+    @patch('arroba.firehose.SUBSCRIBE_REPOS_BATCH_DELAY', timedelta(seconds=.01))
+    @patch('arroba.firehose.NEW_EVENTS_TIMEOUT', timedelta(seconds=.01))
     def test_batch_delay(self, *_):
         self.test_basic()
 
     def test_cursor_zero(self, *_):
+        firehose.start(limit=3)
+
         orig_commit = self.repo.head
         record_cids = []
         tid = next_tid()
@@ -754,15 +777,15 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         self.subscribe(received, limit=6, cursor=0)
 
         self.assertEqual(7, server.storage.allocate_seq(SUBSCRIBE_REPOS_NSID))
-        self.assertCommitMessage(received[0], cur=orig_commit.cid, seq=1)
+        self.assertCommit(received[0], cur=orig_commit.cid, seq=1)
 
-        self.assertCommitMessage(
+        self.assertCommit(
             received[3], {'foo': 'bar'}, cur=commits[0].cid, write=writes[0],
             prev=orig_commit, seq=4)
-        self.assertCommitMessage(
+        self.assertCommit(
             received[4], {'foo': 'baz'}, cur=commits[1].cid, write=writes[1],
             prev=commits[0], prev_record=record_cids[0], seq=5)
-        self.assertCommitMessage(
+        self.assertCommit(
             received[5], {'foo': 'biff'}, cur=commits[2].cid, write=writes[2],
             prev=commits[1], prev_record=record_cids[1], seq=6)
 
@@ -777,12 +800,15 @@ class SubscribeReposTest(testutil.XrpcTestCase):
              }),
         ], received)
 
-    @patch.dict(os.environ, ROLLBACK_WINDOW='2')
+    @patch('arroba.firehose.NEW_EVENTS_TIMEOUT', timedelta(seconds=.01))
+    @patch('arroba.firehose.ROLLBACK_WINDOW', 2)
     def test_cursor_before_rollback_window(self, *_):
         while seq := server.storage.allocate_seq(SUBSCRIBE_REPOS_NSID):
             if seq >= 5:
                 break
         assert seq == 5
+
+        firehose.start(limit=1)
 
         write = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})
         prev = self.repo.head
@@ -794,25 +820,25 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         self.assertEqual({'op': 1, 't': '#info'}, header)
         self.assertEqual({'name': 'OutdatedCursor'}, payload)
 
-        header, _ = next(sub)
-        self.assertEqual({'op': 1, 't': '#account'}, header)
-
-        self.assertCommitMessage(next(sub), {'foo': 'bar'}, write=write,
-                                 seq=6, cur=self.repo.head.cid, prev=prev)
+        self.assertCommit(next(sub), {'foo': 'bar'}, write=write, seq=6, prev=prev)
 
     def test_include_preexisting_record_block(self, *_):
         # https://github.com/snarfed/bridgy-fed/issues/1016#issuecomment-2109276344
-
         # preexisting {'foo': 'bar'} record
         tid = next_tid()
         first = Write(Action.CREATE, 'co.ll', tid, {'foo': 'bar'})
         self.repo.apply_writes([first])
 
         # start subscriber
+        firehose.start(limit=1)
+
         received = []
         delivered = Semaphore(value=0)
-        subscriber = Thread(target=self.subscribe, args=[received, delivered, 1])
+        started = Event()
+        subscriber = Thread(target=self.subscribe,
+                            args=[received, delivered, started, 1])
         subscriber.start()
+        started.wait()
 
         # update to the same record; subscribeRepos should include record block
         prev = self.repo.head
@@ -822,16 +848,18 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         delivered.acquire()
 
         self.assertEqual(1, len(received))
-        self.assertCommitMessage(received[0], {'foo': 'bar'}, write=second,
-                                 prev=prev, seq=5, prev_record=prev_record)
+        self.assertCommit(received[0], {'foo': 'bar'}, write=second, prev=prev,
+                          seq=5, prev_record=prev_record)
 
         subscriber.join()
 
     def test_tombstoned(self, *_):
+        firehose.start(limit=7)
+
         # second repo: bob
         bob_repo = Repo.create(server.storage, 'did:bob',
                                handle='bo.bb', signing_key=self.key)
-        bob_repo.callback = lambda commit_data: xrpc_sync.send_events()
+        bob_repo.callback = lambda _: firehose.send_events()
 
         # tombstone user
         server.storage.tombstone_repo(self.repo)
@@ -865,8 +893,8 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         # bob's write, now from streaming
         delivered.acquire()
-        self.assertCommitMessage(received[7], {'foo': 'bar'}, write=write,
-                                 repo=bob_repo, prev=prev, seq=8)
+        self.assertCommit(received[7], {'foo': 'bar'}, write=write, repo=bob_repo,
+                          prev=prev, seq=8)
 
         # another write to bob
         bob_repo.apply_writes([Write(Action.DELETE, 'co.ll', tid)])
@@ -885,14 +913,18 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             'time': testutil.NOW.isoformat(),
         }, payload)
 
-    @patch('arroba.xrpc_sync.NEW_EVENTS_TIMEOUT', timedelta(seconds=2))
+    @patch('arroba.firehose.NEW_EVENTS_TIMEOUT', timedelta(seconds=2))
     def test_skipped_seq(self, *_):
         # https://github.com/snarfed/arroba/issues/34
+        firehose.start(limit=2)
+
         received = []
         delivered = Semaphore(value=0)
+        started = Event()
         subscriber = Thread(target=self.subscribe,
-                              args=[received, delivered, 2])
+                              args=[received, delivered, started, 2])
         subscriber.start()
+        started.wait()
 
         # prepare two writes with seqs 4 and 5
         write_4 = Write(Action.CREATE, 'co.ll', next_tid(), {'a': 'b'})
@@ -924,15 +956,14 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             delivered.acquire()
             delivered.acquire()
 
-        self.assertIn('WARNING:arroba.xrpc_sync:Waiting for seq 4', logs.output)
+        self.assertIn('WARNING:arroba.firehose:Waiting for seq 4', logs.output)
 
         # should receive both commits
         self.assertEqual(2, len(received))
-        self.assertCommitMessage(received[0], {'a': 'b'}, write=write_4,
-                                 cur=self.repo.head.cid, prev=prev, seq=4)
-        self.assertCommitMessage(received[1], {'x': 'y'}, write=write_5,
-                                 cur=head_5, prev=prev, seq=5,
-                                 check_commit=False)
+        self.assertCommit(received[0], {'a': 'b'}, write=write_4,
+                          cur=self.repo.head.cid, prev=prev, seq=4)
+        self.assertCommit(received[1], {'x': 'y'}, write=write_5, cur=head_5,
+                          prev=prev, seq=5, check_commit=False)
 
         subscriber.join()
 

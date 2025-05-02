@@ -30,7 +30,7 @@ from lexrpc.flask_server import init_flask
 
 from arroba import server
 from arroba.datastore_storage import DatastoreStorage
-from arroba.xrpc_sync import send_events
+from arroba.firehose import send_events
 
 # for Google Cloud Datastore
 ndb_client = ndb.Client()
@@ -86,7 +86,7 @@ Configure arroba with these environment variables:
 Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_repo), [.server](https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_server), and [.sync](https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_sync) XRPC handlers:
 
 * `REPO_TOKEN`, static token to use as both `accessJwt` and `refreshJwt`, defaults to contents of `repo_token` file. Not required to be an actual JWT. If not set, XRPC methods that require auth will return HTTP 501 Not Implemented.
-* `ROLLBACK_WINDOW`, number of events to serve in the [`subscribeRepos` rollback window](https://atproto.com/specs/event-stream#sequence-numbers), as an integer. Defaults to no limit.
+* `ROLLBACK_WINDOW`, number of events to serve in the [`subscribeRepos` rollback window](https://atproto.com/specs/event-stream#sequence-numbers), as an integer. Defaults to 50k.
 * `SUBSCRIBE_REPOS_BATCH_DELAY`, minimum time to wait between datastore queries in `com.atproto.sync.subscribeRepos`, in seconds, as a float. Defaults to 0 if unset.
 
 <!-- Only used in app.py:
@@ -100,8 +100,6 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 ## Changelog
 
 ### 0.9 - unreleased
-
-TODO: remove blocked cursor hack in subscribeRepos before releasing?
 
 * Add server side support for [sync v1.1 aka inductive firehose](https://github.com/bluesky-social/proposals/tree/main/0006-sync-iteration). `xrpc_sync.subscribe_repos` now includes covering proof blocks and new `prev` and `prevData` fields.
 * `MST`:
