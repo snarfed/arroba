@@ -21,6 +21,7 @@ from . import util
 
 NEW_EVENTS_TIMEOUT = timedelta(seconds=5)
 ROLLBACK_WINDOW = int(os.getenv('ROLLBACK_WINDOW', 50_000))
+PRELOAD_WINDOW = int(os.getenv('PRELOAD_WINDOW', 1000))
 SUBSCRIBE_REPOS_BATCH_DELAY = timedelta(seconds=float(os.getenv('SUBSCRIBE_REPOS_BATCH_DELAY', 0)))
 
 new_events = threading.Condition()
@@ -117,9 +118,9 @@ def collect(started, limit=None):
       limit (int): if provided, return after collecting this many events. Only used
         in tests.
     """
-    logger.info(f'collect: preloading rollback window ({ROLLBACK_WINDOW})')
+    logger.info(f'collect: preloading rollback window ({PRELOAD_WINDOW})')
     cur_seq = server.storage.last_seq(SUBSCRIBE_REPOS_NSID)
-    query = server.storage.read_events_by_seq(start=max(cur_seq - ROLLBACK_WINDOW, 0))
+    query = server.storage.read_events_by_seq(start=max(cur_seq - PRELOAD_WINDOW, 0))
     global rollback
     logger.debug('> collect 1')
     with lock:
