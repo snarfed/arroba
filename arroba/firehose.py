@@ -115,8 +115,8 @@ def collect(started, limit=None):
 
     Args:
       started (Event): notified once the collecter has started
-      limit (int): if provided, return after collecting this many events. Only used
-        in tests.
+      limit (int): if provided, return after collecting this many *new* events. Only
+        used in tests.
     """
     logger.info(f'collect: preloading rollback window ({PRELOAD_WINDOW})')
     cur_seq = server.storage.last_seq(SUBSCRIBE_REPOS_NSID)
@@ -163,7 +163,7 @@ def collect(started, limit=None):
                 logger.debug('< collect 2')
 
                 seen += 1
-                if limit and seen >= limit:
+                if limit is not None and seen >= limit:
                     return
 
             else:

@@ -575,7 +575,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             received.append((header, payload))
             if delivered:
                 delivered.release()
-            if limit and i == limit - 1:
+            if limit is not None and i == limit - 1:
                 return
 
     def assertCommit(self, event, record=None, write=None, repo=None, cur=None,
