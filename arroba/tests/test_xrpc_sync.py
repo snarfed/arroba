@@ -2,6 +2,7 @@
 import copy
 from datetime import timedelta
 from io import BytesIO
+import threading
 from threading import Event, Semaphore, Thread
 import time
 from unittest import skip
@@ -545,6 +546,9 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             firehose.collector.join(timeout=2)
             self.assertFalse(firehose.collector.is_alive())
 
+        threads = list(threading.enumerate())
+        self.assertEqual(1, len(threads), threads)
+
         super().tearDown()
 
     def subscribe(self, received, delivered=None, started=None, limit=None,
@@ -581,6 +585,10 @@ class SubscribeReposTest(testutil.XrpcTestCase):
     def assertCommit(self, event, record=None, write=None, repo=None, cur=None,
                      prev=None, prev_record=None, seq=None, check_commit=True):
         """
+        TODO: with check_commit=True, this doesn't currently support more than one
+        create, total, in a repo, since it assumes a single-leaf MST layout below.
+        fix that!
+
         Args:
           event ((header, payload) tuple)
           record (dict)
@@ -757,8 +765,6 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         self.test_basic()
 
     def test_cursor_zero(self, *_):
-        firehose.start(limit=3)
-
         orig_commit = self.repo.head
         record_cids = []
         tid = next_tid()
@@ -772,6 +778,8 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             self.repo.apply_writes([write])
             commits.append(self.repo.head)
             record_cids.append(self.repo.mst.get(f'co.ll/{tid}'))
+
+        firehose.start(limit=0)
 
         received = []
         self.subscribe(received, limit=6, cursor=0)
@@ -821,6 +829,116 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         self.assertEqual({'name': 'OutdatedCursor'}, payload)
 
         self.assertCommit(next(sub), {'foo': 'bar'}, write=write, seq=6, prev=prev)
+
+    @patch('arroba.firehose.PRELOAD_WINDOW', 1)
+    def test_cursor_before_preload_window(self, *_):
+        commits = [self.repo.head]
+        writes = []
+
+        # two writes before starting firehose server, first will be before
+        # preload window
+        tid = next_tid()
+        write = Write(Action.CREATE, 'co.ll', tid, {'foo': 'bar'})
+        writes.append(write)
+        self.repo.apply_writes(write)
+        commits.append(self.repo.head)
+
+        write = Write(Action.UPDATE, 'co.ll', tid, {'foo': 'baz'})
+        writes.append(write)
+        self.repo = self.repo.apply_writes(write)
+        commits.append(self.repo.head)
+
+        firehose.start(limit=1)
+
+        # one more write
+        write = Write(Action.UPDATE, 'co.ll', tid, {'foo': 'qux'})
+        writes.append(write)
+        self.repo = self.repo.apply_writes(write)
+        commits.append(self.repo.head)
+
+        received = []
+        self.subscribe(received, limit=3, cursor=4)
+
+        self.assertEqual(3, len(received))
+        self.assertCommit(received[0], {'foo': 'bar'}, write=writes[0],
+                          cur=commits[1].cid, prev=commits[0], seq=4)
+        self.assertCommit(received[1], {'foo': 'baz'}, write=writes[1],
+                          cur=commits[2].cid, prev=commits[1], seq=5,
+                          prev_record=dag_cbor_cid({'foo': 'bar'}))
+        self.assertCommit(received[2], {'foo': 'qux'}, write=writes[2],
+                          cur=commits[3].cid, prev=commits[2], seq=6,
+                          prev_record=dag_cbor_cid({'foo': 'baz'}))
+
+    @patch('arroba.firehose.PRELOAD_WINDOW', 1)
+    @patch('arroba.firehose.ROLLBACK_WINDOW', 4)
+    def test_cursor_before_preload_window_multiple_subscribers(self, *_):
+        commits = [self.repo.head]
+        writes = []
+
+        # three writes before starting firehose server, first two before
+        # preload window
+        for val in 'bar', 'baz', 'biff':
+            write = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': val})
+            writes.append(write)
+            self.repo.apply_writes([write])
+            commits.append(self.repo.head)
+
+        firehose.start(limit=4)
+
+        # one more write
+        write = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'qux'})
+        writes.append(write)
+        self.repo.apply_writes([write])
+        commits.append(self.repo.head)
+
+        # first subscriber, one seq before preload window
+        received = []
+        self.subscribe(received, limit=3, cursor=5)
+
+        self.assertEqual(3, len(received))
+        self.assertCommit(received[0], {'foo': 'baz'}, write=writes[1], seq=5,
+                          cur=commits[2].cid, prev=commits[1], check_commit=False)
+        self.assertCommit(received[1], {'foo': 'biff'}, write=writes[2], seq=6,
+                          cur=commits[3].cid, prev=commits[2], check_commit=False)
+        self.assertCommit(received[2], {'foo': 'qux'}, write=writes[3], seq=7,
+                          cur=commits[4].cid, prev=commits[3], check_commit=False)
+
+        # second subscriber, two seqs before preload window
+        received = []
+        self.subscribe(received, limit=4, cursor=4)
+
+        self.assertEqual(4, len(received))
+        self.assertCommit(received[0], {'foo': 'bar'}, write=writes[0], seq=4,
+                          cur=commits[1].cid, prev=commits[0], check_commit=False)
+        self.assertCommit(received[1], {'foo': 'baz'}, write=writes[1], seq=5,
+                          cur=commits[2].cid, prev=commits[1], check_commit=False)
+        self.assertCommit(received[2], {'foo': 'biff'}, write=writes[2], seq=6,
+                          cur=commits[3].cid, prev=commits[2], check_commit=False)
+        self.assertCommit(received[3], {'foo': 'qux'}, write=writes[3], seq=7,
+                          cur=commits[4].cid, prev=commits[3], check_commit=False)
+
+        # three more writes after the first subscribers, exercise discarding
+        # rollback buffers
+        for val in 123, 456, 789:
+            write = Write(Action.CREATE, 'co.ll', next_tid(), {'xyz': val})
+            writes.append(write)
+            self.repo.apply_writes([write])
+            commits.append(self.repo.head)
+
+        # final subscriber should get only the last four writes, due to
+        # ROLLBACK_WINDOW=4
+        received = []
+        self.subscribe(received, limit=4, cursor=7)
+
+        self.assertEqual(4, len(received))
+        self.assertCommit(received[0], {'foo': 'qux'}, write=writes[3], seq=7,
+                          cur=commits[4].cid, prev=commits[3], check_commit=False)
+        self.assertCommit(received[1], {'xyz': 123}, write=writes[4], seq=8,
+                          cur=commits[5].cid, prev=commits[4], check_commit=False)
+        self.assertCommit(received[2], {'xyz': 456}, write=writes[5], seq=9,
+                          cur=commits[6].cid, prev=commits[5], check_commit=False)
+        self.assertCommit(received[3], {'xyz': 789}, write=writes[6], seq=10,
+                          cur=commits[7].cid, prev=commits[6], check_commit=False)
 
     def test_include_preexisting_record_block(self, *_):
         # https://github.com/snarfed/bridgy-fed/issues/1016#issuecomment-2109276344
@@ -912,6 +1030,8 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             'did': 'did:bob',
             'time': testutil.NOW.isoformat(),
         }, payload)
+
+        subscriber.join()
 
     @patch('arroba.firehose.NEW_EVENTS_TIMEOUT', timedelta(seconds=2))
     def test_skipped_seq(self, *_):

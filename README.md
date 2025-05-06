@@ -87,7 +87,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 
 * `REPO_TOKEN`, static token to use as both `accessJwt` and `refreshJwt`, defaults to contents of `repo_token` file. Not required to be an actual JWT. If not set, XRPC methods that require auth will return HTTP 501 Not Implemented.
 * `ROLLBACK_WINDOW`, number of events to serve in the [`subscribeRepos` rollback window](https://atproto.com/specs/event-stream#sequence-numbers), as an integer. Defaults to 50k.
-* `PRELOAD_WINDOW`, number of events to preload into the [`subscribeRepos` rollback window](https://atproto.com/specs/event-stream#sequence-numbers) at startup, as an integer. Defaults to 1k.
+* `PRELOAD_WINDOW`, number of events to preload into the [`subscribeRepos` rollback window](https://atproto.com/specs/event-stream#sequence-numbers) at startup, as an integer. Defaults to 4k.
 * `SUBSCRIBE_REPOS_BATCH_DELAY`, minimum time to wait between datastore queries in `com.atproto.sync.subscribeRepos`, in seconds, as a float. Defaults to 0 if unset.
 
 <!-- Only used in app.py:

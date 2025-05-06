@@ -19,9 +19,10 @@ from . import server
 from .storage import Action, CommitData, SUBSCRIBE_REPOS_NSID
 from . import util
 
-NEW_EVENTS_TIMEOUT = timedelta(seconds=5)
+NEW_EVENTS_TIMEOUT = timedelta(seconds=20)
 ROLLBACK_WINDOW = int(os.getenv('ROLLBACK_WINDOW', 50_000))
-PRELOAD_WINDOW = int(os.getenv('PRELOAD_WINDOW', 1000))
+# 4000 seqs is ~1h as of May 2025, loads in prod in ~2m
+PRELOAD_WINDOW = int(os.getenv('PRELOAD_WINDOW', 4000))
 SUBSCRIBE_REPOS_BATCH_DELAY = timedelta(seconds=float(os.getenv('SUBSCRIBE_REPOS_BATCH_DELAY', 0)))
 
 new_events = threading.Condition()
@@ -80,6 +81,18 @@ def subscribe(cursor=None):
     Yields:
       sequence of (dict header, dict payload) tuples
     """
+    # XXX TODO: synchronize handoff between this and rollback window
+    # XXX TODO: block new subscribers until preload is done? do we need to?
+    rollback_start = rollback[0][1]['seq']
+    if cursor is not None and cursor < rollback_start:
+        logger.info(f"cursor {cursor} is behind our preloaded rollback window's start {rollback_start}; loading initial remainder manually")
+        for event in server.storage.read_events_by_seq(start=cursor):
+            seq = event['seq'] if isinstance(event, dict) else event.commit.seq
+            if seq >= rollback_start:
+                break
+            yield process_event(event)
+
+    events = SimpleQueue()
     try:
         logger.debug('> subscribe')
         with lock:
@@ -93,7 +106,6 @@ def subscribe(cursor=None):
                 logger.debug('  done')
 
             logger.debug(f'subscribe: subscribing to new events')
-            events = SimpleQueue()
             subscribers.append(events)
         logger.debug('< subscribe')
 
@@ -140,6 +152,9 @@ def collect(started, limit=None):
     seen = 0
 
     while True:
+        if limit is not None and seen >= limit:
+            return
+
         with new_events:
             new_events.wait(timeout_s)
 
@@ -166,8 +181,6 @@ def collect(started, limit=None):
                 logger.debug('< collect 2')
 
                 seen += 1
-                if limit is not None and seen >= limit:
-                    return
 
             else:
                 logger.warning(f'Waiting for seq {last_seq + 1}')

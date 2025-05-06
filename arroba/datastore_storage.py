@@ -590,11 +590,12 @@ class DatastoreStorage(Storage):
         cur_seq_cids = []
 
         while True:
+            # lexrpc event subscription handlers like subscribeRepos call this
+            # on a different thread, so if we're there, we need to create a new
+            # ndb context
             ctx = context.get_context(raise_context_error=False)
-            with ctx.use() if ctx else self.ndb_client.context(**self.ndb_context_kwargs):
-                # lexrpc event subscription handlers like subscribeRepos call this
-                # on a different thread, so if we're there, we need to create a new
-                # ndb context
+            with (ctx.use() if ctx
+                  else self.ndb_client.context(**self.ndb_context_kwargs)):
                 try:
                     query = AtpBlock.query(AtpBlock.seq >= cur_seq).order(AtpBlock.seq)
                     if repo:
