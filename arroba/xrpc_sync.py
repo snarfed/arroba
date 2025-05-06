@@ -124,14 +124,14 @@ def subscribe_repos(cursor=None):
         # validate cursor
         if cursor > cur_seq:
             msg = f'Cursor {cursor} is past our current sequence number {cur_seq}'
-            logger.warning(msg)
+            logger.info(msg)
             yield ({'op': -1}, {'error': 'FutureCursor', 'message': msg})
             return
 
         # Check if cursor is outside of our rollback window
         rollback_start = max(cur_seq - firehose.ROLLBACK_WINDOW, 0)
         if cursor < rollback_start:
-            logger.warning(f'Cursor {cursor} is before our rollback window; starting at {rollback_start}')
+            logger.info(f'Cursor {cursor} is before our rollback window; starting at {rollback_start}')
             yield ({'op': 1, 't': '#info'}, {'name': 'OutdatedCursor'})
             cursor = rollback_start
 

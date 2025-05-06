@@ -167,7 +167,7 @@ def collect(started, limit=None):
             waited_enough = time.time() - last_event > timeout_s
             if cur_seq == last_seq + 1 or waited_enough:
                 if cur_seq > last_seq + 1:
-                    logger.warning(f'Gave up waiting for seqs {last_seq + 1} to {cur_seq - 1}!')
+                    logger.info(f'Gave up waiting for seqs {last_seq + 1} to {cur_seq - 1}!')
 
                 last_event = time.time()
                 frame = process_event(event)
@@ -183,7 +183,7 @@ def collect(started, limit=None):
                 seen += 1
 
             else:
-                logger.warning(f'Waiting for seq {last_seq + 1}')
+                logger.info(f'Waiting for seq {last_seq + 1}')
                 cur_seq = last_seq
                 break
 

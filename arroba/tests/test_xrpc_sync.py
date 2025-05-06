@@ -1076,7 +1076,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             delivered.acquire()
             delivered.acquire()
 
-        self.assertIn('WARNING:arroba.firehose:Waiting for seq 4', logs.output)
+        self.assertIn('INFO:arroba.firehose:Waiting for seq 4', logs.output)
 
         # should receive both commits
         self.assertEqual(2, len(received))
