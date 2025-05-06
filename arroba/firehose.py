@@ -119,13 +119,18 @@ def collect(started, limit=None):
     """
     logger.info(f'collect: preloading rollback window ({PRELOAD_WINDOW})')
     cur_seq = server.storage.last_seq(SUBSCRIBE_REPOS_NSID)
-    query = server.storage.read_events_by_seq(start=max(cur_seq - PRELOAD_WINDOW, 0))
-    global rollback
+    query = server.storage.read_events_by_seq(
+        start=max(cur_seq - PRELOAD_WINDOW + 1, 0))
+
     logger.debug('> collect 1')
     with lock:
         logger.debug('  collected')
+        global rollback
         rollback = deque((process_event(e) for e in query), maxlen=ROLLBACK_WINDOW)
     logger.debug('< collect 1')
+
+    cur_seq = rollback[-1][1]['seq']
+    logger.debug(f'  preloaded seqs {rollback[0][1]["seq"]}-{cur_seq}')
 
     started.set()
 
@@ -133,7 +138,6 @@ def collect(started, limit=None):
     timeout_s = NEW_EVENTS_TIMEOUT.total_seconds()
     last_event = time.time()
     seen = 0
-    cur_seq = rollback[-1][1]['seq']
 
     while True:
         with new_events:
