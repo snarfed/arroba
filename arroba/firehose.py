@@ -27,7 +27,7 @@ SUBSCRIBE_REPOS_BATCH_DELAY = timedelta(seconds=float(os.getenv('SUBSCRIBE_REPOS
 new_events = threading.Condition()
 subscribers = []
 collector = None  # Thread; initialized in start()
-rollback = None   # deque; initialized in collect()
+rollback = None   # deque of (dict header, dict payload); initialized in collect()
 lock = threading.Lock()
 
 logger = logging.getLogger(__name__)
@@ -71,18 +71,15 @@ def send_events():
         new_events.notify_all()
 
 
-@contextmanager
 def subscribe(cursor=None):
-    """Adds a new firehose subscriber. Context manager.
+    """Generator that returns firehose events.
 
     Args:
       cursor (int): optional cursor to start at
 
-    Returns:
-      Queue: new events will be added to this queue, in order
+    Yields:
+      sequence of (dict header, dict payload) tuples
     """
-    subscriber = SimpleQueue()
-
     try:
         logger.debug('> subscribe')
         with lock:
@@ -92,21 +89,23 @@ def subscribe(cursor=None):
                 for header, payload in rollback:
                     if payload['seq'] >= cursor:
                         logger.debug(f'Backfilled {payload["seq"]}')
-                        subscriber.put((header, payload))
+                        yield (header, payload)
                 logger.debug('  done')
 
             logger.debug(f'subscribe: subscribing to new events')
-            subscribers.append(subscriber)
+            events = SimpleQueue()
+            subscribers.append(events)
         logger.debug('< subscribe')
 
-        yield subscriber
+        while True:
+            yield events.get()
 
     finally:
         logger.debug('> subscribe 2')
         with lock:
             logger.debug('  subscribed')
-            if subscriber in subscribers:
-                subscribers.remove(subscriber)
+            if events in subscribers:
+                subscribers.remove(events)
         logger.debug('< subscribe 2')
 
 

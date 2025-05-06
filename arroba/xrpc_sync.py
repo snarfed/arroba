@@ -136,10 +136,7 @@ def subscribe_repos(cursor=None):
             cursor = rollback_start
 
     logger.info(f'Subscribing from sequence {cursor}')
-    with firehose.subscribe(cursor) as events:
-        while True:
-            header, payload = events.get()
-            yield (header, payload)
+    yield from firehose.subscribe(cursor)
 
 
 @server.server.method('com.atproto.sync.getBlocks')
