@@ -29,6 +29,8 @@ new_events = threading.Condition()
 subscribers = []
 collector = None  # Thread; initialized in start()
 rollback = None   # deque of (dict header, dict payload); initialized in collect()
+started = threading.Event()  # notified once the collecter has fully started
+
 lock = threading.Lock()
 
 logger = logging.getLogger(__name__)
@@ -40,12 +42,8 @@ def start(limit=None):
         global collector
         if collector:
             return
-        started = threading.Event()
         collector = threading.Thread(target=collect, name='firehose collector',
-                                     daemon=True, kwargs={
-                                         'started': started,
-                                         'limit': limit,
-                                     })
+                                     daemon=True, kwargs={'limit': limit})
     logger.debug('< start')
 
     logger.info(f'Starting firehose collector with limit {limit}')
@@ -59,6 +57,7 @@ def reset():
     logger.debug('> reset')
     with lock:
         new_events = threading.Condition()
+        started.clear()
         subscribers = []
         if collector:
             assert not collector.is_alive()
@@ -81,8 +80,9 @@ def subscribe(cursor=None):
     Yields:
       sequence of (dict header, dict payload) tuples
     """
+    started.wait()
+
     # XXX TODO: synchronize handoff between this and rollback window
-    # XXX TODO: block new subscribers until preload is done? do we need to?
     rollback_start = rollback[0][1]['seq']
     if cursor is not None and cursor < rollback_start:
         logger.info(f"cursor {cursor} is behind our preloaded rollback window's start {rollback_start}; loading initial remainder manually")
@@ -121,11 +121,10 @@ def subscribe(cursor=None):
         logger.debug('< subscribe 2')
 
 
-def collect(started, limit=None):
+def collect(limit=None):
     """Daemon thread. Collects new events and sends them to each subscriber.
 
     Args:
-      started (Event): notified once the collecter has started
       limit (int): if provided, return after collecting this many *new* events. Only
         used in tests.
     """
