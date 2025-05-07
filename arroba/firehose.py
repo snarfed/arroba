@@ -1,6 +1,7 @@
 """subscribeRepos firehose server."""
 from collections import deque
 from contextlib import contextmanager
+import copy
 from datetime import timedelta, timezone
 import logging
 import os
@@ -75,23 +76,30 @@ def subscribe(cursor=None):
     """Generator that returns firehose events.
 
     Args:
-      cursor (int): optional cursor to start at
+      cursor (int): optional cursor to start at. Must be within rollback window.
 
     Yields:
       sequence of (dict header, dict payload) tuples
     """
     started.wait()
 
-    # XXX TODO: synchronize handoff between this and rollback window
+    if cursor:
+        assert cursor >= rollback[-1][1]['seq'] - ROLLBACK_WINDOW, cursor
+
+    # if this cursor behind our rollback window, load the window between the two
+    # manually, for this subscriber
+    handoff = None  # deque; copy of rollback window for when we transition to it
     rollback_start = rollback[0][1]['seq']
     if cursor is not None and cursor < rollback_start:
         logger.info(f"cursor {cursor} is behind our preloaded rollback window's start {rollback_start}; loading initial remainder manually")
         for event in server.storage.read_events_by_seq(start=cursor):
-            seq = event['seq'] if isinstance(event, dict) else event.commit.seq
-            # rollback window may have advanced, check it again, fresh, each time!
-            if seq >= rollback[0][1]['seq']:
-                break
-            yield process_event(event)
+            header, payload = process_event(event)
+            with lock:
+                # rollback window may have advanced, check it again, fresh, each time!
+                if payload['seq'] >= rollback[0][1]['seq']:
+                    handoff = rollback.copy()
+                    break
+            yield (header, payload)
 
     events = SimpleQueue()
     try:
@@ -99,10 +107,18 @@ def subscribe(cursor=None):
         with lock:
             logger.debug('  subscribed')
             if cursor is not None:
-                logger.debug(f'subscribe: backfilling from rollback window with cursor {cursor}')
+                if handoff:
+                    logger.debug(f'subscribe: backfilling from handoff with cursor {cursor}')
+                    for header, payload in handoff:
+                        if payload['seq'] < rollback[0][1]['seq']:
+                            logger.debug(f'Backfilled handoff {payload["seq"]}')
+                            yield (header, payload)
+                    handoff = None
+
+                logger.debug(f'subscribe: backfilling from rollback with cursor {cursor}')
                 for header, payload in rollback:
                     if payload['seq'] >= cursor:
-                        logger.debug(f'Backfilled {payload["seq"]}')
+                        logger.debug(f'Backfilled rollback {payload["seq"]}')
                         yield (header, payload)
                 logger.debug('  done')
 
@@ -199,12 +215,12 @@ def process_event(event):
     Returns:
         (dict, dict) tuple: (header, payload) to emit
     """
-    logger.debug('process_event')
     if isinstance(event, dict):  # non-commit event
-        type = event.pop('$type')
+        payload = copy.copy(event)
+        type = payload.pop('$type')
         type_fragment = type.removeprefix('com.atproto.sync.subscribeRepos')
         assert type_fragment != type, type
-        return ({'op': 1, 't': type_fragment}, event)
+        return ({'op': 1, 't': type_fragment}, payload)
 
     assert isinstance(event, CommitData), \
         f'unexpected event type {event.__class__} {event}'

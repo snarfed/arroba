@@ -3,7 +3,7 @@ import copy
 from datetime import timedelta
 from io import BytesIO
 import threading
-from threading import Event, Semaphore, Thread
+from threading import Barrier, Event, Semaphore, Thread
 import time
 from unittest import skip
 from unittest.mock import patch
@@ -535,6 +535,7 @@ class XrpcSyncTest(testutil.XrpcTestCase):
     #     self.assertEqual(full.repos, pt1.repos + pt2.repos)
 
 
+@patch('arroba.firehose.NEW_EVENTS_TIMEOUT', timedelta(seconds=.01))
 class SubscribeReposTest(testutil.XrpcTestCase):
     def setUp(self):
         super().setUp()
@@ -940,6 +941,60 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         self.assertCommit(received[3], {'xyz': 789}, write=writes[6], seq=10,
                           cur=commits[7].cid, prev=commits[6], check_commit=False)
 
+    @patch('arroba.firehose.PRELOAD_WINDOW', 2)
+    @patch('arroba.firehose.ROLLBACK_WINDOW', 3)
+    def test_rollback_handoff(self, *_):
+        # ...specifically, when our in-memory rollback window isn't fully loaded, and
+        # a subscriber connects with a cursor before it, we read events starting at
+        # the full rollback position inside subscribe(), then hand off to the
+        # in-memory window.
+        #
+        # to check that we don't miss events during that handoff, we block
+        # subscribe() after it's looked at the current rollback window's position,
+        # then make some writes to advance the window, then let subscribe() continue.
+
+        # 1: start firehose (this blocks until it loads preload window)
+        firehose.start(limit=2)
+
+        # 2: make subscriber block when it starts to read the full rollback
+        subscriber_start_full_rollback = Barrier(2)
+
+        orig_read_events_by_seq = server.storage.read_events_by_seq
+        def read_events_blocking(**kwargs):
+            subscriber_start_full_rollback.wait()
+            return orig_read_events_by_seq(**kwargs)
+
+        # 3: start subscriber
+        with patch.object(server.storage, 'read_events_by_seq') as read_events:
+            read_events.side_effect = read_events_blocking
+            received = []
+            subscriber = Thread(target=self.subscribe,
+                                kwargs={'received': received, 'limit': 5, 'cursor': 0})
+            subscriber.start()
+
+        # 4: two more writes. read_events_by_seq is no longer mocked. block until the
+        # firehose read them and advances the rollback window.
+        commits = [self.repo.head]
+        writes = []
+        for val in 'bar', 'baz':
+            write = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': val})
+            writes.append(write)
+            self.repo.apply_writes([write])
+            commits.append(self.repo.head)
+
+        firehose.collector.join()
+
+        # 5: release subscriber, let it start reading full rollback, check that it
+        # gets all five commits
+        subscriber_start_full_rollback.wait()
+        subscriber.join()
+
+        self.assertEqual(5, len(received))
+        self.assertCommit(received[3], {'foo': 'bar'}, write=writes[0], seq=4,
+                          cur=commits[1].cid, prev=commits[0], check_commit=False)
+        self.assertCommit(received[4], {'foo': 'baz'}, write=writes[1], seq=5,
+                          cur=commits[2].cid, prev=commits[1], check_commit=False)
+
     def test_include_preexisting_record_block(self, *_):
         # https://github.com/snarfed/bridgy-fed/issues/1016#issuecomment-2109276344
         # preexisting {'foo': 'bar'} record
@@ -1033,7 +1088,6 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         subscriber.join()
 
-    @patch('arroba.firehose.NEW_EVENTS_TIMEOUT', timedelta(seconds=2))
     def test_skipped_seq(self, *_):
         # https://github.com/snarfed/arroba/issues/34
         firehose.start(limit=2)
