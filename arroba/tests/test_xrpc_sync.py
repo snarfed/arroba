@@ -1089,6 +1089,9 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         subscriber.join()
 
     def test_skipped_seq(self, *_):
+        # already mocked out, just changing its value
+        firehose.NEW_EVENTS_TIMEOUT = timedelta(seconds=2)
+
         # https://github.com/snarfed/arroba/issues/34
         firehose.start(limit=2)
 
@@ -1097,8 +1100,6 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         started = Event()
         subscriber = Thread(target=self.subscribe,
                               args=[received, delivered, started, 2])
-        subscriber.start()
-        started.wait()
 
         # prepare two writes with seqs 4 and 5
         write_4 = Write(Action.CREATE, 'co.ll', next_tid(), {'a': 'b'})
@@ -1112,6 +1113,9 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         prev = self.repo.head
 
         with self.assertLogs() as logs:
+            subscriber.start()
+            started.wait()
+
             # first write, skip seq 4, write with seq 5 instead
             self.repo.apply_commit(commit_5)
             head_5 = self.repo.head.cid
