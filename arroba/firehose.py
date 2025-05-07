@@ -88,7 +88,8 @@ def subscribe(cursor=None):
         logger.info(f"cursor {cursor} is behind our preloaded rollback window's start {rollback_start}; loading initial remainder manually")
         for event in server.storage.read_events_by_seq(start=cursor):
             seq = event['seq'] if isinstance(event, dict) else event.commit.seq
-            if seq >= rollback_start:
+            # rollback window may have advanced, check it again, fresh, each time!
+            if seq >= rollback[0][1]['seq']:
                 break
             yield process_event(event)
 
