@@ -535,7 +535,6 @@ class XrpcSyncTest(testutil.XrpcTestCase):
     #     self.assertEqual(full.repos, pt1.repos + pt2.repos)
 
 
-@patch('arroba.firehose.NEW_EVENTS_TIMEOUT', timedelta(seconds=.01))
 class SubscribeReposTest(testutil.XrpcTestCase):
     def setUp(self):
         super().setUp()
@@ -552,8 +551,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         super().tearDown()
 
-    def subscribe(self, received, delivered=None, started=None, limit=None,
-                  cursor=None):
+    def subscribe(self, received, delivered=None, started=None, limit=None, cursor=None):
         """subscribeRepos websocket client. May be run in a thread.
 
         Args:
@@ -957,23 +955,30 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         firehose.start(limit=2)
 
         # 2: make subscriber block when it starts to read the full rollback
+        subscriber_read_one = Barrier(2)
         subscriber_start_full_rollback = Barrier(2)
 
         orig_read_events_by_seq = server.storage.read_events_by_seq
         def read_events_blocking(**kwargs):
-            subscriber_start_full_rollback.wait()
-            return orig_read_events_by_seq(**kwargs)
+            for i, event in enumerate(orig_read_events_by_seq(**kwargs)):
+                if i == 0:
+                    subscriber_read_one.wait()
+                elif i == 1:
+                    subscriber_start_full_rollback.wait()
+                yield event
 
         # 3: start subscriber
-        with patch.object(server.storage, 'read_events_by_seq') as read_events:
-            read_events.side_effect = read_events_blocking
+        with patch.object(server.storage, 'read_events_by_seq',
+                          side_effect=read_events_blocking) as read_events:
             received = []
+            started = Event()
             subscriber = Thread(target=self.subscribe,
                                 kwargs={'received': received, 'limit': 5, 'cursor': 0})
             subscriber.start()
+            subscriber_read_one.wait()
 
         # 4: two more writes. read_events_by_seq is no longer mocked. block until the
-        # firehose read them and advances the rollback window.
+        # firehose reads them and advances the rollback window.
         commits = [self.repo.head]
         writes = []
         for val in 'bar', 'baz':
