@@ -77,20 +77,23 @@ def subscribe(cursor=None):
     Yields:
       sequence of (dict header, dict payload) tuples
     """
-    thread = threading.current_thread().name
     started.wait()
 
-    logger.info(f'subscriber {thread} starting with cursor {cursor}')
+    thread = threading.current_thread().name
+    def log(msg):
+        logger.info(f'subscriber {thread}: {msg}')
+
+    log(f'starting with cursor {cursor}')
     if cursor:
         assert cursor >= rollback[-1][1]['seq'] - ROLLBACK_WINDOW, cursor
 
     # if this cursor behind our rollback window, load the window between the two
     # manually, for this subscriber
-    pre_rollback = []  # events prior to rollback window that we load here
     handoff = None     # deque; copy of rollback window for when we transition to it
     rollback_start = rollback[0][1]['seq']
     if cursor is not None and cursor < rollback_start:
-        logger.info(f"subscriber {thread}: cursor {cursor} is behind rollback start {rollback_start}; loading rest manually")
+        log(f'cursor {cursor} is behind rollback start {rollback_start}; loading rest manually')
+        pre_rollback = []  # events prior to rollback window that we load here
         for event in server.storage.read_events_by_seq(start=cursor):
             header, payload = process_event(event)
             with lock:
@@ -99,13 +102,15 @@ def subscribe(cursor=None):
                     cursor = rollback[0][1]['seq']
                     handoff = rollback.copy()
 
-                    if len(rollback) < rollback.maxlen:
+                    remaining_len = rollback.maxlen - len(rollback)
+                    if remaining_len and pre_rollback:
                         # merge old events we've loaded onto the end of rollback
-                        # extendleft reverses its argument, so reverse again to undo that
-                        pre_rollback = pre_rollback[-(rollback.maxlen - len(rollback)):]
-                        expanded_size = len(rollback) + len(pre_rollback)
+                        # extendleft reverses its argument; reverse again to undo that
+                        pre_rollback = pre_rollback[-remaining_len:]
+                        log(f'merging {pre_rollback[0][-1]["seq"]}-{pre_rollback[-1][-1]["seq"]} into rollback')
                         assert len(rollback) + len(pre_rollback) <= rollback.maxlen, \
-                            (len(rollback), len(pre_rollback), rollback.maxlen)
+                            (len(rollback), len(pre_rollback))
+                        assert pre_rollback[-1][1]['seq'] < rollback[0][1]['seq']
                         rollback.extendleft(reversed(pre_rollback))
 
                     break
@@ -117,21 +122,21 @@ def subscribe(cursor=None):
     try:
         with lock:
             if cursor is not None:
-                if handoff:
-                    logger.info(f'subscriber {thread}: backfilling from handoff from {cursor}')
+                if handoff and handoff[0][1]['seq'] < rollback[0][1]['seq']:
+                    log(f'backfilling from handoff from {handoff[0][1]["seq"]}')
                     for header, payload in handoff:
                         if payload['seq'] >= rollback[0][1]['seq']:
                             break
                         logger.debug(f'Backfilled handoff {payload["seq"]}')
                         yield (header, payload)
 
-                logger.info(f'subscriber {thread}: backfilling from rollback from {cursor}')
+                log(f'backfilling from rollback from {cursor}')
                 for header, payload in rollback:
                     if payload['seq'] >= cursor:
                         logger.debug(f'Backfilled rollback {payload["seq"]}')
                         yield (header, payload)
 
-            logger.info(f'subscriber {thread}: streaming new events after {rollback[-1][1]["seq"]}')
+            log(f'streaming new events after {rollback[-1][1]["seq"]}')
             subscribers.append(events)
 
         # let these get garbage collected
