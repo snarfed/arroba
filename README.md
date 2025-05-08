@@ -105,6 +105,8 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 * Add server side support for [sync v1.1 aka inductive firehose](https://github.com/bluesky-social/proposals/tree/main/0006-sync-iteration). `xrpc_sync.subscribe_repos` now includes covering proof blocks and new `prev` and `prevData` fields.
 * `MST`:
   * Add new `cids_for_path`, `add_covering_proofs` methods.
+* `Server`:
+  * Drastically redesign `subscribeRepos` to unify event stream generation across all subscribers. This significantly improves scalability and reduces CPU and I/O to near constant, with minimal additional overhead per subscriber.
 
 
 ### 0.8 - 2025-03-13
