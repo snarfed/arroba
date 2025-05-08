@@ -38,14 +38,12 @@ logger = logging.getLogger(__name__)
 
 
 def start(limit=None):
-    logger.debug('> start')
     with lock:
         global collector
         if collector:
             return
         collector = threading.Thread(target=collect, name='firehose collector',
                                      daemon=True, kwargs={'limit': limit})
-    logger.debug('< start')
 
     logger.info(f'Starting firehose collector with limit {limit}')
     collector.start()
@@ -55,7 +53,6 @@ def start(limit=None):
 def reset():
     global new_events, subscribers, collector, rollback
 
-    logger.debug('> reset')
     with lock:
         new_events = threading.Condition()
         started.clear()
@@ -63,7 +60,6 @@ def reset():
         if collector:
             assert not collector.is_alive()
         collector = rollback = None
-    logger.debug('< reset')
 
 
 def send_events():
@@ -119,12 +115,10 @@ def subscribe(cursor=None):
 
     events = SimpleQueue()
     try:
-        logger.debug('> subscribe')
         with lock:
-            logger.debug('  subscribed')
             if cursor is not None:
                 if handoff:
-                    logger.debug(f'subscriber {thread}: backfilling from handoff from {cursor}')
+                    logger.info(f'subscriber {thread}: backfilling from handoff from {cursor}')
                     for header, payload in handoff:
                         if payload['seq'] >= rollback[0][1]['seq']:
                             break
@@ -136,11 +130,9 @@ def subscribe(cursor=None):
                     if payload['seq'] >= cursor:
                         logger.debug(f'Backfilled rollback {payload["seq"]}')
                         yield (header, payload)
-                logger.debug('  done')
 
             logger.info(f'subscriber {thread}: streaming new events after {rollback[-1][1]["seq"]}')
             subscribers.append(events)
-        logger.debug('< subscribe')
 
         # let these get garbage collected
         handoff = pre_rollback = None
@@ -148,12 +140,9 @@ def subscribe(cursor=None):
             yield events.get()
 
     finally:
-        logger.debug('> subscribe 2')
         with lock:
-            logger.debug('  subscribed')
             if events in subscribers:
                 subscribers.remove(events)
-        logger.debug('< subscribe 2')
 
 
 def collect(limit=None):
@@ -168,15 +157,12 @@ def collect(limit=None):
     query = server.storage.read_events_by_seq(
         start=max(cur_seq - PRELOAD_WINDOW + 1, 0))
 
-    logger.debug('> collect 1')
     with lock:
-        logger.debug('  collected')
         global rollback
         rollback = deque((process_event(e) for e in query), maxlen=ROLLBACK_WINDOW)
-    logger.debug('< collect 1')
 
     cur_seq = rollback[-1][1]['seq']
-    logger.debug(f'  preloaded seqs {rollback[0][1]["seq"]}-{cur_seq}')
+    logger.info(f'  preloaded seqs {rollback[0][1]["seq"]}-{cur_seq}')
 
     started.set()
 
@@ -206,13 +192,10 @@ def collect(limit=None):
                 last_event = time.time()
                 frame = process_event(event)
                 logger.debug(f'Emitting to {len(subscribers)} subscribers: {frame[1]["seq"]}')
-                logger.debug('> collect 2')
                 with lock:
-                    logger.debug('  collected')
                     rollback.append(frame)
                     for subscriber in subscribers:
                         subscriber.put(frame)
-                logger.debug('< collect 2')
 
                 seen += 1
 
