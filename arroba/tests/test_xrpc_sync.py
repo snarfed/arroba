@@ -968,7 +968,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         # 3: start subscriber
         with patch.object(server.storage, 'read_events_by_seq',
-                          side_effect=read_events_blocking) as read_events:
+                          side_effect=read_events_blocking):
             received = []
             started = Event()
             subscriber = Thread(target=self.subscribe,
@@ -998,6 +998,35 @@ class SubscribeReposTest(testutil.XrpcTestCase):
                           cur=commits[1].cid, prev=commits[0], check_commit=False)
         self.assertCommit(received[4], {'foo': 'baz'}, write=writes[1], seq=5,
                           cur=commits[2].cid, prev=commits[1], check_commit=False)
+
+    @patch('arroba.firehose.PRELOAD_WINDOW', 1)
+    @patch('arroba.firehose.ROLLBACK_WINDOW', 4)
+    def test_merge_handoff_into_rollback(self, *_):
+        self.repo.apply_writes([Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})])
+
+        # collect preload window (seq 4), then stop firehose
+        firehose.start(limit=0)
+        firehose.collector.join()
+        self.assertEqual([4], [event[1]['seq'] for event in firehose.rollback])
+
+        # subscribe from cursor 3, check that seq 3 gets merged into rollback window
+        received = []
+        self.subscribe(received, limit=2, cursor=3)
+        self.assertEqual([3, 4], [event[1]['seq'] for event in received])
+        self.assertEqual([3, 4], [event[1]['seq'] for event in firehose.rollback])
+
+        # subscribe from cursor 1, check that seqs 1-2 get merged into rollback window
+        received = []
+        self.subscribe(received, limit=4, cursor=1)
+        self.assertEqual([1, 2, 3, 4], [event[1]['seq'] for event in received])
+        self.assertEqual([1, 2, 3, 4], [event[1]['seq'] for event in firehose.rollback])
+
+        # subscribing again from cursor 1 should read entirely from rollback window
+        with patch.object(server.storage, 'read_events_by_seq',
+                          side_effect=AssertionError('oops')):
+            received = []
+            self.subscribe(received, limit=4, cursor=1)
+            self.assertEqual([1, 2, 3, 4], [event[1]['seq'] for event in received])
 
     def test_include_preexisting_record_block(self, *_):
         # https://github.com/snarfed/bridgy-fed/issues/1016#issuecomment-2109276344

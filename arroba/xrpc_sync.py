@@ -135,7 +135,6 @@ def subscribe_repos(cursor=None):
             yield ({'op': 1, 't': '#info'}, {'name': 'OutdatedCursor'})
             cursor = rollback_start
 
-    logger.info(f'Subscribing from sequence {cursor}')
     yield from firehose.subscribe(cursor)
 
 
