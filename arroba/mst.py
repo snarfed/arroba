@@ -945,14 +945,14 @@ class MST:
             blocks = {}
 
         def load(cid, name):
-            logger.log(1, (name, cid))
+            logger.debug((name, cid))
             if cid not in blocks:
                 blocks[cid] = self.storage.read(cid)
             return blocks[cid]
 
         # find paths to each operation's key, collecting adjacent nodes
         for op in commit.commit.ops:
-            logger.log(1, op)
+            logger.debug(op)
             cur_block = load(self.get_pointer(), 'head')
 
             while True:  # tree layer
@@ -988,10 +988,10 @@ class MST:
                 if not cur_cid:
                     break
                 cur_block = load(cur_cid, 'C')
-                logger.log(1, 'next layer')
+                logger.debug('next layer')
 
             # found key. collect remaining nodes on either side, down to the bottom
-            logger.log(1, 'cleanup')
+            logger.debug('cleanup')
 
             # right-most nodes of the left side
             if left_block:
