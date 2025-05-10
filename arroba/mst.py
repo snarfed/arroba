@@ -961,11 +961,13 @@ class MST:
 
                 entries = [Entry(**e) for e in data.e]
 
+                # find ancestor node of this operation's path
                 last_key = ''
                 for cur in entries:
+                    key = last_key[:cur.p] + cur.k.decode()
+                    last_key = key
                     if not (right_cid := cur.t):
                         continue
-                    key = last_key[:cur.p] + cur.k.decode()
 
                     if key == op.path:
                         cur_cid = None
@@ -975,7 +977,6 @@ class MST:
                         break
 
                     cur_cid = left_cid = right_cid
-                    last_key = key
 
                 left_block = None
                 if left_cid:
