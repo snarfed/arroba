@@ -228,7 +228,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
                 'User-Agent': util.USER_AGENT,
                 'Content-Type': 'application/json',
                 'Authorization': 'Bearer jay-dublyew-tee',
-            }, json=None, data=None, auth=None)
+            }, json=None, data=None)
 
     # TODO: what does getRecord return not found? uri and value in output are
     # required, and it doesn't declare any errors
