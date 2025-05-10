@@ -92,12 +92,12 @@ class StorageTest(TestCase):
 
         prev_prev = repo.head.cid
         first = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})
-        commit_cid = repo.apply_writes([first])
+        repo.apply_writes([first])
         commit_cids.append(repo.head.cid)
 
         prev = repo.head.cid
         second = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})
-        commit_cid = repo.apply_writes([second])
+        repo.apply_writes([second])
 
         commits = list(self.storage.read_events_by_seq(start=4))
         self.assertEqual(2, len(commits))
@@ -110,6 +110,20 @@ class StorageTest(TestCase):
         self.assertEqual(repo.head.cid, commits[1].commit.cid)
         self.assertEqual(prev, commits[1].prev)
         self.assertEqual(record, commits[1].blocks[record.cid])
+
+    def test_read_events_by_seq_empty_commit(self):
+        # https://github.com/snarfed/arroba/issues/52
+        repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
+
+        repo.apply_writes([])
+
+        commits = list(self.storage.read_events_by_seq(start=4))
+        self.assertEqual(1, len(commits))
+        mst_root = repo.mst.get_pointer()
+        self.assertEqual({
+            repo.head.cid: repo.head,
+            mst_root: self.storage.read(mst_root),
+        }, commits[0].blocks)
 
     def test_read_events_tombstone_then_commit(self):
         alice = Repo.create(self.storage, 'did:alice', signing_key=self.key)

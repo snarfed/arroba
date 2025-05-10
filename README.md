@@ -107,8 +107,10 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
   * Add new `cids_for_path`, `add_covering_proofs` methods.
 * `Repo`:
   * `apply_writes`: skip no-op update operations where the new record value is the same as the existing stored record. (No-op updates are evidently illegal in ATProto.)
-* `Server`:
-  * Drastically redesign `subscribeRepos` to unify event stream generation across all subscribers. This significantly improves scalability and reduces CPU and I/O to near constant, with minimal additional overhead per subscriber.
+* `Storage`:
+  * `read_events_by_seq`: always include the MST root block in every commit event.
+* `xrpc_sync`:
+  * Drastically redesign `subscribeRepos` to unify event stream generation across all subscribers. This significantly improves scalability and reduces CPU and I/O to near constant, with minimal additional overhead per subscriber ([#52](https://github.com/snarfed/arroba/issues/52)).
 
 
 ### 0.8 - 2025-03-13

@@ -314,6 +314,10 @@ class Storage:
                     assert record
                     blocks[op.cid] = record
 
+            mst_root = commit_block.decoded['data']
+            if mst_root not in blocks:
+                blocks[mst_root] = self.read(mst_root)
+
             return CommitData(blocks=blocks, commit=commit_block,
                               prev=commit_block.decoded.get('prev'))
 
