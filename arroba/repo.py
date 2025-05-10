@@ -9,6 +9,7 @@ Huge thanks to the Bluesky team for working in the public, in open source, and t
 Daniel Holmgren and Devin Ivy for this code specifically!
 """
 from collections import defaultdict, namedtuple
+import copy
 import logging
 
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -294,7 +295,7 @@ class Repo:
             writes = []
         orig_mst = mst
 
-        for write in writes:
+        for write in copy.copy(writes):
             assert isinstance(write, Write), type(write)
             data_key = f'{write.collection}/{write.rkey}'
 
@@ -311,7 +312,12 @@ class Repo:
                 mst = mst.add(data_key, block.cid)
             else:
                 assert write.action == Action.UPDATE
+                orig_pointer = mst.get_pointer()
                 mst = mst.update(data_key, block.cid)
+                if mst.get_pointer() == orig_pointer:
+                    # new record value is the same as the existing stored record.
+                    # no-op updates are invalid in ATProto, so skip this operation.
+                    writes.remove(write)
 
         root, unstored_blocks = mst.get_unstored_blocks()
         for block in unstored_blocks.values():
@@ -348,10 +354,6 @@ class Repo:
         """
         if self.status:
             raise util.InactiveRepo(self.did, self.status)
-
-        if commit_data.commit.decoded['data'] == self.head.decoded['data']:
-            logger.debug(f'Skipping no-op commit {commit_data.commit.cid}')
-            return self
 
         self.storage.apply_commit(commit_data)
         self.head = commit_data.commit
