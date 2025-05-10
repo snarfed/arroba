@@ -1031,9 +1031,10 @@ class SubscribeReposTest(testutil.XrpcTestCase):
     def test_include_preexisting_record_block(self, *_):
         # https://github.com/snarfed/bridgy-fed/issues/1016#issuecomment-2109276344
         # preexisting {'foo': 'bar'} record
-        tid = next_tid()
-        first = Write(Action.CREATE, 'co.ll', tid, {'foo': 'bar'})
-        self.repo.apply_writes([first])
+        other_repo = Repo.create(server.storage, 'did:web:other.com',
+                                 handle='han.do', signing_key=self.key)
+        other_repo.apply_writes(
+            [Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})])
 
         # start subscriber
         firehose.start(limit=1)
@@ -1046,16 +1047,14 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         subscriber.start()
         started.wait()
 
-        # update to the same record; subscribeRepos should include record block
+        # add the same record; subscribeRepos should include record block
         prev = self.repo.head
-        prev_record = self.repo.mst.get(f'co.ll/{tid}')
-        second = Write(Action.UPDATE, 'co.ll', tid, {'foo': 'bar'})
+        second = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})
         self.repo.apply_writes([second])
         delivered.acquire()
 
         self.assertEqual(1, len(received))
-        self.assertCommit(received[0], {'foo': 'bar'}, write=second, prev=prev,
-                          seq=5, prev_record=prev_record)
+        self.assertCommit(received[0], {'foo': 'bar'}, write=second, prev=prev, seq=8)
 
         subscriber.join()
 

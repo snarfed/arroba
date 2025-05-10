@@ -349,6 +349,10 @@ class Repo:
         if self.status:
             raise util.InactiveRepo(self.did, self.status)
 
+        if commit_data.commit.decoded['data'] == self.head.decoded['data']:
+            logger.debug(f'Skipping no-op commit {commit_data.commit.cid}')
+            return self
+
         self.storage.apply_commit(commit_data)
         self.head = commit_data.commit
         if self.callback:

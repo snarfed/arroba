@@ -157,6 +157,17 @@ class RepoTest(TestCase):
 
         self.assertEqual({}, self.repo.get_contents())
 
+    def test_noop_update_doesnt_commit(self):
+        tid = next_tid()
+        self.repo.apply_writes([Write(Action.CREATE, 'co.ll', tid, {'x': 'y'})])
+
+        orig_head = self.repo.head
+        orig_root = self.repo.mst.get_pointer()
+
+        self.repo.apply_writes([Write(Action.UPDATE, 'co.ll', tid, {'x': 'y'})])
+        self.assertEqual(orig_head, self.repo.head)
+        self.assertEqual(orig_root, self.repo.mst.get_pointer())
+
     def test_has_a_valid_signature_to_commit(self):
         assert verify_sig(self.repo.head.decoded, self.key.public_key())
 
