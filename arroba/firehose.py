@@ -118,7 +118,7 @@ def subscribe(cursor=None):
             pre_rollback.append((header, payload))
             yield (header, payload)
 
-    events = SimpleQueue()
+    subscriber = SimpleQueue()
     try:
         with lock:
             if cursor is not None:
@@ -137,17 +137,17 @@ def subscribe(cursor=None):
                         yield (header, payload)
 
             log(f'streaming new events after {rollback[-1][1]["seq"]}')
-            subscribers.append(events)
+            subscribers.append(subscriber)
 
         # let these get garbage collected
         handoff = pre_rollback = None
         while True:
-            yield events.get()
+            yield subscriber.get()
 
     finally:
         with lock:
-            if events in subscribers:
-                subscribers.remove(events)
+            if subscriber in subscribers:
+                subscribers.remove(subscriber)
 
 
 def collect(limit=None):
@@ -200,7 +200,10 @@ def collect(limit=None):
                 with lock:
                     rollback.append(frame)
                     for subscriber in subscribers:
-                        subscriber.put(frame)
+                        # subscriber here is an unbounded SimpleQueue, so put should
+                        # never block, but I want to be extra sure. (if put would
+                        # block here, put_nowait will raise queue.Full instead.)
+                        subscriber.put_nowait(frame)
 
                 seen += 1
 
