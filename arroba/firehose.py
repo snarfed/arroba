@@ -145,6 +145,7 @@ def subscribe(cursor=None):
             yield subscriber.get()
 
     finally:
+        log('removing subscriber')
         with lock:
             if subscriber in subscribers:
                 subscribers.remove(subscriber)
@@ -166,8 +167,9 @@ def collect(limit=None):
         global rollback
         rollback = deque((process_event(e) for e in query), maxlen=ROLLBACK_WINDOW)
 
-    cur_seq = rollback[-1][1]['seq']
-    logger.info(f'  preloaded seqs {rollback[0][1]["seq"]}-{cur_seq}')
+    if rollback:
+        cur_seq = rollback[-1][1]['seq']
+        logger.info(f'  preloaded seqs {rollback[0][1]["seq"]}-{cur_seq}')
 
     started.set()
 
@@ -196,7 +198,7 @@ def collect(limit=None):
 
                 last_event = time.time()
                 frame = process_event(event)
-                logger.debug(f'Emitting to {len(subscribers)} subscribers: {frame[1]["seq"]}')
+                logger.info(f'Emitting to {len(subscribers)} subscribers: {frame[1]["seq"]}')
                 with lock:
                     rollback.append(frame)
                     for subscriber in subscribers:
