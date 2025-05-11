@@ -197,15 +197,16 @@ def collect(limit=None):
                     logger.info(f'Gave up waiting for seqs {last_seq + 1} to {cur_seq - 1}!')
 
                 last_event = time.time()
-                frame = process_event(event)
-                logger.info(f'Emitting to {len(subscribers)} subscribers: {frame[1]["seq"]}')
+                header, payload = process_event(event)
+                did = payload.get('did') or payload.get('repo')
+                logger.info(f'Emitting to {len(subscribers)} subscribers: {payload["seq"]} {did} {header.get("t")}')
                 with lock:
-                    rollback.append(frame)
+                    rollback.append((header, payload))
                     for subscriber in subscribers:
                         # subscriber here is an unbounded SimpleQueue, so put should
                         # never block, but I want to be extra sure. (if put would
                         # block here, put_nowait will raise queue.Full instead.)
-                        subscriber.put_nowait(frame)
+                        subscriber.put_nowait((header, payload))
 
                 seen += 1
 
