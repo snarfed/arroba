@@ -128,13 +128,13 @@ def subscribe(cursor=None):
                         if payload['seq'] >= rollback[0][1]['seq']:
                             break
                         logger.debug(f'Backfilled handoff {payload["seq"]}')
-                        yield (header, payload)
+                        subscriber.put_nowait((header, payload))
 
                 log(f'backfilling from rollback from {cursor}')
                 for header, payload in rollback:
                     if payload['seq'] >= cursor:
                         logger.debug(f'Backfilled rollback {payload["seq"]}')
-                        yield (header, payload)
+                        subscriber.put_nowait((header, payload))
 
             log(f'streaming new events after {rollback[-1][1]["seq"] if rollback else 0}')
             subscribers.append(subscriber)
