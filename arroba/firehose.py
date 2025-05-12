@@ -32,7 +32,7 @@ collector = None  # Thread; initialized in start()
 rollback = None   # deque of (dict header, dict payload); initialized in collect()
 started = threading.Event()  # notified once the collecter has fully started
 
-lock = threading.Lock()
+lock = threading.RLock()  # TODO: RLock seems unneeded, switch back to Lock?
 
 logger = logging.getLogger(__name__)
 
