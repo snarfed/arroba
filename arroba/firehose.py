@@ -4,6 +4,7 @@ from contextlib import contextmanager
 import copy
 from datetime import timedelta, timezone
 import logging
+from logging import DEBUG, INFO
 import os
 from queue import SimpleQueue
 import threading
@@ -80,8 +81,8 @@ def subscribe(cursor=None):
     started.wait()
 
     thread = threading.current_thread().name
-    def log(msg):
-        logger.info(f'subscriber {thread}: {msg}')
+    def log(msg, level=INFO):
+        logger.log(level, f'subscriber {thread}: {msg}')
 
     log(f'starting with cursor {cursor}')
     if cursor:
@@ -127,13 +128,13 @@ def subscribe(cursor=None):
                     for header, payload in handoff:
                         if payload['seq'] >= rollback[0][1]['seq']:
                             break
-                        logger.debug(f'Backfilled handoff {payload["seq"]}')
+                        log(f'Backfilled handoff {payload["seq"]}', DEBUG)
                         subscriber.put_nowait((header, payload))
 
                 log(f'backfilling from rollback from {cursor}')
                 for header, payload in rollback:
                     if payload['seq'] >= cursor:
-                        logger.debug(f'Backfilled rollback {payload["seq"]}')
+                        log(f'Backfilled rollback {payload["seq"]}', DEBUG)
                         subscriber.put_nowait((header, payload))
 
             log(f'streaming new events after {rollback[-1][1]["seq"] if rollback else 0}')
