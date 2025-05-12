@@ -35,7 +35,8 @@ started = threading.Event()  # notified once the collecter has fully started
 
 lock = threading.RLock()  # TODO: RLock seems unneeded, switch back to Lock?
 
-logger = logging.getLogger(__name__)
+thread_local = threading.local()
+logger = thread_local.logger = logging.getLogger(__name__)
 
 
 def start(limit=None):

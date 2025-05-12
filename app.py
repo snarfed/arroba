@@ -51,7 +51,7 @@ os.environ.setdefault('REPO_HANDLE', handle)
 is_prod = 'GAE_INSTANCE' in os.environ
 if is_prod:
     logger.info('Running against production GAE')
-    logging_client = google.cloud.logging.Client()
+    logging_client = thread_local.logging_client = google.cloud.logging.Client()
     logging_client.setup_logging(log_level=logging.DEBUG)
 else:
     logger.info('Running locally')
@@ -122,7 +122,7 @@ def proxy_appview(nsid_rest=None):
 
 lexrpc.flask_server.init_flask(server.server, app)
 
-ndb_client = ndb.Client()
+ndb_client = thread_local.ndb_client = ndb.Client()
 
 with ndb_client.context():
     server.storage = DatastoreStorage(ndb_client=ndb_client)
