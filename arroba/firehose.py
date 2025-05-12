@@ -34,13 +34,25 @@ rollback = None   # deque of (dict header, dict payload); initialized in collect
 started = threading.Event()  # notified once the collecter has fully started
 
 lock = threading.RLock()  # TODO: RLock seems unneeded, switch back to Lock?
+lock_holder = None  # str, thread name of thread holding lock
 
 thread_local = threading.local()
 logger = thread_local.logger = logging.getLogger(__name__)
 
 
+@contextmanager
+def record_lock():
+    """Records in lock_holder that this thread is currently holding the lock."""
+    global lock_holder
+    lock_holder = threading.current_thread().name
+    try:
+        yield
+    finally:
+        lock_holder = None
+
+
 def start(limit=None):
-    with lock:
+    with lock, record_lock():
         global collector
         if collector:
             return
@@ -55,7 +67,7 @@ def start(limit=None):
 def reset():
     global new_events, subscribers, collector, rollback
 
-    with lock:
+    with lock, record_lock():
         new_events = threading.Condition()
         started.clear()
         subscribers = []
@@ -98,7 +110,7 @@ def subscribe(cursor=None):
         pre_rollback = []  # events prior to rollback window that we load here
         for event in server.storage.read_events_by_seq(start=cursor):
             header, payload = process_event(event)
-            with lock:
+            with lock, record_lock():
                 # rollback window may have advanced, check it again, fresh, each time!
                 if payload['seq'] >= rollback[0][1]['seq']:
                     cursor = rollback[0][1]['seq']
@@ -122,7 +134,7 @@ def subscribe(cursor=None):
 
     subscriber = SimpleQueue()
     try:
-        with lock:
+        with lock, record_lock():
             if cursor is not None:
                 if handoff and handoff[0][1]['seq'] < rollback[0][1]['seq']:
                     log(f'backfilling from handoff from {handoff[0][1]["seq"]}')
@@ -148,7 +160,7 @@ def subscribe(cursor=None):
 
     finally:
         log('removing subscriber')
-        with lock:
+        with lock, record_lock():
             if subscriber in subscribers:
                 subscribers.remove(subscriber)
 
@@ -165,7 +177,7 @@ def collect(limit=None):
     query = server.storage.read_events_by_seq(
         start=max(cur_seq - PRELOAD_WINDOW + 1, 0))
 
-    with lock:
+    with lock, record_lock():
         global rollback
         rollback = deque((process_event(e) for e in query), maxlen=ROLLBACK_WINDOW)
 
@@ -202,7 +214,7 @@ def collect(limit=None):
                 header, payload = process_event(event)
                 did = payload.get('did') or payload.get('repo')
                 logger.info(f'Emitting to {len(subscribers)} subscribers: {payload["seq"]} {did} {header.get("t")}')
-                with lock:
+                with lock, record_lock():
                     rollback.append((header, payload))
                     for subscriber in subscribers:
                         # subscriber here is an unbounded SimpleQueue, so put should
