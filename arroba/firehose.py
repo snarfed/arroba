@@ -90,7 +90,7 @@ def subscribe(cursor=None):
     # if this cursor behind our rollback window, load the window between the two
     # manually, for this subscriber
     handoff = None     # deque; copy of rollback window for when we transition to it
-    rollback_start = rollback[0][1]['seq']
+    rollback_start = rollback[0][1]['seq'] if rollback else 0
     if cursor is not None and cursor < rollback_start:
         log(f'cursor {cursor} is behind rollback start {rollback_start}; loading rest manually')
         pre_rollback = []  # events prior to rollback window that we load here
@@ -136,7 +136,7 @@ def subscribe(cursor=None):
                         logger.debug(f'Backfilled rollback {payload["seq"]}')
                         yield (header, payload)
 
-            log(f'streaming new events after {rollback[-1][1]["seq"]}')
+            log(f'streaming new events after {rollback[-1][1]["seq"] if rollback else 0}')
             subscribers.append(subscriber)
 
         # let these get garbage collected
