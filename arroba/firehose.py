@@ -39,12 +39,14 @@ logger = logging.getLogger(__name__)
 
 
 def start(limit=None):
+    logger.debug('> start')
     with lock:
         global collector
         if collector:
             return
         collector = threading.Thread(target=collect, name='firehose collector',
                                      daemon=True, kwargs={'limit': limit})
+    logger.debug('< start')
 
     logger.info(f'Starting firehose collector with limit {limit}')
     collector.start()
@@ -54,6 +56,7 @@ def start(limit=None):
 def reset():
     global new_events, subscribers, collector, rollback
 
+    logger.debug('> reset')
     with lock:
         new_events = threading.Condition()
         started.clear()
@@ -61,6 +64,7 @@ def reset():
         if collector:
             assert not collector.is_alive()
         collector = rollback = None
+    logger.debug('< reset')
 
 
 def send_events():
@@ -121,24 +125,29 @@ def subscribe(cursor=None):
 
     subscriber = SimpleQueue()
     try:
+        log('> subscribe add', DEBUG)
         with lock:
+            log('  subscribe added', DEBUG)
             if cursor is not None:
                 if handoff and handoff[0][1]['seq'] < rollback[0][1]['seq']:
                     log(f'backfilling from handoff from {handoff[0][1]["seq"]}')
                     for header, payload in handoff:
                         if payload['seq'] >= rollback[0][1]['seq']:
                             break
-                        log(f'Backfilled handoff {payload["seq"]}', DEBUG)
+                        # log(f'Backfilled handoff {payload["seq"]}', DEBUG)
                         subscriber.put_nowait((header, payload))
+                    log('  done backfilling handoff', DEBUG)
 
                 log(f'backfilling from rollback from {cursor}')
                 for header, payload in rollback:
                     if payload['seq'] >= cursor:
-                        log(f'Backfilled rollback {payload["seq"]}', DEBUG)
+                        # log(f'Backfilled rollback {payload["seq"]}', DEBUG)
                         subscriber.put_nowait((header, payload))
+                log('  done backfilling rollback', DEBUG)
 
             log(f'streaming new events after {rollback[-1][1]["seq"] if rollback else 0}')
             subscribers.append(subscriber)
+        log('< subscribe added', DEBUG)
 
         # let these get garbage collected
         handoff = pre_rollback = None
@@ -147,9 +156,12 @@ def subscribe(cursor=None):
 
     finally:
         log('removing subscriber')
+        log('> subscribe remove', DEBUG)
         with lock:
+            log('  subscribe removed', DEBUG)
             if subscriber in subscribers:
                 subscribers.remove(subscriber)
+        log('< subscribe remove', DEBUG)
 
 
 def collect(limit=None):
@@ -164,9 +176,12 @@ def collect(limit=None):
     query = server.storage.read_events_by_seq(
         start=max(cur_seq - PRELOAD_WINDOW + 1, 0))
 
+    logger.debug('> collect start')
     with lock:
+        logger.debug('  collect started')
         global rollback
         rollback = deque((process_event(e) for e in query), maxlen=ROLLBACK_WINDOW)
+    logger.debug('< collect start')
 
     if rollback:
         cur_seq = rollback[-1][1]['seq']
@@ -201,13 +216,17 @@ def collect(limit=None):
                 header, payload = process_event(event)
                 did = payload.get('did') or payload.get('repo')
                 logger.info(f'Emitting to {len(subscribers)} subscribers: {payload["seq"]} {did} {header.get("t")}')
+
+                logger.debug('> collect serve')
                 with lock:
                     rollback.append((header, payload))
+                    logger.debug('  collect served')
                     for subscriber in subscribers:
                         # subscriber here is an unbounded SimpleQueue, so put should
                         # never block, but I want to be extra sure. (if put would
                         # block here, put_nowait will raise queue.Full instead.)
                         subscriber.put_nowait((header, payload))
+                logger.debug('< collect serve')
 
                 seen += 1
 
