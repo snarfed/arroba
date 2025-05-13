@@ -2,7 +2,7 @@
 from collections import deque
 from contextlib import contextmanager
 import copy
-from datetime import timedelta, timezone
+from datetime import datetime, timedelta, timezone
 import logging
 from logging import DEBUG, INFO
 import os
@@ -222,7 +222,9 @@ def collect(limit=None):
             last_event = time.time()
             header, payload = process_event(event)
             did = payload.get('did') or payload.get('repo')
-            logger.info(f'Emitting to {len(subscribers)} subscribers: {payload["seq"]} {did} {header.get("t")}')
+            delay_s = int((util.now() - datetime.fromisoformat(payload['time']))\
+                          .total_seconds())
+            logger.info(f'Emitting to {len(subscribers)} subscribers: {payload["seq"]} {did} {header.get("t")} ({delay_s} s behind)')
             with lock, record_lock():
                 rollback.append((header, payload))
                 for subscriber in subscribers:
