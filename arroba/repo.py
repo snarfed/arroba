@@ -339,8 +339,7 @@ class Repo:
             'version': 3,
             # reuse subscribeRepos sequence number as rev
             # https://github.com/bluesky-social/atproto/discussions/1607
-            'rev': util.int_to_tid(storage.allocate_seq(SUBSCRIBE_REPOS_NSID),
-                                   clock_id=0),
+            'rev': util.int_to_tid(storage.allocate_seq(SUBSCRIBE_REPOS_NSID), clock_id=0),
             'prev': cur_head,
             'data': root,
         }, signing_key)

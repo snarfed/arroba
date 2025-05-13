@@ -26,6 +26,9 @@ ROLLBACK_WINDOW = int(os.getenv('ROLLBACK_WINDOW', 50_000))
 # 4000 seqs is ~1h as of May 2025, loads in prod in ~2m
 PRELOAD_WINDOW = int(os.getenv('PRELOAD_WINDOW', 4000))
 SUBSCRIBE_REPOS_BATCH_DELAY = timedelta(seconds=float(os.getenv('SUBSCRIBE_REPOS_BATCH_DELAY', 0)))
+# only wait for a skipped seq if we're within this many seqs of current
+# https://github.com/snarfed/arroba/issues/56
+WAIT_FOR_SKIPPED_SEQ_WINDOW = 300  # roughly 5m as of May 2025
 
 new_events = threading.Condition()
 subscribers = []
@@ -202,32 +205,34 @@ def collect(limit=None):
         for event in server.storage.read_events_by_seq(start=cur_seq + 1):
             last_seq = cur_seq
             cur_seq = event['seq'] if isinstance(event, dict) else event.commit.seq
+            assert cur_seq > last_seq
 
-            # if we see a sequence number skipped, wait for it up to
-            # NEW_EVENTS_TIMEOUT before giving up on it and moving on
-            waited_enough = time.time() - last_event > timeout_s
-            if cur_seq == last_seq + 1 or waited_enough:
-                if cur_seq > last_seq + 1:
-                    logger.info(f'Gave up waiting for seqs {last_seq + 1} to {cur_seq - 1}!')
+            # if we see a sequence number skipped, and we're not too far behind, wait
+            # up to NEW_EVENTS_TIMEOUT for it before giving up on it and moving on
+            if cur_seq > last_seq + 1:
+                if time.time() - last_event <= timeout_s:
+                    seqs_behind = server.storage.last_seq(SUBSCRIBE_REPOS_NSID) - cur_seq
+                    if seqs_behind <= WAIT_FOR_SKIPPED_SEQ_WINDOW:
+                        logger.info(f'Waiting for seq {last_seq + 1}')
+                        cur_seq = last_seq
+                        break
+                logger.info(f'Gave up waiting for seqs {last_seq + 1} to {cur_seq - 1}!')
 
-                last_event = time.time()
-                header, payload = process_event(event)
-                did = payload.get('did') or payload.get('repo')
-                logger.info(f'Emitting to {len(subscribers)} subscribers: {payload["seq"]} {did} {header.get("t")}')
-                with lock, record_lock():
-                    rollback.append((header, payload))
-                    for subscriber in subscribers:
-                        # subscriber here is an unbounded SimpleQueue, so put should
-                        # never block, but I want to be extra sure. (if put would
-                        # block here, put_nowait will raise queue.Full instead.)
-                        subscriber.put_nowait((header, payload))
+            # emit event!
+            last_event = time.time()
+            header, payload = process_event(event)
+            did = payload.get('did') or payload.get('repo')
+            logger.info(f'Emitting to {len(subscribers)} subscribers: {payload["seq"]} {did} {header.get("t")}')
+            with lock, record_lock():
+                rollback.append((header, payload))
+                for subscriber in subscribers:
+                    # subscriber here is an unbounded SimpleQueue, so put should
+                    # never block, but I want to be extra sure. (if put would
+                    # block here, put_nowait will raise queue.Full instead.)
+                    subscriber.put_nowait((header, payload))
 
-                seen += 1
+            seen += 1
 
-            else:
-                logger.info(f'Waiting for seq {last_seq + 1}')
-                cur_seq = last_seq
-                break
 
         time.sleep(SUBSCRIBE_REPOS_BATCH_DELAY.total_seconds())
 

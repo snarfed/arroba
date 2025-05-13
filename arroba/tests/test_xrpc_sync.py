@@ -1,6 +1,6 @@
 """Unit tests for xrpc_sync.py."""
 import copy
-from datetime import timedelta
+from datetime import datetime, timedelta
 from io import BytesIO
 import threading
 from threading import Barrier, Event, Semaphore, Thread
@@ -1177,6 +1177,42 @@ class SubscribeReposTest(testutil.XrpcTestCase):
                           prev=prev, seq=6, check_commit=False)
 
         subscriber.join()
+
+    @patch('arroba.firehose.WAIT_FOR_SKIPPED_SEQ_WINDOW', 10)
+    @patch('arroba.firehose.SUBSCRIBE_REPOS_BATCH_DELAY', timedelta(seconds=.01))
+    def test_dont_wait_for_old_skipped_seq(self, *_):
+        # already mocked out, just changing its value
+        firehose.NEW_EVENTS_TIMEOUT = timedelta(seconds=60)
+
+        # skip seq 5, prepare commit with seq 6
+        server.storage.allocate_seq(SUBSCRIBE_REPOS_NSID)
+        self.assertEqual(5, server.storage.last_seq(SUBSCRIBE_REPOS_NSID))
+        write_6 = Write(Action.CREATE, 'co.ll', next_tid(), {'x': 'y'})
+        commit_6 = Repo.format_commit(repo=self.repo, writes=[write_6])
+        self.assertEqual(6, tid_to_int(commit_6.commit.decoded['rev']))
+        prev = self.repo.head
+
+        for i in range(11):
+            server.storage.allocate_seq(SUBSCRIBE_REPOS_NSID)
+
+        firehose.start(limit=1)
+        self.repo.apply_commit(commit_6)
+
+        start = datetime.now()
+        with self.assertLogs() as logs:
+            received = []
+            self.subscribe(received=received, limit=1, cursor=5)
+        end = datetime.now()
+
+        # shouldn't have waited
+        for log in logs.output:
+            self.assertNotIn('Waiting for seq', log)
+        self.assertLess(end - start, timedelta(seconds=1))  # ie we didn't wait 60s
+
+        # should receive seq 6 commits
+        self.assertEqual(1, len(received))
+        self.assertCommit(received[0], {'x': 'y'}, write=write_6, cur=self.repo.head.cid,
+                          prev=prev, seq=6, check_commit=False)
 
 
 class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
