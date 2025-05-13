@@ -107,6 +107,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
   * Add new `cids_for_path`, `add_covering_proofs` methods.
 * `Repo`:
   * `apply_writes`: skip no-op update operations where the new record value is the same as the existing stored record. (No-op updates are evidently illegal in ATProto.)
+  * Emit [new `#sync` event](https://github.com/bluesky-social/proposals/tree/main/0006-sync-iteration#staying-synchronized-sync-event-auto-repair-and-account-status) when a new repo is created.
 * `Storage`:
   * `read_events_by_seq`: always include the MST root block in every commit event.
 * `xrpc_sync`:

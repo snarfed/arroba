@@ -12,6 +12,7 @@ from collections import defaultdict, namedtuple
 import copy
 import logging
 
+from carbox import car
 from cryptography.hazmat.primitives.asymmetric import ec
 import dag_cbor
 from multiformats import CID
@@ -202,6 +203,16 @@ class Repo:
         did = commit_data.commit.repo
         storage.write_event(repo=repo, type='identity', handle=kwargs.get('handle'))
         storage.write_event(repo=repo, type='account', active=True)
+
+        # TODO: #sync event should be after #account/#identity but before first #commit
+        # https://github.com/bluesky-social/proposals/tree/main/0006-sync-iteration#staying-synchronized-sync-event-auto-repair-and-account-status
+        # https://github.com/snarfed/arroba/issues/52#issuecomment-2816324912
+        car_blocks = [car.Block(cid=block.cid, data=block.encoded, decoded=block.decoded)
+                      for block in commit_data.blocks.values()]
+        blocks_bytes = car.write_car([commit_data.commit.cid], car_blocks)
+        storage.write_event(repo=repo, type='sync', rev=commit_data.commit.decoded['rev'],
+                            blocks=blocks_bytes)
+
         storage.apply_commit(commit_data)
 
         storage.create_repo(repo)
@@ -230,8 +241,7 @@ class Repo:
         """
         # initial commit
         commit_data = cls.format_commit(storage=storage, repo_did=did,
-                                        signing_key=signing_key,
-                                        writes=initial_writes)
+                                        signing_key=signing_key, writes=initial_writes)
         return cls.create_from_commit(storage, commit_data, signing_key=signing_key,
                                       rotation_key=rotation_key, **kwargs)
 

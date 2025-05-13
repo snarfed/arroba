@@ -288,7 +288,8 @@ class DatastoreStorageTest(DatastoreTest):
         self.assert_same_seq(b.key.id() for b in AtpBlock.query()
                              if b.decoded.get('$type') not in (
                                  'com.atproto.sync.subscribeRepos#account',
-                                 'com.atproto.sync.subscribeRepos#identity'
+                                 'com.atproto.sync.subscribeRepos#identity',
+                                 'com.atproto.sync.subscribeRepos#sync',
                              ))
 
         # new commit

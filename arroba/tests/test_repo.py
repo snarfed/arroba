@@ -10,11 +10,13 @@ import copy
 from itertools import chain
 import random
 
+from carbox import car
 import dag_cbor
 
-from ..server import server
+from .. import firehose
 from ..datastore_storage import DatastoreStorage
 from ..repo import Repo, Write, writes_to_commit_ops
+from ..server import server
 from ..storage import Action, CommitOp, MemoryStorage
 from .. import util
 from ..util import dag_cbor_cid, next_tid, verify_sig
@@ -67,7 +69,36 @@ class RepoTest(TestCase):
 
     def test_create(self):
         # setUp called Repo.create
-        events = list(self.storage.read_blocks_by_seq())
+        blocks = [b.decoded for b in self.storage.read_blocks_by_seq()]
+
+        # commit
+        #
+        # (the order we get these two blocks is non-deterministic)
+        commit, root = blocks[:2] if 'version' in blocks[0] else reversed(blocks[:2])
+        commit_cid = util.dag_cbor_cid(commit)
+        commit = copy.copy(commit)
+        commit.pop('sig')
+
+        self.assertEqual({
+            'e': [],
+            'l': None,
+        }, root)
+        self.assertEqual({
+            'version': 3,
+            'data': self.repo.mst.get_pointer(),
+            'did': 'did:web:user.com',
+            'prev': None,
+            'rev': '2222222222322',
+            # 'sig': ...
+        }, commit)
+
+        # non-commit events
+        sync_root, sync_blocks = car.read_car(blocks[4]['blocks'])
+        self.assertEqual([commit_cid], sync_root)
+        sync_blocks[1].decoded.pop('sig', None)
+        self.assertEqual([root, commit], [b.decoded for b in sync_blocks])
+
+        blocks[4].pop('blocks', None)
         self.assertEqual([{
             '$type': 'com.atproto.sync.subscribeRepos#identity',
             'seq': 2,
@@ -80,7 +111,20 @@ class RepoTest(TestCase):
             'did': 'did:web:user.com',
             'time': NOW.isoformat(),
             'active': True,
-        }], [e.decoded for e in events[2:]])
+        }, {
+            '$type': 'com.atproto.sync.subscribeRepos#sync',
+            'seq': 4,
+            'did': 'did:web:user.com',
+            # 'blocks': ...
+            'rev': '2222222222322',
+            'time': NOW.isoformat(),
+        }], blocks[2:])
+
+        self.assertEqual(
+            # TODO: should be #identity, #account, #sync, #commit
+            ['#commit', '#identity', '#account', '#sync'],
+            [firehose.process_event(event)[0]['t']
+             for event in self.storage.read_events_by_seq()])
 
     def test_does_basic_operations(self):
         profile = {
@@ -193,13 +237,14 @@ class RepoTest(TestCase):
         self.repo.apply_writes([create])
 
         self.assertEqual(1, len(seen))
-        self.assertCommitIs(seen[0], create, 4)
+        self.assertCommitIs(seen[0], create, 5)
 
         # update object
         update = Write(Action.UPDATE, 'co.ll', tid, {'foo': 'baz'})
         self.repo.apply_writes([update])
         self.assertEqual(2, len(seen))
-        self.assertCommitIs(seen[1], update, 5, prev_record=util.dag_cbor_cid({'foo': 'bar'}))
+        self.assertCommitIs(seen[1], update, 6,
+                            prev_record=util.dag_cbor_cid({'foo': 'bar'}))
 
         # unset callback, update again
         self.repo.callback = None
@@ -216,7 +261,7 @@ class RepoTest(TestCase):
         self.repo.apply_commit(Repo.format_commit(repo=self.repo, writes=[create]))
 
         self.assertEqual(1, len(seen))
-        self.assertCommitIs(seen[0], create, 4)
+        self.assertCommitIs(seen[0], create, 5)
 
     def test_writes_to_commit_ops(self):
         tid = next_tid()

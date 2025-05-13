@@ -309,7 +309,8 @@ class Storage:
 
         def make_commit():
             for op in commit_block.ops:
-                if op.action in (Action.CREATE, Action.UPDATE) and op.cid not in blocks:
+                if (op.action in (Action.CREATE, Action.UPDATE)
+                        and op.cid not in blocks):
                     record = self.read(op.cid)
                     assert record
                     blocks[op.cid] = record
@@ -391,7 +392,7 @@ class Storage:
         Raises:
           InactiveError: if the repo is not active
         """
-        assert type in ('account', 'identity', 'tombstone'), type
+        assert type in ('account', 'identity', 'sync', 'tombstone'), type
 
         seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
         block = self.write(repo.did, {
