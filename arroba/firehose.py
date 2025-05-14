@@ -111,8 +111,11 @@ def subscribe(cursor=None):
     if cursor is not None and cursor < rollback_start:
         log(f'cursor {cursor} is behind rollback start {rollback_start}; loading rest manually')
         pre_rollback = []  # events prior to rollback window that we load here
-        for event in server.storage.read_events_by_seq(start=cursor):
+        for i, event in enumerate(server.storage.read_events_by_seq(start=cursor)):
             header, payload = process_event(event)
+            # TODO: remove once https://github.com/snarfed/arroba/issues/57 is done
+            if i % 10 == 0:
+                time.sleep(.01)
             with lock, record_lock():
                 # rollback window may have changed, check it again, fresh, each time!
                 if payload['seq'] >= rollback[0][1]['seq']:
