@@ -114,7 +114,7 @@ def subscribe(cursor=None):
         for event in server.storage.read_events_by_seq(start=cursor):
             header, payload = process_event(event)
             with lock, record_lock():
-                # rollback window may have advanced, check it again, fresh, each time!
+                # rollback window may have changed, check it again, fresh, each time!
                 if payload['seq'] >= rollback[0][1]['seq']:
                     cursor = rollback[0][1]['seq']
                     handoff = rollback.copy()
@@ -123,11 +123,14 @@ def subscribe(cursor=None):
                     if remaining_len and pre_rollback:
                         # merge old events we've loaded onto the end of rollback
                         # extendleft reverses its argument; reverse again to undo that
+                        pre_rollback = [e for e in pre_rollback
+                                        if e[1]['seq'] < cursor]
                         pre_rollback = pre_rollback[-remaining_len:]
-                        log(f'merging {pre_rollback[0][-1]["seq"]}-{pre_rollback[-1][-1]["seq"]} into rollback')
+                        log(f'merging {pre_rollback[0][1]["seq"]}-{pre_rollback[-1][1]["seq"]} into rollback')
                         assert len(rollback) + len(pre_rollback) <= rollback.maxlen, \
                             (len(rollback), len(pre_rollback))
-                        assert pre_rollback[-1][1]['seq'] < rollback[0][1]['seq']
+                        assert pre_rollback[-1][1]['seq'] < rollback[0][1]['seq'], \
+                            (pre_rollback[-1][1]['seq'], rollback[0][1]['seq'])
                         rollback.extendleft(reversed(pre_rollback))
 
                     break
@@ -135,6 +138,7 @@ def subscribe(cursor=None):
             pre_rollback.append((header, payload))
             yield (header, payload)
 
+    # hand off to rollback window and new events
     subscriber = SimpleQueue()
     try:
         with lock, record_lock():
