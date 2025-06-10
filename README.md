@@ -110,6 +110,8 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
   * Emit [new `#sync` event](https://github.com/bluesky-social/proposals/tree/main/0006-sync-iteration#staying-synchronized-sync-event-auto-repair-and-account-status) when a new repo is created.
 * `Storage`:
   * `read_events_by_seq`: always include the MST root block in every commit event.
+* `DatastoreStorage`:
+  * `AtpRemoteBlob.get_or_create`: truncate URLs to 1500 characters.
 * `xrpc_sync`:
   * Drastically redesign `subscribeRepos` to unify event stream generation across all subscribers. This significantly improves scalability and reduces CPU and I/O to near constant, with minimal additional overhead per subscriber ([#52](https://github.com/snarfed/arroba/issues/52)).
 

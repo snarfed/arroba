@@ -523,3 +523,14 @@ class DatastoreStorageTest(DatastoreTest):
             AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get)
 
         self.assertEqual(b'some video', mock_parse.call_args.args[0].read())
+
+    @patch('arroba.datastore_storage._MAX_KEYPART_BYTES', 20)
+    def test_create_remote_blob_truncate_url(self):
+        mock_get = MagicMock(return_value=requests_response('blob contents'))
+        blob = AtpRemoteBlob.get_or_create(url='http://my/long/blob.png',
+                                           get_fn=mock_get)
+        self.assertEqual('http://my/long/blob.', blob.key.id())
+        mock_get.assert_called_with('http://my/long/blob.png', stream=True)
+
+        got = AtpRemoteBlob.get_or_create(url='http://my/long/blob.png')
+        self.assertEqual(blob, got)

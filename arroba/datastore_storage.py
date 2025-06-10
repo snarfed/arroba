@@ -14,6 +14,7 @@ import dag_json
 from google.cloud import ndb
 from google.cloud.ndb import context
 from google.cloud.ndb.exceptions import ContextError
+from google.cloud.ndb.key import _MAX_KEYPART_BYTES
 from lexrpc import ValidationError
 from multiformats import CID, multicodec, multihash
 from PIL import Image, ImageFile
@@ -359,7 +360,16 @@ class AtpRemoteBlob(ndb.Model):
                 raise ValidationError(f'{url} duration {duration / 1000} is over {max_duration / 1000}s')
 
         assert url
-        blob = cls.get_by_id(url)
+
+        url_key = url
+        if len(url_key) > _MAX_KEYPART_BYTES:
+            # TODO: handle Unicode chars. naive approach is to UTF-8 encode,
+            # truncate, then decode, but that might cut mid character. easier to just
+            # hope/assume the URL is already URL-encoded.
+            url_key = url[:_MAX_KEYPART_BYTES]
+            logger.warning(f'Truncating URL to {_MAX_KEYPART_BYTES} chars: {url_key}')
+
+        blob = cls.get_by_id(url_key)
         if blob:
             validate_size(blob.size)
             validate_duration(blob.duration)
@@ -393,7 +403,7 @@ class AtpRemoteBlob(ndb.Model):
         # note that if the initial URL redirects, we still store it in the
         # AtpRemoteBlob, not the final resolved URL after redirects.
         logger.info(f'Creating new AtpRemoteBlob for {url} CID {cid}')
-        blob = cls(id=url, cid=cid, size=len(resp.content))
+        blob = cls(id=url_key, cid=cid, size=len(resp.content))
         if mime_type:
             blob.mime_type = mime_type
 
