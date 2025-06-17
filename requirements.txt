@@ -48,7 +48,7 @@ multiformats-config==0.3.1
 packaging==23.1
 Pillow==11.0.0
 proto-plus==1.23.0
-protobuf==4.24.3
+protobuf==4.25.8
 pyasn1==0.5.1
 pyasn1-modules==0.3.0
 pycparser==2.21
