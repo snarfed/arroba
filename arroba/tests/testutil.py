@@ -97,7 +97,7 @@ class TestCase(unittest.TestCase):
     def setUp(self):
         super().setUp()
 
-        util.now = lambda **kwargs: NOW
+        util.now = lambda tz=timezone.utc: NOW.replace(tzinfo=tz)
         util.time_ns = lambda: int(NOW.timestamp() * 1000 * 1000 * 1000)
         util._tid_ts_last = 0
 
