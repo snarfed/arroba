@@ -407,23 +407,7 @@ class AtpRemoteBlob(ndb.Model):
         if mime_type:
             blob.mime_type = mime_type
 
-        if mime_type and mime_type.startswith('image/'):
-            try:
-                with Image.open(BytesIO(resp.content)) as image:
-                    blob.width, blob.height = image.size
-            except (OSError, RuntimeError, Image.DecompressionBombError) as e:
-                logger.info(e)
-        elif mime_type and mime_type.startswith('video/'):
-            try:
-                media_info = MediaInfo.parse(BytesIO(resp.content))
-                if len(media_info.video_tracks) == 1:
-                    track = media_info.video_tracks[0]
-                    blob.width = track.width
-                    blob.height = track.height
-                    blob.duration = track.duration
-            except (OSError, RuntimeError) as e:
-                logger.info(e)
-
+        blob.generate_metadata(resp.content)
         blob.put()
 
         # re-validate size in case the server didn't give us Content-Length.
@@ -448,6 +432,35 @@ class AtpRemoteBlob(ndb.Model):
             'mimeType': self.mime_type,
             'size': self.size,
         }
+
+    def generate_metadata(self, content):
+        """Extracts and stores metadata from an image or video.
+
+        Uses ``self.mime_type`` to determine whether/how to parse the content.
+
+        Args:
+          content (bytes)
+        """
+        if not self.mime_type:
+            return
+
+        if self.mime_type.startswith('image/'):
+            try:
+                with Image.open(BytesIO(content)) as image:
+                    self.width, self.height = image.size
+            except (OSError, RuntimeError, Image.DecompressionBombError) as e:
+                logger.info(e)
+
+        elif self.mime_type.startswith('video/'):
+            try:
+                media_info = MediaInfo.parse(BytesIO(content))
+                if len(media_info.video_tracks) == 1:
+                    track = media_info.video_tracks[0]
+                    self.width = track.width
+                    self.height = track.height
+                    self.duration = track.duration
+            except (OSError, RuntimeError) as e:
+                logger.info(e)
 
 
 class DatastoreStorage(Storage):

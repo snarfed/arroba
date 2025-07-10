@@ -100,7 +100,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 
 ## Changelog
 
-### 0.9 - unreleased
+### 1.0 - unreleased
 
 * Add server side support for [sync v1.1 aka inductive firehose](https://github.com/bluesky-social/proposals/tree/main/0006-sync-iteration). `xrpc_sync.subscribe_repos` now includes covering proof blocks and new `prev` and `prevData` fields.
 * `MST`:
@@ -112,6 +112,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
   * `read_events_by_seq`: always include the MST root block in every commit event.
 * `DatastoreStorage`:
   * `AtpRemoteBlob.get_or_create`: truncate URLs to 1500 characters.
+  * Extract out new `AtpRemoteBlob.generate_private_key` method.
 * `xrpc_sync`:
   * Drastically redesign `subscribeRepos` to unify event stream generation across all subscribers. This significantly improves scalability and reduces CPU and I/O to near constant, with minimal additional overhead per subscriber ([#52](https://github.com/snarfed/arroba/issues/52)).
 
@@ -286,8 +287,6 @@ Initial release! Still very in progress. MST, Walker, and Diff classes are mostl
 Release instructions
 ---
 Here's how to package, test, and ship a new release.
-
-0. __Remove the cursor 14675627 hack in xrpc_sync.subscribe_repos!__
 
 1. Pull from remote to make sure we're at head.
     ```sh
