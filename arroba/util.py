@@ -33,13 +33,6 @@ _tid_ts_last = 0  # microseconds
 
 S32_CHARS = '234567abcdefghijklmnopqrstuvwxyz'
 
-# for low-S signing
-# https://atproto.com/specs/cryptography
-CURVE_ORDER = {
-    ec.SECP256R1: 0xFFFFFFFF_00000000_FFFFFFFF_FFFFFFFF_BCE6FAAD_A7179E84_F3B9CAC2_FC632551,
-    ec.SECP256K1: 0xFFFFFFFF_FFFFFFFF_FFFFFFFF_FFFFFFFE_BAAEDCE6_AF48A03B_BFD25E8C_D0364141
-}
-
 DEACTIVATED = 'deactivated'
 DELETED = 'deleted'
 TOMBSTONED = 'tombstoned'
@@ -323,9 +316,8 @@ def apply_low_s_mitigation(signature, curve):
       bytes:
     """
     r, s = decode_dss_signature(signature)
-    n = CURVE_ORDER[type(curve)]
-    if s > n // 2:
-        s = n - s
+    if s > curve.group_order // 2:
+        s = curve.group_order - s
     return encode_dss_signature(r, s)
 
 

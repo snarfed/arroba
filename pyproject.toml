@@ -25,7 +25,7 @@ keywords = ['arroba', 'AT Protocol', 'ATP', 'Bluesky']
 dependencies = [
     'cachetools>=5.0',
     'carbox>=0.3',
-    'cryptography',
+    'cryptography>=45.0.0',
     'dag-cbor',
     'dag-json>=0.2',
     'dnspython>=2.0.0',
