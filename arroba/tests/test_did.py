@@ -313,24 +313,33 @@ class DidTest(TestCase):
             'prev': None,
         }))
 
-    @patch('dns.resolver.resolve')
-    def test_resolve_handle_dns(self, mock_resolve):
-        mock_resolve.return_value = dns_answer(
-            '_atproto.foo.com.', '"did=did:plc:123abc"')
+    def test_resolve_handle_dns_plc(self):
+        self._test_resolve_handle_dns('did:plc:123')
 
-        self.assertEqual('did:plc:123abc',
-                         did.resolve_handle('foo.com', get_fn=self.mock_get))
+    def test_resolve_handle_dns_web(self):
+        self._test_resolve_handle_dns('did:web:bar.com')
+
+    @patch('dns.resolver.resolve')
+    def _test_resolve_handle_dns(self, val, mock_resolve):
+        mock_resolve.return_value = dns_answer(
+            '_atproto.foo.com.', f'"did={val}"')
+        got = did.resolve_handle('foo.com', get_fn=self.mock_get)
+        self.assertEqual(val, got)
         mock_resolve.assert_called_once_with('_atproto.foo.com.', TXT)
         self.mock_get.assert_not_called()
 
+    def test_resolve_handle_https_well_known_plc(self):
+        self._test_resolve_handle_https_well_known('did:plc:123')
+
+    def test_resolve_handle_https_well_known_web(self):
+        self._test_resolve_handle_https_well_known('did:web:bar.com')
+
     @patch('dns.resolver.resolve')
-    def test_resolve_handle_https_well_known(self, mock_resolve):
+    def _test_resolve_handle_https_well_known(self, val, mock_resolve):
         mock_resolve.return_value = dns_answer('foo.com.', 'nope')
+        self.mock_get.return_value = requests_response(val)
 
-        did_str = 'did:plc:123abc456def789ghi987jkl'
-        self.mock_get.return_value = requests_response(did_str)
-
-        self.assertEqual(did_str, did.resolve_handle('foo.com', get_fn=self.mock_get))
+        self.assertEqual(val, did.resolve_handle('foo.com', get_fn=self.mock_get))
         mock_resolve.assert_called_once_with('_atproto.foo.com.', TXT)
         self.mock_get.assert_called_with('https://foo.com/.well-known/atproto-did')
 

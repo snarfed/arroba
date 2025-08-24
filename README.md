@@ -113,6 +113,8 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 * `DatastoreStorage`:
   * `AtpRemoteBlob.get_or_create`: truncate URLs to 1500 characters.
   * Extract out new `AtpRemoteBlob.generate_private_key` method.
+* `did`:
+  * `resolve_handle`: support `did:web`s in the HTTPS `/.well-known/atproto-did` method.
 * `xrpc_sync`:
   * Drastically redesign `subscribeRepos` to unify event stream generation across all subscribers. This significantly improves scalability and reduces CPU and I/O to near constant, with minimal additional overhead per subscriber ([#52](https://github.com/snarfed/arroba/issues/52)).
 
