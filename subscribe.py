@@ -25,11 +25,16 @@ if __name__ == '__main__':
 
     for header, payload in client.com.atproto.sync.subscribeRepos(**kwargs):
         output = json.loads(dag_json.encode(payload).decode())
-        output['blocks'] = output['blocks']['/']['bytes'][:32] + '…'
+        if blocks := output.get('blocks'):
+            output['blocks'] = blocks['/']['bytes'][:32] + '…'
+
         print(output.get('seq'), header, output,
               file=sys.stdout, flush=True)
 
-        roots, blocks = read_car(payload['blocks'])
+        if not blocks:
+            continue
+
+        roots, blocks = read_car(payload.get('blocks'))
         if blocks:
             blocks = {block.cid: block for block in blocks}
             for op in payload.get('ops', []):
@@ -40,4 +45,4 @@ if __name__ == '__main__':
                       file=sys.stdout, flush=True)
 
         print()
-        break
+        # break
