@@ -100,7 +100,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 
 ## Changelog
 
-### 1.0 - unreleased
+### 1.0 - 2025-09-13
 
 * Add server side support for [sync v1.1 aka inductive firehose](https://github.com/bluesky-social/proposals/tree/main/0006-sync-iteration). `xrpc_sync.subscribe_repos` now includes covering proof blocks and new `prev` and `prevData` fields.
 * `MST`:

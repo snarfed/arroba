@@ -45,7 +45,7 @@ Here’s minimal example code for a multi-repo PDS on top of arroba and
 
    from arroba import server
    from arroba.datastore_storage import DatastoreStorage
-   from arroba.xrpc_sync import send_events
+   from arroba.firehose import send_events
 
    # for Google Cloud Datastore
    ndb_client = ndb.Client()
@@ -140,7 +140,11 @@ XRPC handlers:
 - ``ROLLBACK_WINDOW``, number of events to serve in the
   `subscribeRepos`` rollback
   window <https://atproto.com/specs/event-stream#sequence-numbers>`__,
-  as an integer. Defaults to no limit.
+  as an integer. Defaults to 50k.
+- ``PRELOAD_WINDOW``, number of events to preload into the
+  `subscribeRepos`` rollback
+  window <https://atproto.com/specs/event-stream#sequence-numbers>`__ at
+  startup, as an integer. Defaults to 4k.
 - ``SUBSCRIBE_REPOS_BATCH_DELAY``, minimum time to wait between
   datastore queries in ``com.atproto.sync.subscribeRepos``, in seconds,
   as a float. Defaults to 0 if unset.
@@ -156,6 +160,51 @@ XRPC handlers:
 
 Changelog
 ---------
+
+1.0 - 2025-09-13
+~~~~~~~~~~~~~~~~
+
+- Add server side support for `sync v1.1 aka inductive
+  firehose <https://github.com/bluesky-social/proposals/tree/main/0006-sync-iteration>`__.
+  ``xrpc_sync.subscribe_repos`` now includes covering proof blocks and
+  new ``prev`` and ``prevData`` fields.
+- ``MST``:
+
+  - Add new ``cids_for_path``, ``add_covering_proofs`` methods.
+
+- ``Repo``:
+
+  - ``apply_writes``: skip no-op update operations where the new record
+    value is the same as the existing stored record. (No-op updates are
+    evidently illegal in ATProto.)
+  - Emit `new ``#sync``
+    event <https://github.com/bluesky-social/proposals/tree/main/0006-sync-iteration#staying-synchronized-sync-event-auto-repair-and-account-status>`__
+    when a new repo is created.
+
+- ``Storage``:
+
+  - ``read_events_by_seq``: always include the MST root block in every
+    commit event.
+
+- ``DatastoreStorage``:
+
+  - ``AtpRemoteBlob.get_or_create``: truncate URLs to 1500 characters.
+  - Extract out new ``AtpRemoteBlob.generate_private_key`` method.
+
+- ``did``:
+
+  - ``resolve_handle``: support ``did:web``\ s in the HTTPS
+    ``/.well-known/atproto-did`` method.
+
+- ``xrpc_sync``:
+
+  - Drastically redesign ``subscribeRepos`` to unify event stream
+    generation across all subscribers. This significantly improves
+    scalability and reduces CPU and I/O to near constant, with minimal
+    additional overhead per subscriber
+    (`#52 <https://github.com/snarfed/arroba/issues/52>`__).
+
+.. _section-1:
 
 0.8 - 2025-03-13
 ~~~~~~~~~~~~~~~~
@@ -206,7 +255,7 @@ If we have more than one blob URL for the same CID, serve the latest one
 fix: Use string TID for ``rev``, not integer sequence number. \* Bug
 fix: don’t set status to ``null`` if the account is active.
 
-.. _section-1:
+.. _section-2:
 
 0.7 - 2024-11-08
 ~~~~~~~~~~~~~~~~
@@ -268,7 +317,7 @@ fix: don’t set status to ``null`` if the account is active.
     claims, eg
     `lxm <https://github.com/bluesky-social/atproto/discussions/2687>`__.
 
-.. _section-2:
+.. _section-3:
 
 0.6 - 2024-06-24
 ~~~~~~~~~~~~~~~~
@@ -356,7 +405,7 @@ fix: don’t set status to ``null`` if the account is active.
   when appropriate
   (`snarfed/bridgy-fed#1083 <https://github.com/snarfed/bridgy-fed/issues/1083>`__).
 
-.. _section-3:
+.. _section-4:
 
 0.5 - 2024-03-16
 ~~~~~~~~~~~~~~~~
@@ -396,7 +445,7 @@ fix: don’t set status to ``null`` if the account is active.
   - Implement ``getBlob``, right now only based on “remote” blobs stored
     in ``AtpRemoteBlob``\ s in datastore storage.
 
-.. _section-4:
+.. _section-5:
 
 0.4 - 2023-09-19
 ~~~~~~~~~~~~~~~~
@@ -437,7 +486,7 @@ fix: don’t set status to ``null`` if the account is active.
   - Drop bundled ``app.bsky``/``com.atproto`` lexicons, use
     `lexrpc <https://lexrpc.readthedocs.io/>`__\ ’s instead.
 
-.. _section-5:
+.. _section-6:
 
 0.3 - 2023-08-29
 ~~~~~~~~~~~~~~~~
@@ -455,7 +504,7 @@ minimal demo code needed to wrap arroba in a fully functional PDS.
 
 - …and much more.
 
-.. _section-6:
+.. _section-7:
 
 0.2 - 2023-05-18
 ~~~~~~~~~~~~~~~~
@@ -465,7 +514,7 @@ storage. This completes the first pass at all PDS data structures. Next
 release will include initial implementations of the
 ``com.atproto.sync.*`` XRPC methods.
 
-.. _section-7:
+.. _section-8:
 
 0.1 - 2023-04-30
 ~~~~~~~~~~~~~~~~
@@ -479,89 +528,58 @@ Release instructions
 
 Here’s how to package, test, and ship a new release.
 
-1.  Run the unit tests.
+1.  Pull from remote to make sure we’re at head.
+    ``sh  git checkout main  git pull``
 
-    .. code:: sh
+2.  Run the unit tests.
+    ``sh  source local/bin/activate.csh  python -m unittest discover  python -m unittest arroba.tests.mst_test_suite # more extensive, slower tests (deliberately excluded from autodiscovery)``
 
-       source local/bin/activate.csh
-       python -m unittest discover
-       python -m unittest arroba.tests.mst_test_suite # more extensive, slower tests (deliberately excluded from autodiscovery)
-
-2.  Bump the version number in ``pyproject.toml`` and ``docs/conf.py``.
+3.  Bump the version number in ``pyproject.toml`` and ``docs/conf.py``.
     ``git grep`` the old version number to make sure it only appears in
     the changelog. Change the current changelog entry in ``README.md``
     for this new version from *unreleased* to the current date.
 
-3.  Build the docs. If you added any new modules, add them to the
+4.  Build the docs. If you added any new modules, add them to the
     appropriate file(s) in ``docs/source/``. Then run
     ``./docs/build.sh``. Check that the generated HTML looks fine by
     opening ``docs/_build/html/index.html`` and looking around.
 
-4.  .. code:: sh
+5.  .. code:: sh
 
-          setenv ver X.Y
-          git commit -am "release v$ver"
+       setenv ver X.Y
+       git commit -am "release v$ver"
 
-5.  Upload to `test.pypi.org <https://test.pypi.org/>`__ for testing.
+6.  Upload to `test.pypi.org <https://test.pypi.org/>`__ for testing.
+    ``sh  python -m build  twine upload -r pypitest dist/arroba-$ver*``
 
-    .. code:: sh
+7.  Install from test.pypi.org.
+    ``sh  cd /tmp  python -m venv local  source local/bin/activate.csh  # make sure we force pip to use the uploaded version  pip uninstall arroba  pip install --upgrade pip  pip install -i https://test.pypi.org/simple --extra-index-url https://pypi.org/simple arroba==$ver``
 
-       python -m build
-       twine upload -r pypitest dist/arroba-$ver*
+8.  Smoke test that the code trivially loads and runs. \`sh python
 
-6.  Install from test.pypi.org.
+    from arroba import did did.resolve_handle(‘snarfed.org’) \``\`
 
-    .. code:: sh
-
-       cd /tmp
-       python -m venv local
-       source local/bin/activate.csh
-       # make sure we force pip to use the uploaded version
-       pip uninstall arroba
-       pip install --upgrade pip
-       pip install -i https://test.pypi.org/simple --extra-index-url https://pypi.org/simple arroba==$ver
-       deactivate
-
-7.  Smoke test that the code trivially loads and runs.
-
-    .. code:: sh
-
-       source local/bin/activate.csh
-       python
-
-       from arroba import did
-       did.resolve_handle('snarfed.org')
-
-       deactivate
-
-8.  Tag the release in git. In the tag message editor, delete the
+9.  Tag the release in git. In the tag message editor, delete the
     generated comments at bottom, leave the first line blank (to omit
     the release “title” in github), put ``### Notable changes`` on the
     second line, then copy and paste this version’s changelog contents
     below it.
+    ``sh  git tag -a v$ver --cleanup=verbatim  git push && git push --tags``
 
-    .. code:: sh
-
-       git tag -a v$ver --cleanup=verbatim
-       git push && git push --tags
-
-9.  `Click here to draft a new release on
+10. `Click here to draft a new release on
     GitHub. <https://github.com/snarfed/arroba/releases/new>`__ Enter
     ``vX.Y`` in the *Tag version* box. Leave *Release title* empty. Copy
     ``### Notable changes`` and the changelog contents into the
     description text box.
 
-10. Upload to `pypi.org <https://pypi.org/>`__!
+11. Upload to `pypi.org <https://pypi.org/>`__!
+    ``sh  twine upload dist/arroba-$ver*``
 
-    .. code:: sh
-
-       twine upload dist/arroba-$ver*
-
-11. `Wait for the docs to build on Read the
+12. `Wait for the docs to build on Read the
     Docs <https://readthedocs.org/projects/arroba/builds/>`__, then
     check that they look ok.
 
-12. On the `Versions
+13. On the `Versions
     page <https://readthedocs.org/projects/arroba/versions/>`__, check
     that the new version is active, If it’s not, activate it in the
     *Activate a Version* section.
