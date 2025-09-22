@@ -222,8 +222,7 @@ class Repo:
         return repo
 
     @classmethod
-    def create(cls, storage, did, *, signing_key, rotation_key=None,
-               initial_writes=None, **kwargs):
+    def create(cls, storage, did, *, signing_key, rotation_key=None, **kwargs):
         """
 
         Args:
@@ -233,7 +232,6 @@ class Repo:
             :class:`Storage.create_repo`
           rotation_key (ec.EllipticCurvePrivateKey): optional, passed
             through to :class:`Storage.create_repo`
-          initial_writes (sequence of Write)
           kwargs: passed through to :class:`Repo` constructor
 
         Returns:
@@ -241,7 +239,7 @@ class Repo:
         """
         # initial commit
         commit_data = cls.format_commit(storage=storage, repo_did=did,
-                                        signing_key=signing_key, writes=initial_writes)
+                                        signing_key=signing_key)
         return cls.create_from_commit(storage, commit_data, signing_key=signing_key,
                                       rotation_key=rotation_key, **kwargs)
 
