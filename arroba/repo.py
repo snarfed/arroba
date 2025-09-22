@@ -110,7 +110,7 @@ class Repo:
         Args:
           storage (Storage): required
           mst (MST)
-          head (dict): head commit
+          head (Block): head commit
           handle (str)
           status (str): None (if active) or ``'deactivated'``, ``'deleted'``,
             or ``'tombstoned'`` (deprecated)
@@ -176,31 +176,29 @@ class Repo:
         return contents
 
     @classmethod
-    def create_from_commit(cls, storage, commit_data, *, signing_key,
-                           rotation_key=None, **kwargs):
+    def create(cls, storage, did, *, signing_key, rotation_key=None, **kwargs):
         """
 
         Args:
+          did (str)
           storage (Storage)
-          commit_data (CommitData)
-          signing_key (ec.EllipticCurvePrivateKey): passed through to
-            :meth:`Storage.create_repo`
-          rotation_key (ec.EllipticCurvePrivateKey): optional, passed
-            through to :meth:`Storage.create_repo`
+          signing_key (ec.EllipticCurvePrivateKey):
+          rotation_key (ec.EllipticCurvePrivateKey):
           kwargs: passed through to :class:`Repo` constructor
 
         Returns:
           Repo:
         """
+        initial_commit = cls.format_commit(storage=storage, repo_did=did,
+                                           signing_key=signing_key)
+        repo = Repo(storage=storage, head=initial_commit.commit,
+                    signing_key=signing_key, rotation_key=rotation_key, **kwargs)
+
         # avoid reading from storage, since if we're in a transaction, those
         # reads won't see writes that happened in apply_commit. instead,
         # construct Repo and MST in memory from existing data.
-        mst = MST(storage=storage, pointer=commit_data.commit.decoded['data'])
-        repo = Repo(storage=storage, mst=mst, head=commit_data.commit,
-                    signing_key=signing_key, rotation_key=rotation_key,
-                    **kwargs)
+        repo.mst = MST(storage=storage, pointer=initial_commit.commit.decoded['data'])
 
-        did = commit_data.commit.repo
         storage.write_event(repo=repo, type='identity', handle=kwargs.get('handle'))
         storage.write_event(repo=repo, type='account', active=True)
 
@@ -208,40 +206,18 @@ class Repo:
         # https://github.com/bluesky-social/proposals/tree/main/0006-sync-iteration#staying-synchronized-sync-event-auto-repair-and-account-status
         # https://github.com/snarfed/arroba/issues/52#issuecomment-2816324912
         car_blocks = [car.Block(cid=block.cid, data=block.encoded, decoded=block.decoded)
-                      for block in commit_data.blocks.values()]
-        blocks_bytes = car.write_car([commit_data.commit.cid], car_blocks)
-        storage.write_event(repo=repo, type='sync', rev=commit_data.commit.decoded['rev'],
+                      for block in initial_commit.blocks.values()]
+        blocks_bytes = car.write_car([initial_commit.commit.cid], car_blocks)
+        storage.write_event(repo=repo, type='sync', rev=initial_commit.commit.decoded['rev'],
                             blocks=blocks_bytes)
 
-        storage.apply_commit(commit_data)
+        storage.apply_commit(initial_commit)
 
         storage.create_repo(repo)
         if repo.callback:
-            repo.callback(commit_data)
+            repo.callback(initial_commit)
 
         return repo
-
-    @classmethod
-    def create(cls, storage, did, *, signing_key, rotation_key=None, **kwargs):
-        """
-
-        Args:
-          storage (Storage)
-          did (string)
-          signing_key (ec.EllipticCurvePrivateKey): passed through to
-            :class:`Storage.create_repo`
-          rotation_key (ec.EllipticCurvePrivateKey): optional, passed
-            through to :class:`Storage.create_repo`
-          kwargs: passed through to :class:`Repo` constructor
-
-        Returns:
-          Repo: self
-        """
-        # initial commit
-        commit_data = cls.format_commit(storage=storage, repo_did=did,
-                                        signing_key=signing_key)
-        return cls.create_from_commit(storage, commit_data, signing_key=signing_key,
-                                      rotation_key=rotation_key, **kwargs)
 
     @classmethod
     def load(cls, storage, cid=None, **kwargs):
@@ -301,7 +277,6 @@ class Repo:
         commit_blocks = {}  # maps CID to Block
         if writes is None:
             writes = []
-        orig_mst = mst
 
         for write in copy.copy(writes):
             assert isinstance(write, Write), type(write)

@@ -104,7 +104,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 
 _Breaking changes:_
 
-* Remove `initial_writes` kwarg from `Repo.create`.
+When creating a new repo, the first commit is now always empty. `Repo.create_from_commit` has been removed; all repos should now be created with `Repo.create`.
 
 
 _Non-breaking changes:_
