@@ -15,9 +15,9 @@ import dag_cbor
 
 from .. import firehose
 from ..datastore_storage import DatastoreStorage
-from ..repo import Repo, Write, writes_to_commit_ops
+from ..repo import Repo, Write
 from ..server import server
-from ..storage import Action, CommitOp, MemoryStorage
+from ..storage import Action, CommitOp, MemoryStorage, writes_to_commit_ops
 from .. import util
 from ..util import dag_cbor_cid, next_tid, verify_sig
 
@@ -258,7 +258,7 @@ class RepoTest(TestCase):
         # create new object with callback
         self.repo.callback = lambda commit: seen.append(commit)
         create = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})
-        self.repo.apply_commit(Repo.format_commit(repo=self.repo, writes=[create]))
+        self.repo.apply_commit(self.storage.format_commit(repo=self.repo, writes=[create]))
 
         self.assertEqual(1, len(seen))
         self.assertCommitIs(seen[0], create, 5)

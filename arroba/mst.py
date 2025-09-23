@@ -54,7 +54,7 @@ import re
 import dag_cbor
 from multiformats import CID
 
-from .storage import Block, Storage
+from . import storage
 from .util import dag_cbor_cid
 
 logger = logging.getLogger(__name__)
@@ -280,7 +280,7 @@ class MST:
 
         entries = self.get_entries()
         data = serialize_node_data(entries)
-        block = Block(decoded=data._asdict())
+        block = storage.Block(decoded=data._asdict())
         unstored[block.cid] = block
 
         for entry in entries:

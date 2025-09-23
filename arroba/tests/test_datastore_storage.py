@@ -20,8 +20,8 @@ from ..datastore_storage import (
     DatastoreStorage,
     WriteOnceBlobProperty,
 )
-from ..repo import Action, Repo, Write
-from ..storage import Block, CommitData, MemoryStorage, SUBSCRIBE_REPOS_NSID
+from ..repo import Repo, Write
+from ..storage import Action, Block, CommitData, MemoryStorage, Storage, SUBSCRIBE_REPOS_NSID
 from ..util import (
     dag_cbor_cid,
     DEACTIVATED,
@@ -294,7 +294,7 @@ class DatastoreStorageTest(DatastoreTest):
 
         # new commit
         writes = [Write(Action.CREATE, 'coll', next_tid(), obj) for obj in objs]
-        commit_data = Repo.format_commit(repo=repo, writes=writes)
+        commit_data = Storage.format_commit(repo=repo, writes=writes)
 
         self.storage.apply_commit(commit_data)
         self.assertEqual(commit_data.commit.cid, self.storage.head)
@@ -328,7 +328,7 @@ class DatastoreStorageTest(DatastoreTest):
         head = repo.head
 
         with self.assertRaises(InactiveRepo):
-            self.storage.apply_commit(Repo.format_commit(repo=repo, writes=[
+            self.storage.apply_commit(Storage.format_commit(repo=repo, writes=[
                 Write(Action.CREATE, 'coll', next_tid(), {
                     '$type': 'app.bsky.actor.profile',
                     'displayName': 'Alice',

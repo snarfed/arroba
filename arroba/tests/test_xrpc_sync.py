@@ -20,9 +20,9 @@ import os
 from .. import datastore_storage
 from ..datastore_storage import AtpRemoteBlob, DatastoreStorage
 from .. import firehose
-from ..repo import Repo, Write, writes_to_commit_ops
+from ..repo import Repo, Write
 from .. import server
-from ..storage import Action, Storage, SUBSCRIBE_REPOS_NSID
+from ..storage import Action, Storage, SUBSCRIBE_REPOS_NSID, writes_to_commit_ops
 from .. import util
 from ..util import dag_cbor_cid, int_to_tid, next_tid, tid_to_int
 from .. import xrpc_sync
@@ -1136,11 +1136,11 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         # prepare two writes with seqs 5 and 6
         write_5 = Write(Action.CREATE, 'co.ll', next_tid(), {'a': 'b'})
-        commit_5 = Repo.format_commit(repo=self.repo, writes=[write_5])
+        commit_5 = Storage.format_commit(repo=self.repo, writes=[write_5])
         self.assertEqual(5, tid_to_int(commit_5.commit.decoded['rev']))
 
         write_6 = Write(Action.CREATE, 'co.ll', next_tid(), {'x': 'y'})
-        commit_6 = Repo.format_commit(repo=self.repo, writes=[write_6])
+        commit_6 = Storage.format_commit(repo=self.repo, writes=[write_6])
         self.assertEqual(6, tid_to_int(commit_6.commit.decoded['rev']))
 
         prev = self.repo.head
@@ -1188,7 +1188,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         server.storage.allocate_seq(SUBSCRIBE_REPOS_NSID)
         self.assertEqual(5, server.storage.last_seq(SUBSCRIBE_REPOS_NSID))
         write_6 = Write(Action.CREATE, 'co.ll', next_tid(), {'x': 'y'})
-        commit_6 = Repo.format_commit(repo=self.repo, writes=[write_6])
+        commit_6 = Storage.format_commit(repo=self.repo, writes=[write_6])
         self.assertEqual(6, tid_to_int(commit_6.commit.decoded['rev']))
         prev = self.repo.head
 
