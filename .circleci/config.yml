@@ -14,7 +14,7 @@ jobs:
 
       - restore_cache:
           keys:
-            - venv-1-{{ .Branch }}
+            - venv-2-{{ .Branch }}
 
       - run:
           name: Base dependencies
@@ -52,7 +52,7 @@ jobs:
             flake8 --select=F811 tests/test_*.py
 
       - save_cache:
-          key: venv-1-{{ .Branch }}
+          key: venv-2-{{ .Branch }}
           paths:
             - /home/circleci/.pyenv
 
