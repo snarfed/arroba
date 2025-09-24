@@ -475,6 +475,7 @@ class Storage:
 
         Raises:
           InactiveError: if the repo is not active
+          ValueError: if the path for an update or delete doesn't currently exist
         """
         orig_repo = repo
         if repo_did:
@@ -498,8 +499,8 @@ class Storage:
             # https://github.com/bluesky-social/proposals/tree/main/0006-sync-iteration#commit-validation-mst-operation-inversion
             prev_cid = None
             if write.action in (Action.UPDATE, Action.DELETE):
-                prev_cid = repo.mst.get(path)
-                assert prev_cid
+                if not (prev_cid := repo.mst.get(path)):
+                    raise ValueError(f"{path} doesn't exist in repo")
 
             if write.action == Action.DELETE:
                 repo.mst = repo.mst.delete(path)

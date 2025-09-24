@@ -131,7 +131,7 @@ class RepoTest(TestCase):
             [firehose.process_event(event)[0]['t']
              for event in self.storage.read_events_by_seq()])
 
-    def test_does_basic_operations(self):
+    def test_basic_operations(self):
         profile = {
             '$type': 'app.bsky.actor.profile',
             'displayName': 'Alice',
@@ -178,7 +178,7 @@ class RepoTest(TestCase):
                              signing_key=self.key)
         self.assertIsNone(reloaded.get_record('my.stuff', tid))
 
-    def test_adds_content_collections(self):
+    def test_creates(self):
         data = {
             'example.foo': self.random_objects(10),
             'example.bar': self.random_objects(20),
@@ -191,7 +191,7 @@ class RepoTest(TestCase):
         self.storage.commit(self.repo, writes)
         self.assertEqual(data, self.repo.get_contents())
 
-    def test_edits_and_deletes_content(self):
+    def test_updates_and_deletes(self):
         objs = list(self.random_objects(20).items())
 
         creates = [Write(Action.CREATE, 'co.ll', tid, obj) for tid, obj in objs]
@@ -237,6 +237,16 @@ class RepoTest(TestCase):
         self.storage.commit(self.repo, [Write(Action.CREATE, 'co.ll', tid, {'x': 'y'})])
         self.storage.commit(self.repo, [Write(Action.UPDATE, 'co.ll', tid, {'x': 'y'})])
         self.assertEqual([], self.repo.head.ops)
+
+    def test_update_nonexistent_record_raises_ValueError(self):
+        update = Write(Action.UPDATE, 'co.ll', next_tid(), {'x': 'y'})
+        with self.assertRaises(ValueError):
+            self.storage.commit(self.repo, update)
+
+    def test_delete_nonexistent_record_raises_ValueError(self):
+        update = Write(Action.DELETE, 'co.ll', next_tid(), {'x': 'y'})
+        with self.assertRaises(ValueError):
+            self.storage.commit(self.repo, update)
 
     def test_has_a_valid_signature_to_commit(self):
         assert verify_sig(self.repo.head.decoded, self.key.public_key())
