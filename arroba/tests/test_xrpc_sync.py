@@ -1178,22 +1178,28 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
     @patch('arroba.firehose.WAIT_FOR_SKIPPED_SEQ_WINDOW', 10)
     @patch('arroba.firehose.SUBSCRIBE_REPOS_BATCH_DELAY', timedelta(seconds=.01))
-    @skip
     def test_dont_wait_for_old_skipped_seq(self, *_):
         # already mocked out, just changing its value
         firehose.NEW_EVENTS_TIMEOUT = timedelta(seconds=60)
 
-        # skip seq 5, prepare commit with seq 6
+        firehose.start(limit=1)
+
+        # skip seq 5, commit with seq 6
         server.storage.allocate_seq(SUBSCRIBE_REPOS_NSID)
         self.assertEqual(5, server.storage.last_seq(SUBSCRIBE_REPOS_NSID))
         prev = self.repo.head
 
+        write_6 = Write(Action.CREATE, 'co.ll', next_tid(), {'x': 'y'})
+        # don't let firehose.collect read events until after we've allocated all seqs
+        with patch.object(firehose, 'new_events') as mock_new_events:
+            self.storage.commit(self.repo, [write_6])
+
         for i in range(11):
             server.storage.allocate_seq(SUBSCRIBE_REPOS_NSID)
 
-        firehose.start(limit=1)
-        write_6 = Write(Action.CREATE, 'co.ll', next_tid(), {'x': 'y'})
-        self.storage.commit(self.repo, [write_6])
+        # ok, now firehose.collect can read events
+        with firehose.new_events:
+            firehose.new_events.notify_all()
 
         start = datetime.now()
         with self.assertLogs() as logs:
@@ -1208,8 +1214,9 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         # should receive seq 6 commits
         self.assertEqual(1, len(received))
-        self.assertCommit(received[0], {'x': 'y'}, write=write_6, cur=self.repo.head.cid,
-                          prev=prev, seq=6, check_commit=False)
+        self.assertCommit(received[0], {'x': 'y'}, write=write_6,
+                          cur=self.repo.head.cid, prev=prev, seq=6,
+                          check_commit=False)
 
 
 class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
