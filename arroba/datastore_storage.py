@@ -257,7 +257,7 @@ class AtpSequence(ndb.Model):
     updated = ndb.DateTimeProperty(auto_now=True)
 
     @classmethod
-    @ndb.transactional(retries=10)
+    @ndb.transactional(retries=10, join=True)
     def allocate(cls, nsid):
         """Returns the next sequence number for a given NSID.
 
@@ -661,10 +661,16 @@ class DatastoreStorage(Storage):
         ndb.put_multi(AtpBlock.from_block(repo_did=b.repo, block=b) for b in blocks)
 
     @ndb_context
+    @ndb.transactional(retries=10)
+    def commit(self, *args, **kwargs):
+        """Just runs :meth:`Storage.commit` in a transaction."""
+        return super().commit(*args, **kwargs)
+
+    @ndb_context
     # retry aggressively because repo writes can be bursty and cause high
     # contention. (ndb does exponential backoff.)
     # https://console.cloud.google.com/errors/detail/CKbL5KSX98uZHw;time=P1D;locations=global?project=bridgy-federated
-    @ndb.transactional(retries=10)
+    @ndb.transactional(retries=10, join=True)
     def apply_commit(self, commit_data):
         commit = commit_data.commit.decoded
         if repo := AtpRepo.get_by_id(commit['did']):
