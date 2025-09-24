@@ -1121,7 +1121,6 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         subscriber.join()
 
-    @skip
     def test_skipped_seq(self, *_):
         # already mocked out, just changing its value
         firehose.NEW_EVENTS_TIMEOUT = timedelta(seconds=1)
@@ -1139,16 +1138,20 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         # prepare two writes with seqs 5 and 6
         self.assertEqual(4, server.storage.last_seq(SUBSCRIBE_REPOS_NSID))
 
-        prev = self.repo.head
+        orig_head = self.repo.head
 
         with self.assertLogs() as logs:
             subscriber.start()
             started.wait()
 
+            self.storage.allocate_seq(SUBSCRIBE_REPOS_NSID)
+            self.storage.allocate_seq(SUBSCRIBE_REPOS_NSID)
+
             # first write, skip seq 5, write with seq 6 instead
-            self.storage.commit(
-                self.repo, Write(Action.CREATE, 'co.ll', next_tid(), {'x': 'y'}))
-            head_6 = self.repo.head.cid
+            write_6 = Write(Action.CREATE, 'co.ll', next_tid(), {'x': 'y'})
+            with patch.object(self.storage, 'allocate_seq', return_value=6):
+                self.storage.commit(self.repo, write_6)
+            head_6 = self.repo.head
 
             # there's a small chance that this could be flaky, if >.2s elapses
             # between starting the subscriber above and receiving the second
@@ -1159,8 +1162,9 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             self.assertEqual(0, len(received))
 
             # second write, use seq 5 that we skipped above
-            self.storage.commit(
-                self.repo, [Write(Action.CREATE, 'co.ll', next_tid(), {'a': 'b'})])
+            write_5 = Write(Action.CREATE, 'co.ll', next_tid(), {'a': 'b'})
+            with patch.object(self.storage, 'allocate_seq', return_value=5):
+                self.storage.commit(self.repo, write_5)
 
             delivered.acquire()
             delivered.acquire()
@@ -1170,9 +1174,10 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         # should receive both commits
         self.assertEqual(2, len(received))
         self.assertCommit(received[0], {'a': 'b'}, write=write_5,
-                          cur=self.repo.head.cid, prev=prev, seq=5)
-        self.assertCommit(received[1], {'x': 'y'}, write=write_6, cur=head_6,
-                          prev=prev, seq=6, check_commit=False)
+                          cur=self.repo.head.cid, prev=head_6, seq=5,
+                          check_commit=False)
+        self.assertCommit(received[1], {'x': 'y'}, write=write_6, cur=head_6.cid,
+                          prev=orig_head, seq=6, check_commit=False)
 
         subscriber.join()
 
