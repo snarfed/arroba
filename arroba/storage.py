@@ -463,9 +463,7 @@ class Storage:
     def commit(self, repo, writes, repo_did=None):
         """Commits zero or more writes to storage.
 
-        TODO: serialize by Repo in memory
-
-        Generates a new sequence number and uses it for all blocks in the commit.
+        Allocates a new sequence number and uses it for all blocks in the commit.
 
         Args:
           repo (Repo)
