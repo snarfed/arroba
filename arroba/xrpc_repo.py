@@ -1,4 +1,4 @@
-"""``com.atproto.repo.*`` XRPC methods."""
+"""```com.atproto.repo.*`` XRPC methods."""
 import itertools
 import json
 import logging
@@ -97,7 +97,7 @@ def delete_record(input):
     if record is None:
         return  # noop
 
-    repo.apply_writes([Write(
+    server.storage.commit(repo, [Write(
         action=Action.DELETE,
         collection=input['collection'],
         rkey=input['rkey'],
@@ -159,7 +159,7 @@ def put_record(input):
     repo = server.load_repo(input['repo'])
     existing = repo.get_record(input['collection'], input['rkey'])
 
-    repo.apply_writes([Write(
+    server.storage.commit(repo, [Write(
         action=Action.CREATE if existing is None else Action.UPDATE,
         collection=input['collection'],
         rkey=input['rkey'],

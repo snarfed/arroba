@@ -116,7 +116,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
     def test_list_records_encodes_cids_blobs(self):
         repo = server.load_repo('did:web:user.com')
 
-        repo.apply_writes([
+        server.storage.commit(repo, [
             Write(action=Action.CREATE,
                   collection=coll,
                   rkey=str(i),
@@ -161,7 +161,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
 
     def test_get_record_encodes_cids_blobs(self):
         repo = server.load_repo('did:web:user.com')
-        repo.apply_writes([Write(
+        server.storage.commit(repo, [Write(
             action=Action.CREATE,
             collection='test.coll',
             rkey='self',

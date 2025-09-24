@@ -145,16 +145,11 @@ class Repo:
         Returns:
           Repo:
         """
-        repo = Repo(storage=storage, signing_key=signing_key,
-                    rotation_key=rotation_key, **kwargs)
-        initial_commit = storage_mod.Storage.format_commit(storage=storage, repo_did=did,
-                                                       signing_key=signing_key)
-        repo.head = initial_commit.commit
-
-        # avoid reading from storage, since if we're in a transaction, those
-        # reads won't see writes that happened in apply_commit. instead,
-        # construct Repo and MST in memory from existing data.
-        repo.mst = mst.MST(storage=storage, pointer=initial_commit.commit.decoded['data'])
+        repo = Repo(storage=storage, mst=mst.MST.create(storage=storage),
+                    signing_key=signing_key, rotation_key=rotation_key, **kwargs)
+        initial_commit = storage.commit(repo, [], repo_did=did)
+        assert repo.head
+        assert repo.did
 
         storage.write_event(repo=repo, type='identity', handle=kwargs.get('handle'))
         storage.write_event(repo=repo, type='account', active=True)
@@ -168,8 +163,6 @@ class Repo:
         storage.write_event(repo=repo, type='sync',
                             rev=initial_commit.commit.decoded['rev'],
                             blocks=blocks_bytes)
-
-        storage.apply_commit(initial_commit)
 
         storage.create_repo(repo)
         if repo.callback:
@@ -195,40 +188,3 @@ class Repo:
         tree = mst.MST.load(storage=storage, cid=commit_block.decoded['data'])
         logger.info(f'loaded repo for {commit_block.decoded["did"]} at commit {commit_cid}')
         return Repo(storage=storage, mst=tree, head=commit_block, **kwargs)
-
-    def apply_commit(self, commit_data):
-        """
-
-        Args:
-          commit_data (CommitData)
-
-        Returns:
-          Repo: self
-        """
-        if self.status:
-            raise util.InactiveRepo(self.did, self.status)
-
-        self.storage.apply_commit(commit_data)
-        self.head = commit_data.commit
-        if self.callback:
-            self.callback(commit_data)
-        return self
-
-    def apply_writes(self, writes):
-        """
-
-        Args:
-          writes (Write or sequence of Write)
-
-        Returns:
-          Repo: self
-        """
-        if self.status:
-            raise util.InactiveRepo(self.did, self.status)
-
-        if isinstance(writes, Write):
-            writes = [writes]
-
-        commit_data = storage_mod.Storage.format_commit(repo=self, writes=writes)
-        self.apply_commit(commit_data)
-        return self

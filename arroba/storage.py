@@ -21,7 +21,7 @@ SUBSCRIBE_REPOS_NSID = 'com.atproto.sync.subscribeRepos'
 
 
 class Action(Enum):
-    """Used in :meth:`Storage.format_commit`.
+    """Used in :meth:`Storage.commit`.
 
     TODO: switch to StrEnum once we can require Python 3.11.
     """
@@ -55,42 +55,6 @@ CommitOp = namedtuple('CommitOp', [  # for subscribeRepos
 #     'prev': [CID or None],
 #     'sig': [bytes],
 # }
-
-
-def writes_to_commit_ops(writes, repo=None):
-    r"""Converts :class:`Write`\s to :class:`CommitOp`\s.
-
-    Args:
-      write (iterable): of :class:`Write`
-      repo (Repo): optional; required if the writes include updates or deletes
-
-    Returns:
-      list of :class:`repo.CommitOp`
-    """
-    if not writes:
-        return writes
-
-    ops = []
-    for write in writes:
-        path = f'{write.collection}/{write.rkey}'
-        cid = None
-        if write.action in (Action.CREATE, Action.UPDATE):
-            assert write.record is not None
-            cid = util.dag_cbor_cid(write.record)
-
-        # sync v1.1: or UPDATE and DELETE, load the previous record's CID
-        # https://github.com/bluesky-social/proposals/tree/main/0006-sync-iteration#commit-validation-mst-operation-inversion
-        prev_cid = None
-        if write.action in (Action.UPDATE, Action.DELETE):
-            prev_cid = repo.mst.get(path)
-            assert prev_cid
-            # this would be nice, but sometimes we end up with updates of a record to
-            # the same record :/
-            # assert prev_cid != cid, (prev_cid, cid)
-
-        ops.append(CommitOp(action=write.action, path=path, cid=cid, prev_cid=prev_cid))
-
-    return ops
 
 
 class Block:
@@ -182,8 +146,7 @@ class Storage:
     def create_repo(self, repo):
         """Stores a new repo's metadata in storage.
 
-        Only stores the repo's DID, handle, and head commit :class:`CID`, not
-        blocks!
+        Only stores the repo's handle and head commit :class:`CID`, not blocks!
 
         If the repo already exists in storage, this should update it instead of
         failing.
@@ -497,92 +460,105 @@ class Storage:
         """
         raise NotImplementedError()
 
-    @staticmethod
-    def format_commit(*, repo=None, storage=None, repo_did=None, signing_key=None,
-                      mst=None, cur_head=None, writes=None):
-        """Creates, but does not store, a new commit.
+    def commit(self, repo, writes, repo_did=None):
+        """Commits zero or more writes to storage.
 
-        If ``repo`` is provided, all other kwargs should be omitted except
-        (optionally) ``writes``. Otherwise, ``storage``, ``repo_did``, and
-        ``signing_key`` are required.
+        TODO: serialize by Repo in memory
 
-        If ``repo`` is provided, its ``mst`` attribute is set to the new
-        :class:`MST` resulting from applying this commit.
+        Generates a new sequence number and uses it for all blocks in the commit.
 
         Args:
-          repo (Repo): optional; required if the writes include updates or deletes
-          storage (Storage): optional
-          repo_did (str): optional
-          signing_key (ec.EllipticCurvePrivateKey): optional
-          mst (MST): optional
-          cur_head (CID): optional
-          writes (sequence of Write): optional
+          repo (Repo)
+          writes (Write or sequence of Write)
+          repo_did (str): optional, used if this is the repo's first commit
 
         Returns:
           CommitData:
-        """
-        if repo:
-            assert (not storage and not repo_did and not signing_key and not mst
-                    and not cur_head)
-            storage = repo.storage
-            repo_did = repo.did
-            signing_key = repo.signing_key
-            mst = repo.mst
-            cur_head = repo.head.cid
 
-        if not mst:
-            mst = mst_mod.MST.create(storage=storage)
+        Raises:
+          InactiveError: if the repo is not active
+        """
+        orig_repo = repo
+        if repo_did:
+            assert not repo.did
+        else:
+            assert repo.did
+            repo_did = repo.did
+            repo = self.load_repo(repo_did)
 
         commit_blocks = {}  # maps CID to Block
-        if writes is None:
-            writes = []
+        assert writes is not None
+        if isinstance(writes, repo_mod.Write):
+            writes = [writes]
 
+        ops = []
         for write in copy.copy(writes):
             assert isinstance(write, repo_mod.Write), type(write)
-            data_key = f'{write.collection}/{write.rkey}'
+            path = f'{write.collection}/{write.rkey}'
+
+            # sync v1.1: for UPDATE and DELETE, load the previous record's CID
+            # https://github.com/bluesky-social/proposals/tree/main/0006-sync-iteration#commit-validation-mst-operation-inversion
+            prev_cid = None
+            if write.action in (Action.UPDATE, Action.DELETE):
+                prev_cid = repo.mst.get(path)
+                assert prev_cid
 
             if write.action == Action.DELETE:
-                mst = mst.delete(data_key)
+                repo.mst = repo.mst.delete(path)
+                ops.append(CommitOp(action=Action.DELETE, path=path,
+                                    cid=None, prev_cid=prev_cid))
                 continue
 
             # raises ValidationError if it doesn't validate
+            assert write.record is not None
             server.validate(write.record.get('$type'), 'record', write.record)
 
             block = Block(decoded=write.record, repo=repo_did)
             commit_blocks[block.cid] = block
+
+            op = CommitOp(action=write.action, path=path,
+                          cid=block.cid, prev_cid=prev_cid)
+
             if write.action == Action.CREATE:
-                mst = mst.add(data_key, block.cid)
+                repo.mst = repo.mst.add(path, block.cid)
+                ops.append(op)
             else:
                 assert write.action == Action.UPDATE
-                orig_pointer = mst.get_pointer()
-                mst = mst.update(data_key, block.cid)
-                if mst.get_pointer() == orig_pointer:
-                    # new record value is the same as the existing stored record.
-                    # no-op updates are invalid in ATProto, so skip this operation.
-                    writes.remove(write)
+                orig_pointer = repo.mst.get_pointer()
+                repo.mst = repo.mst.update(path, block.cid)
+                if repo.mst.get_pointer() != orig_pointer:
+                    # no-op updates are invalid in ATProto, so only include this
+                    # update operation if it changes the the record and MST.
+                    # https://github.com/snarfed/arroba/issues/52#issuecomment-2825755142
+                    ops.append(op)
 
-        root, unstored_blocks = mst.get_unstored_blocks()
+        root, unstored_blocks = repo.mst.get_unstored_blocks()
         for block in unstored_blocks.values():
             block.repo = repo_did
         commit_blocks.update(unstored_blocks)
+        prev = repo.head.cid if repo.head else None
 
         commit = util.sign({
             'did': repo_did,
             'version': 3,
             # reuse subscribeRepos sequence number as rev
             # https://github.com/bluesky-social/atproto/discussions/1607
-            'rev': util.int_to_tid(storage.allocate_seq(SUBSCRIBE_REPOS_NSID), clock_id=0),
-            'prev': cur_head,
+            'rev': util.int_to_tid(self.allocate_seq(SUBSCRIBE_REPOS_NSID), clock_id=0),
+            'prev': prev,
             'data': root,
-        }, signing_key)
-        commit_block = Block(decoded=commit, repo=repo_did,
-                             ops=writes_to_commit_ops(writes, repo=repo))
+        }, repo.signing_key)
+        commit_block = Block(decoded=commit, repo=repo_did, ops=ops)
         commit_blocks[commit_block.cid] = commit_block
 
-        if repo:
-            repo.mst = mst
+        commit_data = CommitData(commit=commit_block, prev=prev, blocks=commit_blocks)
+        self.apply_commit(commit_data)
 
-        return CommitData(commit=commit_block, prev=cur_head, blocks=commit_blocks)
+        orig_repo.mst = repo.mst
+        orig_repo.head = commit_block
+        if orig_repo.callback:
+            orig_repo.callback(commit_data)
+
+        return commit_data
 
 
 class MemoryStorage(Storage):

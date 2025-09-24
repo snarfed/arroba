@@ -89,7 +89,6 @@ class DatastoreStorageTest(DatastoreTest):
         ), atp_repo.signing_key_pem)
 
     def test_create_deactivated_repo(self):
-        # rotation_key = new_key(seed=4597489735324)
         repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key,
                            rotation_key=self.key, status=DEACTIVATED)
 
@@ -269,7 +268,7 @@ class DatastoreStorageTest(DatastoreTest):
             self.assertEqual(ndb.Key(AtpRepo, 'did:web:user.com'), block.repo)
             self.assertEqual(seq, block.seq)
 
-    def test_apply_commit(self):
+    def test_commit(self):
         self.assertEqual(0, AtpBlock.query().count())
 
         objs = [{
@@ -294,9 +293,7 @@ class DatastoreStorageTest(DatastoreTest):
 
         # new commit
         writes = [Write(Action.CREATE, 'coll', next_tid(), obj) for obj in objs]
-        commit_data = Storage.format_commit(repo=repo, writes=writes)
-
-        self.storage.apply_commit(commit_data)
+        commit_data = self.storage.commit(repo=repo, writes=writes)
         self.assertEqual(commit_data.commit.cid, self.storage.head)
         self.assert_same_seq(k.encode('base32') for k in commit_data.blocks.keys())
 
@@ -328,12 +325,12 @@ class DatastoreStorageTest(DatastoreTest):
         head = repo.head
 
         with self.assertRaises(InactiveRepo):
-            self.storage.apply_commit(Storage.format_commit(repo=repo, writes=[
+            self.storage.commit(repo=repo, writes=[
                 Write(Action.CREATE, 'coll', next_tid(), {
                     '$type': 'app.bsky.actor.profile',
                     'displayName': 'Alice',
                     'description': 'hi there',
-                })]))
+                })])
 
         repo = self.storage.load_repo('did:web:user.com')
         self.assertEqual(head, repo.head)

@@ -39,11 +39,11 @@ class StorageTest(TestCase):
 
         tid = next_tid()
         create = Write(Action.CREATE, 'co.ll', tid, {'foo': 'bar'})
-        repo.apply_writes([create])
+        self.storage.commit(repo, [create])
         create = repo.head.cid
 
         delete = Write(Action.DELETE, 'co.ll', tid)
-        repo.apply_writes([delete])
+        self.storage.commit(repo, [delete])
         delete = repo.head.cid
 
         events = list(self.storage.read_events_by_seq())
@@ -65,10 +65,10 @@ class StorageTest(TestCase):
         bob = Repo.create(self.storage, 'did:bob', signing_key=self.key)
 
         create = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})
-        alice.apply_writes([create])
+        self.storage.commit(alice, [create])
 
         create = Write(Action.CREATE, 'co.ll', next_tid(), {'baz': 'biff'})
-        bob.apply_writes([create])
+        self.storage.commit(bob, [create])
 
         events = list(self.storage.read_events_by_seq(repo='did:alice'))
         self.assertEqual(5, len(events))
@@ -90,12 +90,12 @@ class StorageTest(TestCase):
 
         prev_prev = repo.head.cid
         first = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})
-        repo.apply_writes([first])
+        self.storage.commit(repo, [first])
         commit_cids.append(repo.head.cid)
 
         prev = repo.head.cid
         second = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})
-        repo.apply_writes([second])
+        self.storage.commit(repo, [second])
 
         commits = list(self.storage.read_events_by_seq(start=5))
         self.assertEqual(2, len(commits))
@@ -113,7 +113,7 @@ class StorageTest(TestCase):
         # https://github.com/snarfed/arroba/issues/52
         repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
 
-        repo.apply_writes([])
+        self.storage.commit(repo, [])
 
         commits = list(self.storage.read_events_by_seq(start=5))
         self.assertEqual(1, len(commits))

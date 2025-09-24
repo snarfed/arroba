@@ -104,7 +104,8 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 
 _Breaking changes:_
 
-When creating a new repo, the first commit is now always empty. `Repo.create_from_commit` has been removed; all repos should now be created with `Repo.create`.
+* When creating a new repo, the first commit is now always empty. `Repo.create_from_commit` has been removed; all repos should now be created with `Repo.create`.
+* Removed `Repo.apply_writes`, `format_commit`, `apply_commit`, and `writes_to_commit_ops`. Use the new `Storage.commit` method instead.
 
 
 _Non-breaking changes:_

@@ -17,7 +17,7 @@ from .. import firehose
 from ..datastore_storage import DatastoreStorage
 from ..repo import Repo, Write
 from ..server import server
-from ..storage import Action, CommitOp, MemoryStorage, writes_to_commit_ops
+from ..storage import Action, CommitOp, MemoryStorage
 from .. import util
 from ..util import dag_cbor_cid, next_tid, verify_sig
 
@@ -69,6 +69,11 @@ class RepoTest(TestCase):
 
     def test_create(self):
         # setUp called Repo.create
+        did = self.repo.did
+        repo = self.storage.load_repo(did)
+        self.assertEqual(did, repo.did)
+        self.assertIsNotNone(repo.head)
+
         blocks = [b.decoded for b in self.storage.read_blocks_by_seq()]
 
         # commit
@@ -135,7 +140,7 @@ class RepoTest(TestCase):
         }
 
         tid = next_tid()
-        self.repo.apply_writes(Write(
+        self.storage.commit(self.repo, Write(
             action=Action.CREATE,
             collection='my.stuff',
             rkey=tid,
@@ -143,12 +148,13 @@ class RepoTest(TestCase):
         ))
         self.assertEqual(profile, self.repo.get_record('my.stuff', tid))
 
+        self.assertEqual(profile, self.repo.get_record('my.stuff', tid))
         reloaded = Repo.load(self.storage, cid=self.repo.head.cid,
                              signing_key=self.key)
         self.assertEqual(profile, reloaded.get_record('my.stuff', tid))
 
         profile['description'] = "I'm the best"
-        self.repo.apply_writes(Write(
+        self.storage.commit(self.repo, Write(
             action=Action.UPDATE,
             collection='my.stuff',
             rkey=tid,
@@ -156,11 +162,12 @@ class RepoTest(TestCase):
         ))
         self.assertEqual(profile, self.repo.get_record('my.stuff', tid))
 
+        self.assertEqual(profile, self.repo.get_record('my.stuff', tid))
         reloaded = Repo.load(self.storage, cid=self.repo.head.cid,
                              signing_key=self.key)
         self.assertEqual(profile, reloaded.get_record('my.stuff', tid))
 
-        self.repo.apply_writes(Write(
+        self.storage.commit(self.repo, Write(
             action=Action.DELETE,
             collection='my.stuff',
             rkey=tid,
@@ -181,30 +188,54 @@ class RepoTest(TestCase):
         writes = list(chain(*(
             [Write(Action.CREATE, coll, tid, obj) for tid, obj in objs.items()]
             for coll, objs in data.items())))
-
-        self.repo.apply_writes(writes)
+        self.storage.commit(self.repo, writes)
         self.assertEqual(data, self.repo.get_contents())
 
     def test_edits_and_deletes_content(self):
         objs = list(self.random_objects(20).items())
 
-        self.repo.apply_writes([Write(Action.CREATE, 'co.ll', tid, obj)
-                                for tid, obj in objs])
+        creates = [Write(Action.CREATE, 'co.ll', tid, obj) for tid, obj in objs]
+        self.storage.commit(self.repo, creates)
 
         random.shuffle(objs)
-        self.repo.apply_writes([Write(Action.UPDATE, 'co.ll', tid, {'bar': 'baz'})
-                                for tid, _ in objs])
+        updates = [Write(Action.UPDATE, 'co.ll', tid, {'bar': 'baz'})
+                   for tid, _ in objs]
+        self.storage.commit(self.repo, updates)
 
         random.shuffle(objs)
-        self.repo.apply_writes([Write(Action.DELETE, 'co.ll', tid)
-                                for tid, _ in objs])
+        deletes = [Write(Action.DELETE, 'co.ll', tid) for tid, _ in objs]
+        self.storage.commit(self.repo, deletes)
 
         self.assertEqual({}, self.repo.get_contents())
 
+    def test_delete_with_record_no_cid_in_op(self):
+        tid = next_tid()
+        self.storage.commit(self.repo, Write(
+            action=Action.CREATE,
+            collection='my.stuff',
+            rkey=tid,
+            record={'x': 'y'},
+        ))
+        self.assertEqual({'my.stuff': {tid: {'x': 'y'}}}, self.repo.get_contents())
+
+        self.storage.commit(self.repo, [Write(
+            Action.DELETE,
+            collection='my.stuff',
+            rkey=tid,
+            record={'x': 'y'},
+        )])
+        self.assertEqual({}, self.repo.get_contents())
+        self.assertEqual([CommitOp(
+            action=Action.DELETE,
+            path=f'my.stuff/{tid}',
+            cid=None,  # should be None even though the input op (wrongly) had a record
+            prev_cid=util.dag_cbor_cid({'x': 'y'}),
+        )], self.repo.head.ops)
+
     def test_noop_update_doesnt_commit(self):
         tid = next_tid()
-        self.repo.apply_writes([Write(Action.CREATE, 'co.ll', tid, {'x': 'y'})])
-        self.repo.apply_writes([Write(Action.UPDATE, 'co.ll', tid, {'x': 'y'})])
+        self.storage.commit(self.repo, [Write(Action.CREATE, 'co.ll', tid, {'x': 'y'})])
+        self.storage.commit(self.repo, [Write(Action.UPDATE, 'co.ll', tid, {'x': 'y'})])
         self.assertEqual([], self.repo.head.ops)
 
     def test_has_a_valid_signature_to_commit(self):
@@ -217,31 +248,30 @@ class RepoTest(TestCase):
 
     def test_load_from_storage(self):
         objs = self.random_objects(5)
-        self.repo.apply_writes([Write(Action.CREATE, 'co.ll', tid, obj)
-                                for tid, obj in objs.items()])
+        self.storage.commit(self.repo, [Write(Action.CREATE, 'co.ll', tid, obj)
+                                        for tid, obj in objs.items()])
 
-        reloaded = Repo.load(self.storage, self.repo.head.cid,
-                             signing_key=self.key)
+        reloaded = Repo.load(self.storage, self.repo.head.cid, signing_key=self.key)
 
         self.assertEqual(3, reloaded.version)
         self.assertEqual('did:web:user.com', reloaded.did)
         self.assertEqual({'co.ll': objs}, reloaded.get_contents())
 
-    def test_apply_writes_callback(self):
+    def test_commit_callback(self):
         seen = []
 
         # create new object with callback
         self.repo.callback = lambda commit: seen.append(commit)
         tid = next_tid()
         create = Write(Action.CREATE, 'co.ll', tid, {'foo': 'bar'})
-        self.repo.apply_writes([create])
+        self.storage.commit(self.repo, [create])
 
         self.assertEqual(1, len(seen))
         self.assertCommitIs(seen[0], create, 5)
 
         # update object
         update = Write(Action.UPDATE, 'co.ll', tid, {'foo': 'baz'})
-        self.repo.apply_writes([update])
+        self.storage.commit(self.repo, [update])
         self.assertEqual(2, len(seen))
         self.assertCommitIs(seen[1], update, 6,
                             prev_record=util.dag_cbor_cid({'foo': 'bar'}))
@@ -249,47 +279,8 @@ class RepoTest(TestCase):
         # unset callback, update again
         self.repo.callback = None
         update = Write(Action.UPDATE, 'co.ll', tid, {'biff': 0})
-        self.repo.apply_writes([update])
+        self.storage.commit(self.repo, [update])
         self.assertEqual(2, len(seen))
-
-    def test_apply_commit_callback(self):
-        seen = []
-
-        # create new object with callback
-        self.repo.callback = lambda commit: seen.append(commit)
-        create = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})
-        self.repo.apply_commit(self.storage.format_commit(repo=self.repo, writes=[create]))
-
-        self.assertEqual(1, len(seen))
-        self.assertCommitIs(seen[0], create, 5)
-
-    def test_writes_to_commit_ops(self):
-        tid = next_tid()
-        path = f'co.ll/{tid}'
-        create = Write(Action.CREATE, 'co.ll', tid, {'foo': 'bar'})
-        foo_bar_cid = util.dag_cbor_cid({'foo': 'bar'})
-        expected_create = CommitOp(action=Action.CREATE, path=path, cid=foo_bar_cid)
-        self.assertEqual([expected_create], writes_to_commit_ops([create]))
-
-        self.repo.apply_writes([create])
-
-        foo_baz_cid = util.dag_cbor_cid({'foo': 'baz'})
-        update = Write(Action.UPDATE, 'co.ll', tid, {'foo': 'baz'})
-        expected_update = CommitOp(action=Action.UPDATE, path=path, cid=foo_baz_cid,
-                                   prev_cid=foo_bar_cid)
-        self.assertEqual([expected_update], writes_to_commit_ops([update], repo=self.repo))
-
-        delete = Write(Action.DELETE, 'co.ll', tid)
-        expected_delete = CommitOp(action=Action.DELETE, path=path, prev_cid=foo_bar_cid)
-        self.assertEqual([expected_delete], writes_to_commit_ops([delete], repo=self.repo))
-
-        # even if we set record for a delete, writes_to_commit_ops shouldn't include cid
-        delete = Write(Action.DELETE, 'co.ll', tid, record={'foo': 'bar'})
-        self.assertEqual([expected_delete], writes_to_commit_ops([delete], repo=self.repo))
-
-        self.assertEqual([expected_create, expected_update, expected_delete],
-                         writes_to_commit_ops([create, update, delete], repo=self.repo))
-
 
 
 class DatastoreRepoTest(RepoTest, DatastoreTest):
