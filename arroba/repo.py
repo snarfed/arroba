@@ -157,12 +157,12 @@ class Repo:
         # TODO: #sync event should be after #account/#identity but before first #commit
         # https://github.com/bluesky-social/proposals/tree/main/0006-sync-iteration#staying-synchronized-sync-event-auto-repair-and-account-status
         # https://github.com/snarfed/arroba/issues/52#issuecomment-2816324912
-        car_blocks = [car.Block(cid=block.cid, data=block.encoded, decoded=block.decoded)
-                      for block in initial_commit.blocks.values()]
-        blocks_bytes = car.write_car([initial_commit.commit.cid], car_blocks)
-        storage.write_event(repo=repo, type='sync',
-                            rev=initial_commit.commit.decoded['rev'],
-                            blocks=blocks_bytes)
+        commit = initial_commit.commit
+        sync_blocks = [car.Block(cid=commit.cid, data=commit.encoded,
+                                 decoded=commit.decoded)]
+        blocks_bytes = car.write_car([commit.cid], sync_blocks)
+        storage.write_event(repo=repo, type='sync', blocks=blocks_bytes,
+                            rev=commit.decoded['rev'])
 
         storage.create_repo(repo)
         if repo.callback:

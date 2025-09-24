@@ -100,8 +100,8 @@ class RepoTest(TestCase):
         # non-commit events
         sync_root, sync_blocks = car.read_car(blocks[4]['blocks'])
         self.assertEqual([commit_cid], sync_root)
-        sync_blocks[1].decoded.pop('sig', None)
-        self.assertEqual([root, commit], [b.decoded for b in sync_blocks])
+        sync_blocks[0].decoded.pop('sig', None)
+        self.assertEqual([commit], [b.decoded for b in sync_blocks])
 
         blocks[4].pop('blocks', None)
         self.assertEqual([{
