@@ -7,6 +7,7 @@ from collections import namedtuple
 import copy
 from enum import auto, Enum
 import itertools
+import logging
 
 import dag_cbor
 from multiformats import CID, multicodec, multihash
@@ -18,6 +19,8 @@ from . import util
 from .util import dag_cbor_cid, DEACTIVATED, tid_to_int, TOMBSTONED, InactiveRepo
 
 SUBSCRIBE_REPOS_NSID = 'com.atproto.sync.subscribeRepos'
+
+logger = logging.getLogger(__name__)
 
 
 class Action(Enum):
@@ -479,6 +482,11 @@ class Storage:
         """
         orig_repo = repo
         if repo_did:
+            logger.warning(repo.did, repo.handle, repo.status, self)
+            logger.warning(repo.head)
+            if repo.head:
+                logger.warning(repo.head.decoded)
+            logger.warning(repo.mst.get_pointer())
             assert not repo.did
         else:
             assert repo.did
