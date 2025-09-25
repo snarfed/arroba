@@ -482,16 +482,12 @@ class Storage:
         """
         orig_repo = repo
         if repo_did:
-            logger.warning(self)
-            logger.warning(repo.did)
-            logger.warning(repr(repo.did))
-            logger.warning(not repo.did)
-            logger.warning(repo.handle)
-            logger.warning(repo.status)
-            # logger.warning(repo.head)
-            # if repo.head:
-            #     logger.warning(repo.head.decoded)
-            # logger.warning(repo.mst.get_pointer())
+            if repo.head:
+                # this must be a transaction retry, and head was set by a previous
+                # attempt, below
+                assert repo.head.decoded.get('did') == repo_did, repo.head.decoded
+                assert not repo.head.decoded.get('prev'), repo.head.decoded
+                repo.head = None
             assert not repo.did
         else:
             assert repo.did

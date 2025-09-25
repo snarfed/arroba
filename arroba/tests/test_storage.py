@@ -4,8 +4,9 @@ import os
 import dag_cbor
 from multiformats import CID
 
-from ..repo import Repo, Write
 from ..datastore_storage import DatastoreStorage
+from ..mst import MST
+from ..repo import Repo, Write
 from ..storage import Action, Block, MemoryStorage, SUBSCRIBE_REPOS_NSID
 from ..util import dag_cbor_cid, next_tid, DEACTIVATED, TOMBSTONED
 
@@ -316,4 +317,25 @@ class StorageTest(TestCase):
 
 class DatastoreStorageTest(StorageTest, DatastoreTest):
     """Run all of StorageTest's tests with DatastoreStorage."""
-    pass
+    def test_create_commit_datastore_transaction_retry(self):
+        # fake what a Repo.create => Storage.commit retry due to datastore transaction
+        # contention  would look like.
+        # TODO: find a way to mock this inside ndb or the datastore API istelf
+        initial_commit = Block(decoded={
+            'did': 'did:alice',
+            'prev': None,
+        })
+        repo = Repo(storage=self.storage, mst=MST.create(storage=self.storage),
+                    signing_key=self.key, head=initial_commit)
+        self.storage.commit(repo, [], repo_did='did:alice')
+        assert repo.head is not initial_commit
+
+    def test_create_commit_non_empty_repo_with_repo_did(self):
+        head = Block(decoded={
+            'did': 'did:alice',
+            'prev': "set because this isn't an initial empty commit",
+        })
+        repo = Repo(storage=self.storage, mst=MST.create(storage=self.storage),
+                    signing_key=self.key, head=head)
+        with self.assertRaises(AssertionError):
+            self.storage.commit(repo, [], repo_did='did:alice')
