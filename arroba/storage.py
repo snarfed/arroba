@@ -482,7 +482,10 @@ class Storage:
         """
         orig_repo = repo
         if repo_did:
-            logger.warning(repo.did, repo.handle, repo.status, self)
+            logger.warning(self)
+            logger.warning(repo.did)
+            logger.warning(repo.handle)
+            logger.warning(repo.status)
             logger.warning(repo.head)
             if repo.head:
                 logger.warning(repo.head.decoded)
