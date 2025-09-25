@@ -484,12 +484,14 @@ class Storage:
         if repo_did:
             logger.warning(self)
             logger.warning(repo.did)
+            logger.warning(repr(repo.did))
+            logger.warning(not repo.did)
             logger.warning(repo.handle)
             logger.warning(repo.status)
-            logger.warning(repo.head)
-            if repo.head:
-                logger.warning(repo.head.decoded)
-            logger.warning(repo.mst.get_pointer())
+            # logger.warning(repo.head)
+            # if repo.head:
+            #     logger.warning(repo.head.decoded)
+            # logger.warning(repo.mst.get_pointer())
             assert not repo.did
         else:
             assert repo.did
