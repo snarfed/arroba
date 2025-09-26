@@ -680,10 +680,11 @@ class DatastoreStorage(Storage):
             if repo.status:
                 raise InactiveRepo(repo.key.id(), repo.status)
 
-        if repo:
-            if prev := commit_data.commit.decoded['prev']:
-                data = commit_data.commit.decoded['data']
-                assert prev.encode('base32') == repo.head, f"trying to commit to {commit['did']} with data {data} prev {prev} but current head is {repo.head}"
+        # TODO: bring back? this was maybe raising our firehose serve delay too much
+        # if repo:
+        #     if prev := commit_data.commit.decoded['prev']:
+        #         data = commit_data.commit.decoded['data']
+        #         assert prev.encode('base32') == repo.head, f"trying to commit to {commit['did']} with data {data} prev {prev} but current head is {repo.head}"
 
         seq = tid_to_int(commit_data.commit.decoded['rev'])
         assert seq
