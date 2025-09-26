@@ -661,7 +661,10 @@ class DatastoreStorage(Storage):
         ndb.put_multi(AtpBlock.from_block(repo_did=b.repo, block=b) for b in blocks)
 
     @ndb_context
-    @ndb.transactional(retries=10)
+    # TODO: bring this back once we figure out the datastore contention
+    # https://github.com/snarfed/bridgy-fed/issues/2089
+    # https://github.com/snarfed/arroba/issues/34
+    # @ndb.transactional(retries=10)
     def commit(self, *args, **kwargs):
         """Just runs :meth:`Storage.commit` in a transaction."""
         return super().commit(*args, **kwargs)
