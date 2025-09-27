@@ -674,12 +674,11 @@ class DatastoreStorage(Storage):
         return super().commit(*args, **kwargs)
 
     @ndb_context
-    # retry aggressively because repo writes can be bursty and cause high
-    # contention. (ndb does exponential backoff.)
-    # https://console.cloud.google.com/errors/detail/CKbL5KSX98uZHw;time=P1D;locations=global?project=bridgy-federated
-    @ndb.transactional(retries=10, join=True)
-    def apply_commit(self, commit_data):
-        super().apply_commit(commit_data)
+    # MANDATORY means require that we're already in an ndb datastore transaction
+    # when we're called
+    @ndb.transactional(propagation=context.TransactionOptions.MANDATORY)
+    def _apply_commit(self, commit_data):
+        super()._apply_commit(commit_data)
 
     @ndb_context
     def allocate_seq(self, nsid):

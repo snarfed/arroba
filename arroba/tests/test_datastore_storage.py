@@ -318,7 +318,7 @@ class DatastoreStorageTest(DatastoreTest):
         atp_repo = AtpRepo.get_by_id('did:web:user.com')
         self.assertEqual(cid, CID.decode(atp_repo.head))
 
-    def test_apply_commit_inactive_repo(self):
+    def test_commit_inactive_repo(self):
         repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key,
                            status=DEACTIVATED)
         head = repo.head

@@ -418,7 +418,7 @@ class Storage:
         """
         raise NotImplementedError()
 
-    def apply_commit(self, commit_data):
+    def _apply_commit(self, commit_data):
         """Writes a commit to storage.
 
         Generates a new sequence number and uses it for all blocks in the commit.
@@ -575,7 +575,7 @@ class Storage:
         commit_blocks[commit_block.cid] = commit_block
 
         commit_data = CommitData(commit=commit_block, prev=prev, blocks=commit_blocks)
-        self.apply_commit(commit_data)
+        self._apply_commit(commit_data)
 
         orig_repo.mst = repo.mst
         orig_repo.head = commit_block
