@@ -1,5 +1,7 @@
 """Unit tests for storage.py."""
+from itertools import chain
 import os
+import random
 
 import dag_cbor
 from multiformats import CID
@@ -7,10 +9,11 @@ from multiformats import CID
 from ..datastore_storage import DatastoreStorage
 from ..mst import MST
 from ..repo import Repo, Write
-from ..storage import Action, Block, MemoryStorage, SUBSCRIBE_REPOS_NSID
+from ..storage import Action, Block, CommitOp, MemoryStorage, SUBSCRIBE_REPOS_NSID
 from ..util import dag_cbor_cid, next_tid, DEACTIVATED, TOMBSTONED
 
 from .testutil import DatastoreTest, NOW, TestCase
+from .test_repo import RepoTest
 
 DECODED = {'foo': 'bar'}
 ENCODED = b'\xa1cfoocbar'
@@ -313,6 +316,160 @@ class StorageTest(TestCase):
 
         got = self.storage.read_many([b.cid for b in blocks])
         self.assertEqual(blocks, list(got.values()))
+
+    def test_commit_basic_operations(self):
+        repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
+
+        profile = {
+            '$type': 'app.bsky.actor.profile',
+            'displayName': 'Alice',
+            'avatar': 'https://alice.com/alice.jpg',
+            'description': None,
+        }
+
+        tid = next_tid()
+        self.storage.commit(repo, Write(
+            action=Action.CREATE,
+            collection='my.stuff',
+            rkey=tid,
+            record=profile,
+        ))
+        self.assertEqual(profile, repo.get_record('my.stuff', tid))
+
+        self.assertEqual(profile, repo.get_record('my.stuff', tid))
+        reloaded = Repo.load(self.storage, cid=repo.head.cid,
+                             signing_key=self.key)
+        self.assertEqual(profile, reloaded.get_record('my.stuff', tid))
+
+        profile['description'] = "I'm the best"
+        self.storage.commit(repo, Write(
+            action=Action.UPDATE,
+            collection='my.stuff',
+            rkey=tid,
+            record=profile,
+        ))
+        self.assertEqual(profile, repo.get_record('my.stuff', tid))
+
+        self.assertEqual(profile, repo.get_record('my.stuff', tid))
+        reloaded = Repo.load(self.storage, cid=repo.head.cid,
+                             signing_key=self.key)
+        self.assertEqual(profile, reloaded.get_record('my.stuff', tid))
+
+        self.storage.commit(repo, Write(
+            action=Action.DELETE,
+            collection='my.stuff',
+            rkey=tid,
+        ))
+        self.assertIsNone(repo.get_record('my.stuff', tid))
+
+        reloaded = Repo.load(self.storage, cid=repo.head.cid,
+                             signing_key=self.key)
+        self.assertIsNone(reloaded.get_record('my.stuff', tid))
+
+    def test_commit_creates(self):
+        repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
+
+        data = {
+            'example.foo': self.random_objects(10),
+            'example.bar': self.random_objects(20),
+            'example.baz': self.random_objects(30),
+        }
+
+        writes = list(chain(*(
+            [Write(Action.CREATE, coll, tid, obj) for tid, obj in objs.items()]
+            for coll, objs in data.items())))
+        self.storage.commit(repo, writes)
+        self.assertEqual(data, repo.get_contents())
+
+    def test_commit_updates_and_deletes(self):
+        repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
+
+        objs = list(self.random_objects(20).items())
+        creates = [Write(Action.CREATE, 'co.ll', tid, obj) for tid, obj in objs]
+        self.storage.commit(repo, creates)
+
+        random.shuffle(objs)
+        updates = [Write(Action.UPDATE, 'co.ll', tid, {'bar': 'baz'})
+                   for tid, _ in objs]
+        self.storage.commit(repo, updates)
+
+        random.shuffle(objs)
+        deletes = [Write(Action.DELETE, 'co.ll', tid) for tid, _ in objs]
+        self.storage.commit(repo, deletes)
+
+        self.assertEqual({}, repo.get_contents())
+
+    def test_commit_delete_with_record_no_cid_in_op(self):
+        repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
+
+        tid = next_tid()
+        self.storage.commit(repo, Write(
+            action=Action.CREATE,
+            collection='my.stuff',
+            rkey=tid,
+            record={'x': 'y'},
+        ))
+        self.assertEqual({'my.stuff': {tid: {'x': 'y'}}}, repo.get_contents())
+
+        self.storage.commit(repo, [Write(
+            Action.DELETE,
+            collection='my.stuff',
+            rkey=tid,
+            record={'x': 'y'},
+        )])
+        self.assertEqual({}, repo.get_contents())
+        self.assertEqual([CommitOp(
+            action=Action.DELETE,
+            path=f'my.stuff/{tid}',
+            cid=None,  # should be None even though the input op (wrongly) had a record
+            prev_cid=dag_cbor_cid({'x': 'y'}),
+        )], repo.head.ops)
+
+    def test_commit_noop_update_doesnt_commit(self):
+        repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
+        tid = next_tid()
+        self.storage.commit(repo, [Write(Action.CREATE, 'co.ll', tid, {'x': 'y'})])
+        self.storage.commit(repo, [Write(Action.UPDATE, 'co.ll', tid, {'x': 'y'})])
+        self.assertEqual([], repo.head.ops)
+
+    def test_commit_update_nonexistent_record_raises_ValueError(self):
+        repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
+        update = Write(Action.UPDATE, 'co.ll', next_tid(), {'x': 'y'})
+        with self.assertRaises(ValueError):
+            self.storage.commit(repo, update)
+
+    def test_commit_delete_nonexistent_record_raises_ValueError(self):
+        repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
+        update = Write(Action.DELETE, 'co.ll', next_tid(), {'x': 'y'})
+        with self.assertRaises(ValueError):
+            self.storage.commit(repo, update)
+
+    def test_commit_callback(self):
+        repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
+        seen = []
+        repo_test = RepoTest()
+
+        # create new object with callback
+        repo.callback = lambda commit: seen.append(commit)
+        tid = next_tid()
+        create = Write(Action.CREATE, 'co.ll', tid, {'foo': 'bar'})
+        self.storage.commit(repo, [create])
+
+        self.assertEqual(1, len(seen))
+        repo_test.assertCommitIs(seen[0], create, 5)
+
+        # update object
+        update = Write(Action.UPDATE, 'co.ll', tid, {'foo': 'baz'})
+        self.storage.commit(repo, [update])
+        self.assertEqual(2, len(seen))
+        repo_test.assertCommitIs(seen[1], update, 6,
+                                 prev_record=dag_cbor_cid({'foo': 'bar'}))
+
+        # unset callback, update again
+        repo.callback = None
+        update = Write(Action.UPDATE, 'co.ll', tid, {'biff': 0})
+        self.storage.commit(repo, [update])
+        self.assertEqual(2, len(seen))
 
 
 class DatastoreStorageTest(StorageTest, DatastoreTest):
