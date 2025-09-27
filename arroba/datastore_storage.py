@@ -257,7 +257,11 @@ class AtpSequence(ndb.Model):
     updated = ndb.DateTimeProperty(auto_now=True)
 
     @classmethod
-    @ndb.transactional(retries=10)
+    # propagation=context.TransactionOptions.INDEPENDENT is important here so that we
+    # don't include this in heavy, long-running commit transactions, since it's a
+    # single-row bottleneck! (the default is join=True.)
+    @ndb.transactional(retries=10,
+                       propagation=context.TransactionOptions.INDEPENDENT, join=None)
     def allocate(cls, nsid):
         """Returns the next sequence number for a given NSID.
 
@@ -661,10 +665,7 @@ class DatastoreStorage(Storage):
         ndb.put_multi(AtpBlock.from_block(repo_did=b.repo, block=b) for b in blocks)
 
     @ndb_context
-    # TODO: bring this back once we figure out the datastore contention
-    # https://github.com/snarfed/bridgy-fed/issues/2089
-    # https://github.com/snarfed/arroba/issues/34
-    # @ndb.transactional(retries=10)
+    @ndb.transactional(retries=10)
     def commit(self, *args, **kwargs):
         """Just runs :meth:`Storage.commit` in a transaction."""
         return super().commit(*args, **kwargs)
