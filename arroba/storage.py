@@ -138,13 +138,7 @@ class Storage:
 
     Concrete subclasses should implement this on top of physical storage,
     eg database, filesystem, in memory.
-
-    TODO: batch operations?
-
-    Attributes:
-      head (CID)
     """
-    head = None
 
     def create_repo(self, repo):
         """Stores a new repo's metadata in storage.
@@ -176,6 +170,7 @@ class Storage:
         Right now only writes some metadata:
         * handle
         * status
+        * head
 
         Args:
           repo (Repo)
@@ -416,8 +411,7 @@ class Storage:
     def write_blocks(self, blocks):
         """Batch write blocks to storage.
 
-        Overwrites any existing stored blocks with the same CIDs! Does not
-        allocate sequence numbers!
+        Does not allocate sequence numbers!
 
         Args:
           blocks (sequence of :class:`Block`)
@@ -435,7 +429,29 @@ class Storage:
         Raises:
           InactiveError: if the repo is not active
         """
-        raise NotImplementedError()
+        if repo := self.load_repo(commit_data.commit.repo):
+            if repo.status:
+                raise InactiveRepo(repo.did, repo.status)
+
+        if repo:
+            if prev := commit_data.commit.decoded['prev']:
+                data = commit_data.commit.decoded['data']
+                assert prev == repo.head.cid, f"trying to commit to {commit['did']} with data {data} prev {prev} but current head is {repo.head.cid}"
+
+        seq = tid_to_int(commit_data.commit.decoded['rev'])
+        assert seq
+
+        for block in commit_data.blocks.values():
+            block.seq = seq
+
+        # only add new blocks so we don't wipe out any existing blocks' sequence
+        # numbers. (occasionally we see existing blocks recur, eg MST nodes.)
+        self.write_blocks(commit_data.blocks.values())
+
+        if repo:
+            repo.head = commit_data.commit
+            logger.info(f'Updating {repo.did} head {repo.head.cid}')
+            self.store_repo(repo)
 
     def allocate_seq(self, nsid):
         """Generates and returns a sequence number for the given NSID.
@@ -575,12 +591,10 @@ class MemoryStorage(Storage):
     Attributes:
       repos (dict mapping str DID to :class:`Repo`)
       blocks (dict): {:class:`CID`: :class:`Block`}
-      head (CID)
       sequences (dict): {str NSID: int next sequence number}
     """
     repos = None
     blocks = None
-    head = None
     sequences = None
 
     def __init__(self):
@@ -599,9 +613,7 @@ class MemoryStorage(Storage):
                 return repo
 
     def store_repo(self, repo):
-        stored = self.repos[repo.did]
-        stored.handle = repo.handle
-        stored.statue = repo.status
+        self.repos[repo.did] = repo
 
     def load_repos(self, after=None, limit=500):
         it = iter(sorted(self.repos.values(), key=lambda repo: repo.did))
@@ -642,27 +654,8 @@ class MemoryStorage(Storage):
         return block
 
     def write_blocks(self, blocks):
-        self.blocks.update({b.cid: b for b in blocks})
-
-    def apply_commit(self, commit_data):
-        if repo := self.repos.get(commit_data.commit.repo):
-            if repo.status:
-                raise InactiveRepo(repo.did, repo.status)
-
-        seq = tid_to_int(commit_data.commit.decoded['rev'])
-        assert seq
-
-        for block in commit_data.blocks.values():
-            block.seq = seq
-
-        # only add new blocks so we don't wipe out any existing blocks' sequence
-        # numbers. (occasionally we see existing blocks recur, eg MST nodes.)
-        for cid, block in commit_data.blocks.items():
-            self.blocks.setdefault(cid, block)
-
-        self.head = commit_data.commit.cid
-        # the Repo will generally already be in self.repos, and it updates its
-        # own head cid, so no need to do that here manually.
+        for block in blocks:
+            self.blocks.setdefault(block.cid, block)
 
     def allocate_seq(self, nsid):
         assert nsid

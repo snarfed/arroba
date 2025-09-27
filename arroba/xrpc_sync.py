@@ -158,7 +158,7 @@ def get_blocks(input, did=None, cids=()):
                             name='BlockNotFound')
         car_blocks.append(car.Block(cid=block.cid, data=block.encoded))
 
-    return car.write_car([server.storage.head], car_blocks)
+    return car.write_car([repo.head.cid], car_blocks)
 
 
 @server.server.method('com.atproto.sync.getHead')

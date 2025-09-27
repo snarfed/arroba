@@ -218,24 +218,23 @@ class AtpBlock(ndb.Model):
                      time=self.created, repo=self.repo)
 
     @classmethod
-    def from_block(cls, *, repo_did, block):
+    def from_block(cls, block):
         """Converts a :class:`Block` to an :class:`AtpBlock`.
 
         Args:
-          repo_did (str)
           block (Block)
 
         Returns:
-          AtpBlock
+          AtpBlock:
         """
         ops = [CommitOp(action=op.action.name.lower(), path=op.path,
                         cid=op.cid.encode('base32') if op.cid else None,
                         prev_cid=op.prev_cid.encode('base32') if op.prev_cid else None)
                for op in (block.ops or [])]
         created = block.time.astimezone(timezone.utc).replace(tzinfo=None)
+        repo_key = ndb.Key(AtpRepo, block.repo) if block.repo else None
         return AtpBlock(id=block.cid.encode('base32'), encoded=block.encoded,
-                        repo=ndb.Key(AtpRepo, repo_did), seq=block.seq, ops=ops,
-                        created=created)
+                        repo=repo_key, seq=block.seq, ops=ops, created=created)
 
 
 class AtpSequence(ndb.Model):
@@ -542,11 +541,10 @@ class DatastoreStorage(Storage):
             return None
 
         logger.info(f'Loading repo {atp_repo.key}')
-        self.head = CID.decode(atp_repo.head)
         handle = atp_repo.handles[0] if atp_repo.handles else None
 
-        return Repo.load(self, cid=self.head, handle=handle, status=atp_repo.status,
-                         signing_key=atp_repo.signing_key,
+        return Repo.load(self, cid=CID.decode(atp_repo.head), handle=handle,
+                         status=atp_repo.status, signing_key=atp_repo.signing_key,
                          rotation_key=atp_repo.rotation_key)
 
     @ndb_context
@@ -575,7 +573,7 @@ class DatastoreStorage(Storage):
         assert status in (DEACTIVATED, DELETED, TOMBSTONED, None)
         repo.status = status  # in memory only
 
-        @ndb.transactional()
+        @ndb.transactional(join=True)
         def update():
             atp_repo = AtpRepo.get_by_id(repo.did)
             atp_repo.status = status
@@ -584,13 +582,12 @@ class DatastoreStorage(Storage):
         update()
 
     def store_repo(self, repo):
-        @ndb.transactional()
+        @ndb.transactional(join=True)
         def store():
             atp_repo = AtpRepo.get_by_id(repo.did)
-            atp_repo.populate(
-                handles=[repo.handle] if repo.handle else [],
-                status=repo.status,
-            )
+            atp_repo.handles = [repo.handle] if repo.handle else []
+            atp_repo.status = repo.status
+            atp_repo.head = repo.head.cid.encode('base32')
             atp_repo.put()
             logger.info(f'Stored repo {atp_repo}')
 
@@ -662,7 +659,13 @@ class DatastoreStorage(Storage):
 
     @ndb_context
     def write_blocks(self, blocks):
-        ndb.put_multi(AtpBlock.from_block(repo_did=b.repo, block=b) for b in blocks)
+        for block in blocks:
+            template = AtpBlock.from_block(block)
+            # get_or_insert so we don't wipe out any existing blocks' sequence
+            # numbers. (occasionally we see existing blocks recur, eg MST nodes.)
+            atp_block = AtpBlock.get_or_insert(
+                template.key.id(), repo=template.repo, encoded=block.encoded,
+                seq=block.seq, ops=template.ops)
 
     @ndb_context
     @ndb.transactional(retries=10)
@@ -676,37 +679,7 @@ class DatastoreStorage(Storage):
     # https://console.cloud.google.com/errors/detail/CKbL5KSX98uZHw;time=P1D;locations=global?project=bridgy-federated
     @ndb.transactional(retries=10, join=True)
     def apply_commit(self, commit_data):
-        commit = commit_data.commit.decoded
-        if repo := AtpRepo.get_by_id(commit['did']):
-            if repo.status:
-                raise InactiveRepo(repo.key.id(), repo.status)
-
-        # TODO: bring back? this was maybe raising our firehose serve delay too much
-        # if repo:
-        #     if prev := commit_data.commit.decoded['prev']:
-        #         data = commit_data.commit.decoded['data']
-        #         assert prev.encode('base32') == repo.head, f"trying to commit to {commit['did']} with data {data} prev {prev} but current head is {repo.head}"
-
-        seq = tid_to_int(commit_data.commit.decoded['rev'])
-        assert seq
-
-        for block in commit_data.blocks.values():
-            template = AtpBlock.from_block(
-                repo_did=commit_data.commit.decoded['did'], block=block)
-            # get_or_insert so we don't wipe out any existing blocks' sequence
-            # numbers. (occasionally we see existing blocks recur, eg MST nodes.)
-            atp_block = AtpBlock.get_or_insert(
-                template.key.id(), repo=template.repo, encoded=block.encoded,
-                seq=seq, ops=template.ops)
-            block.seq = seq
-
-        self.head = commit_data.commit.cid
-        head_encoded = self.head.encode('base32')
-
-        if repo:
-            logger.info(f'Updating {repo.key}')
-            repo.head = head_encoded
-            repo.put()
+        super().apply_commit(commit_data)
 
     @ndb_context
     def allocate_seq(self, nsid):

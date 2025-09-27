@@ -294,7 +294,6 @@ class DatastoreStorageTest(DatastoreTest):
         # new commit
         writes = [Write(Action.CREATE, 'coll', next_tid(), obj) for obj in objs]
         commit_data = self.storage.commit(repo=repo, writes=writes)
-        self.assertEqual(commit_data.commit.cid, self.storage.head)
         self.assert_same_seq(k.encode('base32') for k in commit_data.blocks.keys())
 
         repo = self.storage.load_repo('did:web:user.com')
