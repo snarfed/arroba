@@ -339,8 +339,9 @@ class DatastoreStorageTest(DatastoreTest):
             'Content-Type': 'foo/bar',
             'Content-Length': '123',
         }))
-        blob = AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
-                                           max_size=456)
+        repo = AtpRepo(id='did:abc')
+        blob = AtpRemoteBlob.get_or_create(url='http://blob', repo=repo,
+                                           get_fn=mock_get, max_size=456)
         mock_get.assert_called_with('http://blob', stream=True)
         self.assertEqual({
             '$type': 'blob',
@@ -350,15 +351,31 @@ class DatastoreStorageTest(DatastoreTest):
         }, blob.as_object())
 
         mock_get.reset_mock()
-        got = AtpRemoteBlob.get_or_create(url='http://blob')
+        got = AtpRemoteBlob.get_or_create(url='http://blob', repo=repo)
         self.assertEqual(blob, got)
         mock_get.assert_not_called()
+
+    def test_create_remote_blob_new_repo(self):
+        first = AtpRepo(id='did:first')
+        blob = AtpRemoteBlob(id='http://blob', repos=[], cid='123', size=2)
+        blob.put()
+
+        first = AtpRepo(id='did:first')
+        got = AtpRemoteBlob.get_or_create(url='http://blob', repo=first)
+        self.assertEqual([first.key], got.repos)
+        self.assertEqual([first.key], blob.key.get().repos)
+
+        second = AtpRepo(id='did:second')
+        got = AtpRemoteBlob.get_or_create(url='http://blob', repo=second)
+        self.assertEqual([first.key, second.key], got.repos)
+        self.assertEqual([first.key, second.key], blob.key.get().repos)
 
     def test_create_remote_blob_infer_mime_type_from_url(self):
         mock_get = MagicMock(return_value=requests_response('blob contents'))
 
-        blob = AtpRemoteBlob.get_or_create(url='http://my/blob.png', get_fn=mock_get,
-                                           max_size=456)
+        repo = AtpRepo(id='did:abc')
+        blob = AtpRemoteBlob.get_or_create(url='http://my/blob.png', repo=repo,
+                                           get_fn=mock_get, max_size=456)
         mock_get.assert_called_with('http://my/blob.png', stream=True)
         self.assertEqual({
             '$type': 'blob',
@@ -368,7 +385,7 @@ class DatastoreStorageTest(DatastoreTest):
         }, blob.as_object())
 
         mock_get.reset_mock()
-        got = AtpRemoteBlob.get_or_create(url='http://my/blob.png')
+        got = AtpRemoteBlob.get_or_create(url='http://my/blob.png', repo=repo)
         self.assertEqual(blob, got)
         mock_get.assert_not_called()
 
@@ -451,9 +468,11 @@ class DatastoreStorageTest(DatastoreTest):
             'Content-Type': 'foo/bar',
         }))
 
+        repo = AtpRepo(id='did:abc')
         for i in range(2):  # first time fetches, second uses datastore entity
-            blob = AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
-                                               accept_types=['baz/biff', 'foo/*'])
+            blob = AtpRemoteBlob.get_or_create(
+                url='http://blob', get_fn=mock_get, repo=repo,
+                accept_types=['baz/biff', 'foo/*'])
             self.assertEqual({
                 '$type': 'blob',
                 'ref': BLOB_CID,
@@ -468,26 +487,29 @@ class DatastoreStorageTest(DatastoreTest):
             'Content-Type': 'foo/bar',
         }))
 
+        repo = AtpRepo(id='did:abc')
         with self.assertRaises(ValidationError):
             AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
-                                        accept_types=['baz/biff'])
+                                        repo=repo, accept_types=['baz/biff'])
 
         mock_get.assert_called_with('http://blob', stream=True)
 
     def test_create_remote_blob_content_type_missing(self):
         mock_get = MagicMock(return_value=requests_response('blob contents'))
 
+        repo = AtpRepo(id='did:abc')
         with self.assertRaises(ValidationError):
             AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
-                                        accept_types=['baz/biff'])
+                                        repo=repo, accept_types=['baz/biff'])
 
         mock_get.assert_called_with('http://blob', stream=True)
 
     def test_create_remote_blob_content_type_missing_accept_all(self):
         mock_get = MagicMock(return_value=requests_response('blob contents'))
 
+        repo = AtpRepo(id='did:abc')
         blob = AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
-                                           accept_types=['*/*'])
+                                           repo=repo, accept_types=['*/*'])
         mock_get.assert_called_with('http://blob', stream=True)
         self.assertEqual({
             '$type': 'blob',
@@ -500,9 +522,10 @@ class DatastoreStorageTest(DatastoreTest):
         AtpRemoteBlob(id='http://blob', size=123, cid='', mime_type='foo/bar').put()
         mock_get = MagicMock()
 
+        repo = AtpRepo(id='did:abc')
         with self.assertRaises(ValidationError):
             AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
-                                        accept_types=['baz/biff'])
+                                        repo=repo, accept_types=['baz/biff'])
 
         mock_get.assert_not_called()
 
@@ -515,18 +538,21 @@ class DatastoreStorageTest(DatastoreTest):
         mock_get = MagicMock(return_value=requests_response(b'some video', headers={
             'Content-Type': 'video/mp4',
         }))
+        repo = AtpRepo(id='did:abc')
         with self.assertRaises(ValidationError):
-            AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get)
+            AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
+                                        repo=repo)
 
         self.assertEqual(b'some video', mock_parse.call_args.args[0].read())
 
     @patch('arroba.datastore_storage._MAX_KEYPART_BYTES', 20)
     def test_create_remote_blob_truncate_url(self):
         mock_get = MagicMock(return_value=requests_response('blob contents'))
+        repo = AtpRepo(id='did:abc')
         blob = AtpRemoteBlob.get_or_create(url='http://my/long/blob.png',
-                                           get_fn=mock_get)
+                                           repo=repo, get_fn=mock_get)
         self.assertEqual('http://my/long/blob.', blob.key.id())
         mock_get.assert_called_with('http://my/long/blob.png', stream=True)
 
-        got = AtpRemoteBlob.get_or_create(url='http://my/long/blob.png')
+        got = AtpRemoteBlob.get_or_create(url='http://my/long/blob.png', repo=repo)
         self.assertEqual(blob, got)

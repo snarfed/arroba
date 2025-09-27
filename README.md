@@ -107,8 +107,9 @@ _Breaking changes:_
 * When creating a new repo, the first commit is now always empty. `Repo.create_from_commit` has been removed; all repos should now be created with `Repo.create`.
 * Removed `Repo.apply_writes`, `format_commit`, `apply_commit`, and `writes_to_commit_ops`. Use the new `Storage.commit` method instead.
 
-
 _Non-breaking changes:_
+
+* Add `AtpRemoteBlob.repos` property to track which repos have which blobs.
 
 
 ### 1.0 - 2025-09-13

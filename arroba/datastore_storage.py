@@ -311,6 +311,7 @@ class AtpRemoteBlob(ndb.Model):
     cid = ndb.StringProperty(required=True)
     size = ndb.IntegerProperty(required=True)
     mime_type = ndb.StringProperty(required=True, default='application/octet-stream')
+    repos = ndb.KeyProperty(repeated=True)
 
     # only populated if mime_type is image/* or video/*
     # used in images.aspectRatio in app.bsky.embed.images
@@ -326,8 +327,8 @@ class AtpRemoteBlob(ndb.Model):
     updated = ndb.DateTimeProperty(auto_now=True)
 
     @classmethod
-    def get_or_create(cls, *, url=None, get_fn=requests.get, max_size=None,
-                      accept_types=None, name=''):
+    def get_or_create(cls, *, url=None, repo=None, get_fn=requests.get,
+                      max_size=None, accept_types=None, name=''):
         """Returns a new or existing :class:`AtpRemoteBlob` for a given URL.
 
         If there isn't an existing :class:`AtpRemoteBlob`, fetches the URL over
@@ -335,6 +336,7 @@ class AtpRemoteBlob(ndb.Model):
 
         Args:
           url (str)
+          repo (AtpRepo): optional
           get_fn (callable): for making HTTP GET requests
           max_size (int, optional): the ``maxSize`` parameter for this blob
             field in its lexicon, if any
@@ -372,13 +374,23 @@ class AtpRemoteBlob(ndb.Model):
             url_key = url[:_MAX_KEYPART_BYTES]
             logger.warning(f'Truncating URL to {_MAX_KEYPART_BYTES} chars: {url_key}')
 
-        blob = cls.get_by_id(url_key)
-        if blob:
+        # if the blob already exists, just add this repo and return it
+        @ndb.transactional()
+        def get():
+            blob = cls.get_by_id(url_key)
+            if blob:
+                if repo and repo.key not in blob.repos:
+                    blob.repos.append(repo.key)
+                    blob.put()
+                return blob
+
+        if blob := get():
             validate_size(blob.size)
             validate_duration(blob.duration)
             server.validate_mime_type(blob.mime_type, accept_types, name=url)
             return blob
 
+        # fetch the file!
         resp = get_fn(url, stream=True)
         resp.raise_for_status()
 
@@ -406,17 +418,24 @@ class AtpRemoteBlob(ndb.Model):
         # note that if the initial URL redirects, we still store it in the
         # AtpRemoteBlob, not the final resolved URL after redirects.
         logger.info(f'Creating new AtpRemoteBlob for {url} CID {cid}')
-        blob = cls(id=url_key, cid=cid, size=len(resp.content))
-        if mime_type:
-            blob.mime_type = mime_type
+        @ndb.transactional()
+        def get_or_insert():
+            mime_type_prop = {'mime_type': mime_type} if mime_type else {}
+            repos = [repo] if repo else []
+            blob = cls.get_or_insert(url_key, cid=cid, repos=[],
+                                     size=len(resp.content), **mime_type_prop)
+            if repo and repo.key not in blob.repos:
+                blob.repos.append(repo.key)
+                blob.put()
+            return blob
 
+        blob = get_or_insert()
         blob.generate_metadata(resp.content)
         blob.put()
 
         # re-validate size in case the server didn't give us Content-Length.
         # do this after storing blob so that we don't re-download it next time.
         validate_size(len(resp.content))
-
         validate_duration(blob.duration)
 
         return blob
