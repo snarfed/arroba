@@ -421,8 +421,8 @@ class AtpRemoteBlob(ndb.Model):
         @ndb.transactional()
         def get_or_insert():
             mime_type_prop = {'mime_type': mime_type} if mime_type else {}
-            repos = [repo] if repo else []
-            blob = cls.get_or_insert(url_key, cid=cid, repos=[],
+            repos = [repo.key] if repo else []
+            blob = cls.get_or_insert(url_key, cid=cid, repos=repos,
                                      size=len(resp.content), **mime_type_prop)
             if repo and repo.key not in blob.repos:
                 blob.repos.append(repo.key)
@@ -687,15 +687,18 @@ class DatastoreStorage(Storage):
                 seq=block.seq, ops=template.ops)
 
     @ndb_context
-    @ndb.transactional(retries=10)
+    # TODO
+    # @ndb.transactional(retries=10)
     def commit(self, *args, **kwargs):
         """Just runs :meth:`Storage.commit` in a transaction."""
         return super().commit(*args, **kwargs)
 
     @ndb_context
+    @ndb.transactional(retries=10)
+    # TODO
     # MANDATORY means require that we're already in an ndb datastore transaction
     # when we're called
-    @ndb.transactional(propagation=context.TransactionOptions.MANDATORY)
+    # @ndb.transactional(propagation=context.TransactionOptions.MANDATORY)
     def _apply_commit(self, commit_data):
         super()._apply_commit(commit_data)
 
