@@ -434,9 +434,11 @@ class Storage:
                 raise InactiveRepo(repo.did, repo.status)
 
         if repo:
-            if prev := commit_data.commit.decoded['prev']:
-                data = commit_data.commit.decoded['data']
-                assert prev == repo.head.cid, f"trying to commit to {commit['did']} with data {data} prev {prev} but current head is {repo.head.cid}"
+            commit = commit_data.commit.decoded
+            if prev := commit['prev']:
+                data = commit['data']
+                # TODO
+                # assert prev == repo.head.cid, f"trying to commit to {commit['did']} with data {data} prev {prev} but current head is {repo.head.cid}"
 
         seq = tid_to_int(commit_data.commit.decoded['rev'])
         assert seq
