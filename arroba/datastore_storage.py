@@ -678,6 +678,7 @@ class DatastoreStorage(Storage):
 
     @ndb_context
     def write_blocks(self, blocks):
+        # TODO: switch to get_multi + put_multi?
         for block in blocks:
             template = AtpBlock.from_block(block)
             # get_or_insert so we don't wipe out any existing blocks' sequence

@@ -439,6 +439,8 @@ class Storage:
                 data = commit['data']
                 # TODO
                 # assert prev == repo.head.cid, f"trying to commit to {commit['did']} with data {data} prev {prev} but current head is {repo.head.cid}"
+                if prev != repo.head.cid:
+                    logger.warning(f"trying to commit to {commit['did']} with data {data} prev {prev} but current head is {repo.head.cid}")
 
         seq = tid_to_int(commit_data.commit.decoded['rev'])
         assert seq
