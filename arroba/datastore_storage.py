@@ -658,7 +658,7 @@ class DatastoreStorage(Storage):
                     break
 
                 except ContextError as e:
-                    logging.warning(f'lost ndb context! re-querying at {cur_seq}. {e}')
+                    logger.warning(f'lost ndb context! re-querying at {cur_seq}. {e}')
                     # continue loop, restart query
 
             # Context.use() resets this to the previous context when it exits,
@@ -695,13 +695,19 @@ class DatastoreStorage(Storage):
         return super().commit(*args, **kwargs)
 
     @ndb_context
-    @ndb.transactional(retries=10)
     # TODO
     # MANDATORY means require that we're already in an ndb datastore transaction
     # when we're called
     # @ndb.transactional(propagation=context.TransactionOptions.MANDATORY)
     def _apply_commit(self, commit_data):
-        super()._apply_commit(commit_data)
+        if not ndb.in_transaction():
+            logger.warning('_apply_commit not in transaction!')
+
+        sup = super()
+        @ndb.transactional(retries=10)
+        def apply():
+            sup._apply_commit(commit_data)
+        apply()
 
     @ndb_context
     def allocate_seq(self, nsid):
