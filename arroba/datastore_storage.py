@@ -688,26 +688,17 @@ class DatastoreStorage(Storage):
                 seq=block.seq, ops=template.ops)
 
     @ndb_context
-    # TODO
-    # @ndb.transactional(retries=10)
+    @ndb.transactional(retries=10)
     def commit(self, *args, **kwargs):
         """Just runs :meth:`Storage.commit` in a transaction."""
         return super().commit(*args, **kwargs)
 
     @ndb_context
-    # TODO
     # MANDATORY means require that we're already in an ndb datastore transaction
     # when we're called
-    # @ndb.transactional(propagation=context.TransactionOptions.MANDATORY)
+    @ndb.transactional(propagation=context.TransactionOptions.MANDATORY)
     def _apply_commit(self, commit_data):
-        if not ndb.in_transaction():
-            logger.warning('_apply_commit not in transaction!')
-
-        sup = super()
-        @ndb.transactional(retries=10)
-        def apply():
-            sup._apply_commit(commit_data)
-        apply()
+        super()._apply_commit(commit_data)
 
     @ndb_context
     def allocate_seq(self, nsid):
