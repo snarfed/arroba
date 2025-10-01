@@ -690,9 +690,9 @@ class DatastoreStorage(Storage):
     @ndb_context
     # TODO
     # @ndb.transactional(retries=10)
-    def commit(self, *args, **kwargs):
+    def _commit(self, *args, **kwargs):
         """Just runs :meth:`Storage.commit` in a transaction."""
-        return super().commit(*args, **kwargs)
+        return super()._commit(*args, **kwargs)
 
     @ndb_context
     # TODO

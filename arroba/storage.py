@@ -493,6 +493,10 @@ class Storage:
           InactiveError: if the repo is not active
           ValueError: if the path for an update or delete doesn't currently exist
         """
+        seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
+        return self._commit(repo, writes, seq, repo_did=repo_did)
+
+    def _commit(self, repo, writes, seq, repo_did=None):
         if repo.status:
             raise InactiveRepo(repo.did, repo.status)
 
@@ -568,7 +572,7 @@ class Storage:
             'version': 3,
             # reuse subscribeRepos sequence number as rev
             # https://github.com/bluesky-social/atproto/discussions/1607
-            'rev': util.int_to_tid(self.allocate_seq(SUBSCRIBE_REPOS_NSID), clock_id=0),
+            'rev': util.int_to_tid(seq, clock_id=0),
             'prev': prev,
             'data': root,
         }, repo.signing_key)
