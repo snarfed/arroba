@@ -266,18 +266,18 @@ class StorageTest(TestCase):
 
     def test_activate_repo(self):
         seen = []
-        repo = Repo.create(self.storage, 'did:user', signing_key=self.key,
-                           status=DEACTIVATED)
-        self.assertEqual(4, self.storage.last_seq(SUBSCRIBE_REPOS_NSID))
+        repo = Repo.create(self.storage, 'did:user', signing_key=self.key)
+        self.storage.deactivate_repo(repo)
+        self.assertEqual(5, self.storage.last_seq(SUBSCRIBE_REPOS_NSID))
 
         repo.callback = lambda event: seen.append(event)
         self.storage.activate_repo(repo)
         self.assertIsNone(repo.status)
 
-        self.assertEqual(5, self.storage.last_seq(SUBSCRIBE_REPOS_NSID))
+        self.assertEqual(6, self.storage.last_seq(SUBSCRIBE_REPOS_NSID))
         expected = {
             '$type': 'com.atproto.sync.subscribeRepos#account',
-            'seq': 5,
+            'seq': 6,
             'did': 'did:user',
             'time': NOW.isoformat(),
             'active': True,

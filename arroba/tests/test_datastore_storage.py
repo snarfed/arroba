@@ -88,19 +88,19 @@ class DatastoreStorageTest(DatastoreTest):
             encryption_algorithm=serialization.NoEncryption(),
         ), atp_repo.signing_key_pem)
 
-    def test_create_deactivated_repo(self):
-        repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key,
-                           rotation_key=self.key, status=DEACTIVATED)
-
-        self.assertEqual(DEACTIVATED, repo.status)
-        self.assertEqual(DEACTIVATED, self.storage.load_repo('did:web:user.com').status)
-        self.assertEqual(DEACTIVATED, AtpRepo.get_by_id('did:web:user.com').status)
-
     def test_create_load_repo_no_handle(self):
         repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key,
                            rotation_key=self.key)
         self.assertEqual([], AtpRepo.get_by_id('did:web:user.com').handles)
         self.assertIsNone(self.storage.load_repo('han.dull'))
+
+    def test_deactivate_repo(self):
+        repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key,
+                           rotation_key=self.key)
+        self.storage.deactivate_repo(repo)
+        self.assertEqual(DEACTIVATED, repo.status)
+        self.assertEqual(DEACTIVATED, self.storage.load_repo('did:web:user.com').status)
+        self.assertEqual(DEACTIVATED, AtpRepo.get_by_id('did:web:user.com').status)
 
     def test_tombstone_repo(self):
         repo = Repo.create(self.storage, 'did:user', signing_key=self.key)
@@ -319,8 +319,8 @@ class DatastoreStorageTest(DatastoreTest):
         self.assertEqual(cid, CID.decode(atp_repo.head))
 
     def test_commit_inactive_repo(self):
-        repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key,
-                           status=DEACTIVATED)
+        repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
+        self.storage.deactivate_repo(repo)
         head = repo.head
 
         with self.assertRaises(InactiveRepo):

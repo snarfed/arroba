@@ -418,29 +418,22 @@ class Storage:
         """
         raise NotImplementedError()
 
-    def _apply_commit(self, commit_data):
+    def _apply_commit(self, commit_data, repo):
         """Writes a commit to storage.
 
         Generates a new sequence number and uses it for all blocks in the commit.
 
         Args:
           commit (CommitData)
-
-        Raises:
-          InactiveError: if the repo is not active
+          repo (Repo)
         """
-        if repo := self.load_repo(commit_data.commit.repo):
-            if repo.status:
-                raise InactiveRepo(repo.did, repo.status)
-
-        if repo:
-            commit = commit_data.commit.decoded
-            if prev := commit['prev']:
-                data = commit['data']
-                # TODO
-                # assert prev == repo.head.cid, f"trying to commit to {commit['did']} with data {data} prev {prev} but current head is {repo.head.cid}"
-                if prev != repo.head.cid:
-                    logger.warning(f"trying to commit to {commit['did']} with data {data} prev {prev} but current head is {repo.head.cid}")
+        commit = commit_data.commit.decoded
+        if prev := commit['prev']:
+            data = commit['data']
+            # TODO
+            # assert prev == repo.head.cid, f"trying to commit to {commit['did']} with data {data} prev {prev} but current head is {repo.head.cid}"
+            if prev != repo.head.cid:
+                logger.warning(f"trying to commit to {commit['did']} with data {data} prev {prev} but current head is {repo.head.cid}")
 
         seq = tid_to_int(commit_data.commit.decoded['rev'])
         assert seq
@@ -452,7 +445,7 @@ class Storage:
         # numbers. (occasionally we see existing blocks recur, eg MST nodes.)
         self.write_blocks(commit_data.blocks.values())
 
-        if repo:
+        if repo.did:
             repo.head = commit_data.commit
             logger.info(f'Updating {repo.did} head {repo.head.cid}')
             self.store_repo(repo)
@@ -500,8 +493,12 @@ class Storage:
           InactiveError: if the repo is not active
           ValueError: if the path for an update or delete doesn't currently exist
         """
+        if repo.status:
+            raise InactiveRepo(repo.did, repo.status)
+
         orig_repo = repo
         if repo_did:
+            # this is the initial empty commit for creating a new repo
             if repo.head:
                 # this must be a transaction retry, and head was set by a previous
                 # attempt, below
@@ -579,7 +576,7 @@ class Storage:
         commit_blocks[commit_block.cid] = commit_block
 
         commit_data = CommitData(commit=commit_block, prev=prev, blocks=commit_blocks)
-        self._apply_commit(commit_data)
+        self._apply_commit(commit_data, repo)
 
         orig_repo.mst = repo.mst
         orig_repo.head = commit_block

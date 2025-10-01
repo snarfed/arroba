@@ -700,8 +700,8 @@ class DatastoreStorage(Storage):
     # MANDATORY means require that we're already in an ndb datastore transaction
     # when we're called
     # @ndb.transactional(propagation=context.TransactionOptions.MANDATORY)
-    def _apply_commit(self, commit_data):
-        super()._apply_commit(commit_data)
+    def _apply_commit(self, commit_data, repo):
+        super()._apply_commit(commit_data, repo)
 
     @ndb_context
     def allocate_seq(self, nsid):
