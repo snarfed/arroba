@@ -277,6 +277,7 @@ class AtpSequence(ndb.Model):
         ret = seq.next
         seq.next += 1
         seq.put()
+        logger.info(f'Allocated seq {ret}')
         return ret
 
     @classmethod

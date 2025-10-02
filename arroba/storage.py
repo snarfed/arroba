@@ -665,6 +665,7 @@ class MemoryStorage(Storage):
     def allocate_seq(self, nsid):
         assert nsid
         next = self.sequences.setdefault(nsid, 1)
+        logger.info(f'Allocated seq {next}')
         self.sequences[nsid] += 1
         return next
 
