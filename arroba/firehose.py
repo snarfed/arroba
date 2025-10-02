@@ -203,7 +203,8 @@ def collect(limit=None):
             assert cur_seq > last_seq
 
             # if we see a sequence number skipped, and we're not too far behind, wait
-            # up to NEW_EVENTS_TIMEOUT for it before giving up on it and moving on
+            # up to WAIT_FOR_SKIPPED_SEQ_WINDOW for it before giving up on it and
+            # moving on
             if cur_seq > last_seq + 1:
                 if time.time() - last_event <= timeout_s:
                     seqs_behind = server.storage.last_seq(SUBSCRIBE_REPOS_NSID) - cur_seq

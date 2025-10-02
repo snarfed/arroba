@@ -688,18 +688,15 @@ class DatastoreStorage(Storage):
                 seq=block.seq, ops=template.ops)
 
     @ndb_context
-    # TODO
-    # @ndb.transactional(retries=10)
+    @ndb.transactional(retries=10)
     def _commit(self, *args, **kwargs):
-        """Just runs :meth:`Storage.commit` in a transaction."""
+        """Just runs :meth:`Storage._commit` in a transaction."""
         return super()._commit(*args, **kwargs)
 
     @ndb_context
-    # TODO
-    @ndb.transactional(retries=10)
     # MANDATORY means require that we're already in an ndb datastore transaction
     # when we're called
-    # @ndb.transactional(propagation=context.TransactionOptions.MANDATORY)
+    @ndb.transactional(propagation=context.TransactionOptions.MANDATORY)
     def _apply_commit(self, commit_data, repo):
         super()._apply_commit(commit_data, repo)
 
