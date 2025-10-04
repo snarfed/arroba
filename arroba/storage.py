@@ -497,6 +497,7 @@ class Storage:
         return self._commit(repo, writes, seq, repo_did=repo_did)
 
     def _commit(self, repo, writes, seq, repo_did=None):
+        """Separate from :meth:`commit` so that subclasses can put it in a tx."""
         if repo.status:
             raise InactiveRepo(repo.did, repo.status)
 
