@@ -89,6 +89,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 * `ROLLBACK_WINDOW`, number of events to serve in the [`subscribeRepos` rollback window](https://atproto.com/specs/event-stream#sequence-numbers), as an integer. Defaults to 50k.
 * `PRELOAD_WINDOW`, number of events to preload into the [`subscribeRepos` rollback window](https://atproto.com/specs/event-stream#sequence-numbers) at startup, as an integer. Defaults to 4k.
 * `SUBSCRIBE_REPOS_BATCH_DELAY`, minimum time to wait between datastore queries in `com.atproto.sync.subscribeRepos`, in seconds, as a float. Defaults to 0 if unset.
+* `BLOB_RECHECK_DAYS`, how often in days to make HTTP HEAD requests to check that remote URL-based blobs stored in the datastore are still serving at the same URL. Defaults to 3. These HEAD request checks happen lazily, during `com.atproto.sync.getBlob` requests.
 
 <!-- Only used in app.py:
 * `REPO_DID`, repo user's DID, defaults to contents of `repo_did` file
@@ -110,6 +111,7 @@ _Breaking changes:_
 _Non-breaking changes:_
 
 * Add `AtpRemoteBlob.repos` property to track which repos have which blobs.
+* `xrpc_sync.get_blob`: periodically check remote blobs with HTTP HEAD requests to see if they're still serving.
 
 
 ### 1.0 - 2025-09-13

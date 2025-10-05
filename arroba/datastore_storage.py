@@ -1,10 +1,11 @@
 """Google Cloud Datastore implementation of repo storage."""
-from datetime import timezone
+from datetime import timedelta, timezone
 from functools import wraps
 from io import BytesIO
 import json
 import logging
 import mimetypes
+import os
 import requests
 
 from cryptography.hazmat.primitives import serialization
@@ -25,6 +26,7 @@ from .repo import Repo
 from .server import server
 from . import storage
 from .storage import Action, Block, Storage, SUBSCRIBE_REPOS_NSID
+from . import util
 from .util import (
     dag_cbor_cid,
     tid_to_int,
@@ -324,12 +326,17 @@ class AtpRemoteBlob(ndb.Model):
     # used to enforce maximum duration
     duration = ndb.IntegerProperty()
 
+    last_checked = ndb.DateTimeProperty(tzinfo=timezone.utc)
+    status = ndb.StringProperty(choices=('inactive',))
+    'None means active (valid)'
+
     created = ndb.DateTimeProperty(auto_now_add=True)
     updated = ndb.DateTimeProperty(auto_now=True)
 
     @classmethod
     def get_or_create(cls, *, url=None, repo=None, get_fn=requests.get,
-                      max_size=None, accept_types=None, name=''):
+                      head_fn=requests.head, max_size=None, accept_types=None,
+                      name=''):
         """Returns a new or existing :class:`AtpRemoteBlob` for a given URL.
 
         If there isn't an existing :class:`AtpRemoteBlob`, fetches the URL over
@@ -339,6 +346,7 @@ class AtpRemoteBlob(ndb.Model):
           url (str)
           repo (AtpRepo): optional
           get_fn (callable): for making HTTP GET requests
+          head_fn (callable): for making HTTP HEAD requests
           max_size (int, optional): the ``maxSize`` parameter for this blob
             field in its lexicon, if any
           accept_types (sequence of str, optional): the ``accept`` parameter for
@@ -386,9 +394,13 @@ class AtpRemoteBlob(ndb.Model):
                 return blob
 
         if blob := get():
+            if blob.status:
+                raise requests.HTTPError(f'URL {url_key} is {blob.status}')
+
             validate_size(blob.size)
             validate_duration(blob.duration)
             server.validate_mime_type(blob.mime_type, accept_types, name=url)
+            blob.check_url(head_fn=head_fn)
             return blob
 
         # fetch the file!
@@ -432,6 +444,8 @@ class AtpRemoteBlob(ndb.Model):
 
         blob = get_or_insert()
         blob.generate_metadata(resp.content)
+        blob.status = None
+        blob.last_checked = util.now()
         blob.put()
 
         # re-validate size in case the server didn't give us Content-Length.
@@ -484,6 +498,46 @@ class AtpRemoteBlob(ndb.Model):
                     self.duration = track.duration
             except (OSError, RuntimeError) as e:
                 logger.info(e)
+
+    def check_url(self, head_fn=requests.head):
+        """Validates that the blob URL is still accessible.
+
+        Checks if the blob needs revalidation based on last_checked timestamp.
+        If validation is needed, makes a HEAD request to verify the URL is still
+        accessible. Updates status and last_checked accordingly.
+
+        Args:
+          head_fn (callable): for making HTTP HEAD requests
+
+        Raises:
+          requests.HTTPError: if the URL returns a 404 or other error
+        """
+        assert not self.status
+
+        recheck_threshold = util.now() - timedelta(
+            days=int(os.environ.get('BLOB_RECHECK_DAYS', 3)))
+
+        if self.last_checked and self.last_checked >= recheck_threshold:
+            return
+
+        logger.info(f'Rechecking blob URL {self.key.id()}')
+
+        self.last_checked = util.now()
+        try:
+            resp = head_fn(self.key.id())
+            if resp.ok:
+                self.status = None
+            elif resp.status_code // 100 == 4:
+                logger.info('Marking blob inactive')
+                self.status = 'inactive'
+        except OSError:
+            # socket error, timeout, etc. not conclusive one way or the other.
+            pass
+        finally:
+            self.put()
+
+        if self.status == 'inactive':
+            resp.raise_for_status()
 
 
 class DatastoreStorage(Storage):

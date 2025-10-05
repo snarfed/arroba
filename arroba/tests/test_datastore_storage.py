@@ -1,5 +1,6 @@
 """Unit tests for datastore_storage.py."""
 from collections import namedtuple
+from datetime import timedelta
 import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -11,6 +12,7 @@ from google.cloud import ndb
 from lexrpc import ValidationError
 from multiformats import CID
 from pymediainfo import MediaInfo
+import requests
 
 from ..datastore_storage import (
     AtpBlock,
@@ -32,7 +34,7 @@ from ..util import (
 )
 
 from . import test_repo
-from .testutil import DatastoreTest, requests_response
+from .testutil import DatastoreTest, NOW, requests_response
 
 CIDS = [
     CID.decode('bafyreie5cvv4h45feadgeuwhbcutmh6t2ceseocckahdoe6uat64zmz454'),
@@ -357,7 +359,8 @@ class DatastoreStorageTest(DatastoreTest):
 
     def test_create_remote_blob_new_repo(self):
         first = AtpRepo(id='did:first')
-        blob = AtpRemoteBlob(id='http://blob', repos=[], cid='123', size=2)
+        blob = AtpRemoteBlob(id='http://blob', repos=[], cid='123', size=2,
+                             last_checked=NOW)
         blob.put()
 
         first = AtpRepo(id='did:first')
@@ -556,3 +559,79 @@ class DatastoreStorageTest(DatastoreTest):
 
         got = AtpRemoteBlob.get_or_create(url='http://my/long/blob.png', repo=repo)
         self.assertEqual(blob, got)
+
+    @patch('requests.head', return_value=requests_response(''))
+    def test_get_or_create_blob_old_last_checked_rechecks(self, mock_head):
+        blob = AtpRemoteBlob(id='http://blob', cid='123', size=10,
+                             last_checked=NOW - timedelta(days=5))
+        blob.put()
+
+        got = AtpRemoteBlob.get_or_create(url='http://blob', head_fn=mock_head)
+        self.assertEqual(blob.key, got.key)
+        mock_head.assert_called_once_with('http://blob')
+
+        blob = blob.key.get()
+        self.assertIsNone(blob.status)
+        self.assertEqual(NOW, blob.last_checked)
+
+    @patch('requests.head')
+    def test_get_or_create_blob_recent_last_checked(self, mock_head):
+        blob = AtpRemoteBlob(id='http://blob', cid='123', size=10,
+                             last_checked=NOW - timedelta(days=1))
+        blob.put()
+
+        got = AtpRemoteBlob.get_or_create(url='http://blob', head_fn=mock_head)
+        mock_head.assert_not_called()
+        self.assertEqual(blob.key, got.key)
+
+    def test_get_or_create_inactive_blob_returns_404(self):
+        AtpRemoteBlob(id='http://blob', cid='123', size=10, status='inactive',
+                      last_checked=NOW).put()
+
+        with self.assertRaises(requests.HTTPError):
+            AtpRemoteBlob.get_or_create(url='http://blob')
+
+    @patch('requests.head', return_value=requests_response('', status=404))
+    def test_get_or_create_check_url_404_marks_inactive(self, mock_head):
+        blob = AtpRemoteBlob(id='http://blob', cid='123', size=10)
+        blob.put()
+
+        with self.assertRaises(requests.RequestException) as e:
+            AtpRemoteBlob.get_or_create(url='http://blob', head_fn=mock_head)
+
+        self.assertEqual(404, e.exception.response.status_code)
+        mock_head.assert_called_once_with('http://blob')
+
+        blob = blob.key.get()
+        self.assertEqual('inactive', blob.status)
+        self.assertEqual(NOW, blob.last_checked)
+
+    @patch('requests.head', return_value=requests_response('', status=500))
+    def test_get_or_create_check_url_500_doesnt_set_status(self, mock_head):
+        blob = AtpRemoteBlob(id='http://blob', cid='123', size=10)
+        blob.put()
+
+        got = AtpRemoteBlob.get_or_create(url='http://blob', head_fn=mock_head)
+
+        self.assertEqual(blob.key, got.key)
+        self.assertIsNone(got.status)
+        mock_head.assert_called_once_with('http://blob')
+
+        blob = blob.key.get()
+        self.assertIsNone(blob.status)
+        self.assertEqual(NOW, blob.last_checked)
+
+    @patch('requests.head', side_effect=requests.exceptions.ConnectionError('nope'))
+    def test_get_or_create_check_url_conn_error_doesnt_set_status(self, mock_head):
+        blob = AtpRemoteBlob(id='http://blob', cid='123', size=10)
+        blob.put()
+
+        got = AtpRemoteBlob.get_or_create(url='http://blob', head_fn=mock_head)
+
+        self.assertEqual(blob.key, got.key)
+        self.assertIsNone(got.status)
+        mock_head.assert_called_once_with('http://blob')
+
+        blob = blob.key.get()
+        self.assertIsNone(blob.status)
+        self.assertEqual(NOW, blob.last_checked)
