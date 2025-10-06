@@ -418,38 +418,6 @@ class Storage:
         """
         raise NotImplementedError()
 
-    def _apply_commit(self, commit_data, repo):
-        """Writes a commit to storage.
-
-        Generates a new sequence number and uses it for all blocks in the commit.
-
-        Args:
-          commit (CommitData)
-          repo (Repo)
-        """
-        commit = commit_data.commit.decoded
-        if prev := commit['prev']:
-            data = commit['data']
-            # TODO
-            # assert prev == repo.head.cid, f"trying to commit to {commit['did']} with data {data} prev {prev} but current head is {repo.head.cid}"
-            if prev != repo.head.cid:
-                logger.warning(f"trying to commit to {commit['did']} with data {data} prev {prev} but current head is {repo.head.cid}")
-
-        seq = tid_to_int(commit_data.commit.decoded['rev'])
-        assert seq
-
-        for block in commit_data.blocks.values():
-            block.seq = seq
-
-        # only add new blocks so we don't wipe out any existing blocks' sequence
-        # numbers. (occasionally we see existing blocks recur, eg MST nodes.)
-        self.write_blocks(commit_data.blocks.values())
-
-        if repo.did:
-            repo.head = commit_data.commit
-            logger.info(f'Updating {repo.did} head {repo.head.cid}')
-            self.store_repo(repo)
-
     def allocate_seq(self, nsid):
         """Generates and returns a sequence number for the given NSID.
 
@@ -498,6 +466,7 @@ class Storage:
 
     def _commit(self, repo, writes, seq, repo_did=None):
         """Separate from :meth:`commit` so that subclasses can put it in a tx."""
+        assert seq
         if repo.status:
             raise InactiveRepo(repo.did, repo.status)
 
@@ -511,10 +480,13 @@ class Storage:
                 assert not repo.head.decoded.get('prev'), repo.head.decoded
                 repo.head = None
             assert not repo.did
+            prev = None
         else:
+            # this is an existing repo with at least one commit
             assert repo.did
             repo_did = repo.did
             repo = self.load_repo(repo_did)
+            prev = repo.head.cid  # for the new commit
 
         commit_blocks = {}  # maps CID to Block
         assert writes is not None
@@ -543,7 +515,7 @@ class Storage:
             assert write.record is not None
             server.validate(write.record.get('$type'), 'record', write.record)
 
-            block = Block(decoded=write.record, repo=repo_did)
+            block = Block(decoded=write.record, repo=repo_did, seq=seq)
             commit_blocks[block.cid] = block
 
             op = CommitOp(action=write.action, path=path,
@@ -565,9 +537,10 @@ class Storage:
         root, unstored_blocks = repo.mst.get_unstored_blocks()
         for block in unstored_blocks.values():
             block.repo = repo_did
+            block.seq = seq
         commit_blocks.update(unstored_blocks)
-        prev = repo.head.cid if repo.head else None
 
+        # construct commit
         commit = util.sign({
             'did': repo_did,
             'version': 3,
@@ -577,11 +550,19 @@ class Storage:
             'prev': prev,
             'data': root,
         }, repo.signing_key)
-        commit_block = Block(decoded=commit, repo=repo_did, ops=ops)
+        commit_block = Block(decoded=commit, repo=repo_did, seq=seq, ops=ops)
         commit_blocks[commit_block.cid] = commit_block
-
         commit_data = CommitData(commit=commit_block, prev=prev, blocks=commit_blocks)
-        self._apply_commit(commit_data, repo)
+
+        # only add new blocks so we don't wipe out any existing blocks' sequence
+        # numbers. (occasionally we see existing blocks recur, eg MST nodes.)
+        self.write_blocks(commit_data.blocks.values())
+
+        # update repo head
+        if repo.did:
+            repo.head = commit_data.commit
+            logger.info(f'Updating {repo.did} head {repo.head.cid}')
+            self.store_repo(repo)
 
         orig_repo.mst = repo.mst
         orig_repo.head = commit_block
