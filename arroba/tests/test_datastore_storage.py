@@ -19,6 +19,7 @@ from ..datastore_storage import (
     AtpRemoteBlob,
     AtpRepo,
     AtpSequence,
+    BLOB_MAX_BYTES,
     DatastoreStorage,
     WriteOnceBlobProperty,
 )
@@ -441,13 +442,14 @@ class DatastoreStorageTest(DatastoreTest):
         self.assertEqual(blob, got)
         mock_get.assert_not_called()
 
-    def test_create_remote_blob_content_length_over_max_size(self):
+    def test_create_remote_blob_content_length_over_lexicon_max_size(self):
         mock_get = MagicMock(return_value=requests_response('x' * 123, headers={
             'Content-Type': 'foo/bar',
             'Content-Length': '123',
         }))
         with self.assertRaises(ValidationError):
-            AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get, max_size=99)
+            AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
+                                        max_size=99)
 
     def test_get_or_create_local_blob_content_length_over_max_size(self):
         AtpRemoteBlob(id='http://blob', size=123, cid='asdf', last_fetched=NOW).put()
@@ -459,11 +461,31 @@ class DatastoreStorageTest(DatastoreTest):
 
         mock_get.assert_not_called()
 
-    def test_create_blob_no_content_length_over_max_size(self):
+    def test_create_blob_no_content_length_over_lexicon_max_size(self):
         mock_get = MagicMock(return_value=requests_response('blob contents'))
         with self.assertRaises(ValidationError):
             AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
                                         max_size=10)
+
+        mock_get.assert_called_with('http://blob', stream=True)
+
+        blob = AtpRemoteBlob.get_by_id('http://blob')
+        self.assertEqual(BLOB_CID.encode('base32'), blob.cid)
+        self.assertEqual(NOW, blob.last_fetched)
+
+    def test_create_blob_no_content_length_over_BLOB_MAX_BYTES_doesnt_fetch(self):
+        mock_get = MagicMock(return_value=requests_response('blob contents', headers={
+            'Content-Length': BLOB_MAX_BYTES + 1,
+        }))
+        with self.assertRaises(ValidationError):
+            AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
+                                        max_size=10)
+
+        blob = AtpRemoteBlob.get_by_id('http://blob')
+        self.assertEqual(NOW, blob.last_fetched)
+        self.assertEqual(BLOB_MAX_BYTES + 1, blob.size)
+        # we shouldn't have fetched, so we shouldn't have the cid
+        self.assertIsNone(blob.cid)
 
     def test_create_blob_content_type_in_accept(self):
         mock_get = MagicMock(return_value=requests_response('blob contents', headers={

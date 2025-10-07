@@ -113,7 +113,7 @@ _Breaking changes:_
 _Non-breaking changes:_
 
 * Add `AtpRemoteBlob.repos` property to track which repos have which blobs.
-* `xrpc_sync.get_blob`: periodically check remote blobs with HTTP HEAD requests to see if they're still serving.
+* `xrpc_sync.get_blob`: periodically check remote blobs with HTTP GET requests to see if they're still serving.
 
 
 ### 1.0 - 2025-09-13

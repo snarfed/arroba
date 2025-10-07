@@ -439,11 +439,13 @@ class AtpRemoteBlob(ndb.Model):
         logger.info(f'Got {resp.status_code} {self.mime_type} {length} bytes {resp.url}')
 
         try:
-            length = int(length)
-            if length and length > BLOB_MAX_BYTES:
-                raise ValidationError(f'{url} Content-Length {length} is over BLOB_MAX_BYTES')
+            length = self.size = int(length)
         except (TypeError, ValueError):
             pass  # read body and check length manually below
+
+        if self.size and self.size > BLOB_MAX_BYTES:
+            self.put()
+            raise ValidationError(f'{url} Content-Length {length} is over BLOB_MAX_BYTES')
 
         # calculate CID and update blob
         digest = multihash.digest(resp.content, 'sha2-256')
