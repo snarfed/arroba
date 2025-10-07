@@ -555,8 +555,33 @@ class DatastoreStorageTest(DatastoreTest):
         mock_get.assert_not_called()
 
     @patch.object(MediaInfo, 'parse')
+    def test_create_remote_blob_video_string_float_duration(self, mock_parse):
+        # https://console.cloud.google.com/errors/detail/CJ2ZybrV4qDV3gE;locations=global;time=P30D?project=bridgy-federated
+        track = MagicMock(width=123, height=456, duration='4740.000001')
+        mock_parse.return_value = MagicMock(video_tracks=[track])
+
+        mock_get = MagicMock(return_value=requests_response(b'some video', headers={
+            'Content-Type': 'video/mp4',
+        }))
+        repo = AtpRepo(id='did:abc')
+        blob = AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
+                                           repo=repo)
+
+        self.assertEqual('http://blob', blob.key.id())
+        self.assertEqual('http://blob', blob.url)
+        self.assertIsNotNone(blob.cid)
+        self.assertEqual(123, blob.width)
+        self.assertEqual(456, blob.height)
+        self.assertEqual(4740, blob.duration)
+        self.assertEqual([repo.key], blob.repos)
+
+        self.assertEqual(blob.to_dict(), blob.key.get().to_dict())
+
+        self.assertEqual(b'some video', mock_parse.call_args.args[0].read())
+        mock_get.assert_called_once_with('http://blob', stream=True)
+
+    @patch.object(MediaInfo, 'parse')
     def test_create_remote_blob_video_over_max_duration(self, mock_parse):
-        # Track = namedtuple('Track', ('width', 'height', 'duration'))
         track = MagicMock(width=123, height=456, duration=5* 60_000)
         mock_parse.return_value = MagicMock(video_tracks=[track])
 

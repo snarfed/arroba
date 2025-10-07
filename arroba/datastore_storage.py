@@ -495,8 +495,8 @@ class AtpRemoteBlob(ndb.Model):
                     track = media_info.video_tracks[0]
                     self.width = track.width
                     self.height = track.height
-                    self.duration = track.duration
-            except (OSError, RuntimeError) as e:
+                    self.duration = int(float(track.duration))
+            except (OSError, RuntimeError, TypeError, ValueError) as e:
                 logger.info(e)
 
     def validate(self, max_size=None, accept_types=None, name=''):
