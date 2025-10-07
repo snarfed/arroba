@@ -42,6 +42,11 @@ logger = logging.getLogger(__name__)
 # https://github.com/python-pillow/Pillow/issues/6507#issuecomment-2199724849
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
+BLOB_REFETCH_AGE = timedelta(days=float(os.environ.get('BLOB_REFETCH_DAYS', 3)))
+BLOB_MAX_BYTES = int(os.environ.get('BLOB_MAX_BYTES', 100_000_000))
+# https://bsky.app/profile/bsky.app/post/3lk26lxn6sk2u
+VIDEO_MAX_DURATION = timedelta(minutes=3)
+
 
 class WriteOnce:
     """:class:`ndb.Property` mix-in, prevents changing it once it's set."""
@@ -302,7 +307,7 @@ class AtpSequence(ndb.Model):
 class AtpRemoteBlob(ndb.Model):
     """A blob available at a public HTTP URL that we don't store ourselves.
 
-    Key ID is the URL.
+    Key ID is the URL, truncated if necessary.
 
     * https://atproto.com/specs/data-model#blob-type
     * https://atproto.com/specs/xrpc#blob-upload-and-download
@@ -311,8 +316,10 @@ class AtpRemoteBlob(ndb.Model):
     * follow redirects, use final URL as key id
     * abstract this in :class:`Storage`
     """
-    cid = ndb.StringProperty(required=True)
-    size = ndb.IntegerProperty(required=True)
+    url = ndb.StringProperty()
+    'full length URL'
+    cid = ndb.StringProperty()
+    size = ndb.IntegerProperty()
     mime_type = ndb.StringProperty(required=True, default='application/octet-stream')
     repos = ndb.KeyProperty(repeated=True)
 
@@ -325,28 +332,28 @@ class AtpRemoteBlob(ndb.Model):
     # only populated if mime_type is video/*
     # used to enforce maximum duration
     duration = ndb.IntegerProperty()
+    'in ms'
 
-    last_checked = ndb.DateTimeProperty(tzinfo=timezone.utc)
+    last_fetched = ndb.DateTimeProperty(tzinfo=timezone.utc)
     status = ndb.StringProperty(choices=('inactive',))
-    'None means active (valid)'
+    'None means active'
 
     created = ndb.DateTimeProperty(auto_now_add=True)
     updated = ndb.DateTimeProperty(auto_now=True)
 
+
     @classmethod
     def get_or_create(cls, *, url=None, repo=None, get_fn=requests.get,
-                      head_fn=requests.head, max_size=None, accept_types=None,
-                      name=''):
+                      max_size=None, accept_types=None, name=''):
         """Returns a new or existing :class:`AtpRemoteBlob` for a given URL.
 
-        If there isn't an existing :class:`AtpRemoteBlob`, fetches the URL over
-        the network and creates a new one for it.
+        If there isn't an existing :class:`AtpRemoteBlob`, or if the existing one
+        needs to be reloaded, fetches the URL over the network.
 
         Args:
           url (str)
           repo (AtpRepo): optional
           get_fn (callable): for making HTTP GET requests
-          head_fn (callable): for making HTTP HEAD requests
           max_size (int, optional): the ``maxSize`` parameter for this blob
             field in its lexicon, if any
           accept_types (sequence of str, optional): the ``accept`` parameter for
@@ -362,98 +369,89 @@ class AtpRemoteBlob(ndb.Model):
             not in ``accept_types`` or it is a video with a duration above the 3m
             limit
         """
-        def validate_size(size):
-            if max_size and size > max_size:
-                raise ValidationError(f'{url} Content-Length {size} is over {name} blob maxSize {max_size}')
-
-        def validate_duration(duration):
-            # enforce 3m maximum video duration
-            # https://bsky.app/profile/bsky.app/post/3lk26lxn6sk2u
-            max_duration = 3 * 60_000 # milliseconds
-            if duration and duration > max_duration:
-                raise ValidationError(f'{url} duration {duration / 1000} is over {max_duration / 1000}s')
-
         assert url
-
         url_key = url
         if len(url_key) > _MAX_KEYPART_BYTES:
             # TODO: handle Unicode chars. naive approach is to UTF-8 encode,
             # truncate, then decode, but that might cut mid character. easier to just
             # hope/assume the URL is already URL-encoded.
             url_key = url[:_MAX_KEYPART_BYTES]
-            logger.warning(f'Truncating URL to {_MAX_KEYPART_BYTES} chars: {url_key}')
+            logger.warning(f'Truncating URL {url} to {_MAX_KEYPART_BYTES} chars: {url_key}')
 
-        # if the blob already exists, just add this repo and return it
-        @ndb.transactional()
-        def get():
-            blob = cls.get_by_id(url_key)
-            if blob:
-                if repo and repo.key not in blob.repos:
-                    blob.repos.append(repo.key)
-                    blob.put()
-                return blob
-
-        if blob := get():
-            if blob.status:
-                raise requests.HTTPError(f'URL {url_key} is {blob.status}')
-
-            validate_size(blob.size)
-            validate_duration(blob.duration)
-            server.validate_mime_type(blob.mime_type, accept_types, name=url)
-            blob.check_url(head_fn=head_fn)
-            return blob
-
-        # fetch the file!
-        resp = get_fn(url, stream=True)
-        resp.raise_for_status()
-
-        mime_type = resp.headers.get('Content-Type')
-        if not mime_type:
-            mime_type, _ = mimetypes.guess_type(url)
-        length = resp.headers.get('Content-Length')
-        logger.info(f'Got {resp.status_code} {mime_type} {length} bytes {resp.url}')
-
-        # check type
-        server.validate_mime_type(mime_type, accept_types, name=url)
-
-        # check size
-        try:
-            length = int(length)
-        except (TypeError, ValueError):
-            length = None  # read body and check length manually below
-        if length:
-            validate_size(length)
-
-        # now ready to fetch body
-        digest = multihash.digest(resp.content, 'sha2-256')
-        cid = CID('base58btc', 1, 'raw', digest).encode('base32')
-
-        # note that if the initial URL redirects, we still store it in the
-        # AtpRemoteBlob, not the final resolved URL after redirects.
-        logger.info(f'Creating new AtpRemoteBlob for {url} CID {cid}')
+        # if the blob already exists, just add this repo if necessary and return it
         @ndb.transactional()
         def get_or_insert():
-            mime_type_prop = {'mime_type': mime_type} if mime_type else {}
             repos = [repo.key] if repo else []
-            blob = cls.get_or_insert(url_key, cid=cid, repos=repos,
-                                     size=len(resp.content), **mime_type_prop)
+            blob = cls.get_or_insert(url_key, repos=repos)
+            blob.url = url
             if repo and repo.key not in blob.repos:
                 blob.repos.append(repo.key)
                 blob.put()
             return blob
 
         blob = get_or_insert()
-        blob.generate_metadata(resp.content)
-        blob.status = None
-        blob.last_checked = util.now()
-        blob.put()
+        if blob.status:
+            raise requests.HTTPError(f'Blob {url_key} is {blob.status}')
 
-        # re-validate size in case the server didn't give us Content-Length.
-        # do this after storing blob so that we don't re-download it next time.
-        validate_size(len(resp.content))
-        validate_duration(blob.duration)
-
+        blob.maybe_fetch(get_fn=get_fn)
+        blob.validate(max_size=max_size, accept_types=accept_types, name=name)
         return blob
+
+    def maybe_fetch(self, get_fn=requests.get):
+        """Fetches the blob from its URL and updates its metadata, if necessary.
+
+        Args:
+          get_fn (callable, optional): for making HTTP GET requests
+        """
+        if self.mime_type.startswith('video/') and self.cid:
+            # we don't refetch videos
+            return
+        elif self.last_fetched and self.last_fetched >= util.now() - BLOB_REFETCH_AGE:
+            # we've (re)fetched this recently
+            return
+
+        url = self.url or self.key.id()
+        logger.info(f'(Re)fetching blob URL {url}')
+        self.last_fetched = util.now()
+
+        try:
+            resp = get_fn(url, stream=True)
+            # if this is our first try, give up if it's not serving.
+            # otherwise, 4xx is conclusive; others like 5xx aren't
+            if resp.status_code // 100 == 4 or (not resp.ok and not self.cid):
+                logger.info('Marking blob inactive')
+                self.status = 'inactive'
+            resp.raise_for_status()
+        except OSError as e:
+            if not self.cid:
+                self.status = 'inactive'
+            raise requests.HTTPError(f"Couldn't fetch blob: {e}")
+        finally:
+            self.put()
+
+        # check type, size
+        self.mime_type = resp.headers.get('Content-Type')
+        if not self.mime_type:
+            self.mime_type, _ = mimetypes.guess_type(url)
+        if not self.mime_type:
+            self.mime_type = 'application/octet-stream'
+        length = resp.headers.get('Content-Length')
+        logger.info(f'Got {resp.status_code} {self.mime_type} {length} bytes {resp.url}')
+
+        try:
+            length = int(length)
+            if length and length > BLOB_MAX_BYTES:
+                raise ValidationError(f'{url} Content-Length {length} is over BLOB_MAX_BYTES')
+        except (TypeError, ValueError):
+            pass  # read body and check length manually below
+
+        # calculate CID and update blob
+        digest = multihash.digest(resp.content, 'sha2-256')
+        self.cid = CID('base58btc', 1, 'raw', digest).encode('base32')
+        self.size = len(resp.content)
+        self.generate_metadata(resp.content)
+        self.status = None
+        self.put()
 
     def as_object(self):
         """Returns an ATProto ``blob`` object for this blob.
@@ -499,45 +497,27 @@ class AtpRemoteBlob(ndb.Model):
             except (OSError, RuntimeError) as e:
                 logger.info(e)
 
-    def check_url(self, head_fn=requests.head):
-        """Validates that the blob URL is still accessible.
-
-        Checks if the blob needs revalidation based on last_checked timestamp.
-        If validation is needed, makes a HEAD request to verify the URL is still
-        accessible. Updates status and last_checked accordingly.
+    def validate(self, max_size=None, accept_types=None, name=''):
+        """Checks that this blob satisfies size and type constraints.
 
         Args:
-          head_fn (callable): for making HTTP HEAD requests
-
-        Raises:
-          requests.HTTPError: if the URL returns a 404 or other error
+          max_size (int, optional): the ``maxSize`` parameter for this blob
+            field in its lexicon, if any
+          accept_types (sequence of str, optional): the ``accept`` parameter for
+            this blob field in its lexicon, if any. The set of allowed MIME types.
+          name (str, optional): blob field name in lexicon
         """
-        assert not self.status
+        url = self.url or self.key.id()
 
-        recheck_threshold = util.now() - timedelta(
-            days=int(os.environ.get('BLOB_RECHECK_DAYS', 3)))
+        server.validate_mime_type(self.mime_type, accept_types, name=name)
 
-        if self.last_checked and self.last_checked >= recheck_threshold:
-            return
+        if self.size > BLOB_MAX_BYTES:
+            raise ValidationError(f'{url} size {self.size} is over BLOB_MAX_BYTES')
+        elif max_size and self.size > max_size:
+            raise ValidationError(f'{url} size {self.size} is over {name} blob maxSize {max_size}')
 
-        logger.info(f'Rechecking blob URL {self.key.id()}')
-
-        self.last_checked = util.now()
-        try:
-            resp = head_fn(self.key.id())
-            if resp.ok:
-                self.status = None
-            elif resp.status_code // 100 == 4:
-                logger.info('Marking blob inactive')
-                self.status = 'inactive'
-        except OSError:
-            # socket error, timeout, etc. not conclusive one way or the other.
-            pass
-        finally:
-            self.put()
-
-        if self.status == 'inactive':
-            resp.raise_for_status()
+        if self.duration and timedelta(milliseconds=self.duration) > VIDEO_MAX_DURATION:
+            raise ValidationError(f'{url} duration {self.duration / 1000}s is over limit {VIDEO_MAX_DURATION}')
 
 
 class DatastoreStorage(Storage):

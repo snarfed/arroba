@@ -360,7 +360,7 @@ class DatastoreStorageTest(DatastoreTest):
     def test_create_remote_blob_new_repo(self):
         first = AtpRepo(id='did:first')
         blob = AtpRemoteBlob(id='http://blob', repos=[], cid='123', size=2,
-                             last_checked=NOW)
+                             last_fetched=NOW)
         blob.put()
 
         first = AtpRepo(id='did:first')
@@ -442,21 +442,19 @@ class DatastoreStorageTest(DatastoreTest):
         mock_get.assert_not_called()
 
     def test_create_remote_blob_content_length_over_max_size(self):
-        mock_get = MagicMock(return_value=requests_response('blob contents', headers={
+        mock_get = MagicMock(return_value=requests_response('x' * 123, headers={
             'Content-Type': 'foo/bar',
             'Content-Length': '123',
         }))
         with self.assertRaises(ValidationError):
-            AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
-                                        max_size=99)
+            AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get, max_size=99)
 
     def test_get_or_create_local_blob_content_length_over_max_size(self):
-        AtpRemoteBlob(id='http://blob', size=123, cid='').put()
+        AtpRemoteBlob(id='http://blob', size=123, cid='asdf', last_fetched=NOW).put()
         mock_get = MagicMock()
 
         with self.assertRaises(ValidationError):
-            AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
-                                        max_size=99)
+            AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get, max_size=99)
 
         mock_get.assert_not_called()
 
@@ -522,7 +520,8 @@ class DatastoreStorageTest(DatastoreTest):
         }, blob.as_object())
 
     def test_get_or_create_local_blob_content_type_not_in_accept(self):
-        AtpRemoteBlob(id='http://blob', size=123, cid='', mime_type='foo/bar').put()
+        AtpRemoteBlob(id='http://blob', size=123, cid='asdf', mime_type='foo/bar',
+                      last_fetched=NOW).put()
         mock_get = MagicMock()
 
         repo = AtpRepo(id='did:abc')
@@ -560,78 +559,117 @@ class DatastoreStorageTest(DatastoreTest):
         got = AtpRemoteBlob.get_or_create(url='http://my/long/blob.png', repo=repo)
         self.assertEqual(blob, got)
 
-    @patch('requests.head', return_value=requests_response(''))
-    def test_get_or_create_blob_old_last_checked_rechecks(self, mock_head):
+    @patch('requests.get', return_value=requests_response('blob contents'))
+    def test_get_or_create_blob_old_last_fetched_refetches(self, mock_get):
         blob = AtpRemoteBlob(id='http://blob', cid='123', size=10,
-                             last_checked=NOW - timedelta(days=5))
+                             last_fetched=NOW - timedelta(days=5))
         blob.put()
 
-        got = AtpRemoteBlob.get_or_create(url='http://blob', head_fn=mock_head)
+        got = AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get)
         self.assertEqual(blob.key, got.key)
-        mock_head.assert_called_once_with('http://blob')
+        mock_get.assert_called_once_with('http://blob', stream=True)
 
         blob = blob.key.get()
         self.assertIsNone(blob.status)
-        self.assertEqual(NOW, blob.last_checked)
+        self.assertEqual(NOW, blob.last_fetched)
 
-    @patch('requests.head')
-    def test_get_or_create_blob_recent_last_checked(self, mock_head):
+    @patch('requests.get')
+    def test_get_or_create_video_blob_doesnt_refetch(self, mock_get):
+        for last_fetched in (None, NOW - timedelta(days=5)):
+            with self.subTest(last_fetched=last_fetched):
+                blob = AtpRemoteBlob(id='http://blob', cid='123', size=10,
+                                     mime_type='video/mp4', last_fetched=last_fetched)
+                blob.put()
+
+                got = AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get)
+                self.assertEqual(blob.key, got.key)
+                mock_get.assert_not_called()
+
+                blob = blob.key.get()
+                self.assertIsNone(blob.status)
+                self.assertEqual(last_fetched, blob.last_fetched)
+
+    @patch('requests.get')
+    def test_get_or_create_blob_recent_last_fetched(self, mock_get):
         blob = AtpRemoteBlob(id='http://blob', cid='123', size=10,
-                             last_checked=NOW - timedelta(days=1))
+                             last_fetched=NOW - timedelta(days=1))
         blob.put()
 
-        got = AtpRemoteBlob.get_or_create(url='http://blob', head_fn=mock_head)
-        mock_head.assert_not_called()
+        got = AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get)
+        mock_get.assert_not_called()
         self.assertEqual(blob.key, got.key)
+
+    @patch('requests.get')
+    def test_get_or_create_blob_refetch_updates_metadata(self, mock_get):
+        old_contents = 'old blob contents'
+        new_contents = 'new blob contents with different size'
+
+        mock_get.return_value = requests_response(
+            new_contents, headers={'Content-Type': 'text/plain'})
+
+        # create existing blob with old metadata
+        blob = AtpRemoteBlob(id='http://blob', cid='old-cid-123', size=len(old_contents),
+                             mime_type='application/octet-stream',
+                             last_fetched=NOW - timedelta(days=5))
+        blob.put()
+
+        got = AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get)
+        self.assertEqual(blob.key, got.key)
+        mock_get.assert_called_once_with('http://blob', stream=True)
+
+        # check that new metadata was stored
+        blob = blob.key.get()
+        self.assertEqual(len(new_contents), blob.size)
+        self.assertEqual('text/plain', blob.mime_type)
+        self.assertNotEqual('old-cid-123', blob.cid)
+        self.assertIsNone(blob.status)
+        self.assertEqual(NOW, blob.last_fetched)
 
     def test_get_or_create_inactive_blob_returns_404(self):
         AtpRemoteBlob(id='http://blob', cid='123', size=10, status='inactive',
-                      last_checked=NOW).put()
+                      last_fetched=NOW).put()
 
         with self.assertRaises(requests.HTTPError):
             AtpRemoteBlob.get_or_create(url='http://blob')
 
-    @patch('requests.head', return_value=requests_response('', status=404))
-    def test_get_or_create_check_url_404_marks_inactive(self, mock_head):
+    @patch('requests.get', return_value=requests_response('', status=404))
+    def test_get_or_create_fetch_404_marks_inactive(self, mock_get):
         blob = AtpRemoteBlob(id='http://blob', cid='123', size=10)
         blob.put()
 
         with self.assertRaises(requests.RequestException) as e:
-            AtpRemoteBlob.get_or_create(url='http://blob', head_fn=mock_head)
+            AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get)
 
-        self.assertEqual(404, e.exception.response.status_code)
-        mock_head.assert_called_once_with('http://blob')
+        mock_get.assert_called_once_with('http://blob', stream=True)
 
         blob = blob.key.get()
         self.assertEqual('inactive', blob.status)
-        self.assertEqual(NOW, blob.last_checked)
+        self.assertEqual(NOW, blob.last_fetched)
 
-    @patch('requests.head', return_value=requests_response('', status=500))
-    def test_get_or_create_check_url_500_doesnt_set_status(self, mock_head):
+    @patch('requests.get', return_value=requests_response('', status=500))
+    def test_get_or_create_fetch_500_doesnt_set_status(self, mock_get):
         blob = AtpRemoteBlob(id='http://blob', cid='123', size=10)
         blob.put()
 
-        got = AtpRemoteBlob.get_or_create(url='http://blob', head_fn=mock_head)
+        with self.assertRaises(requests.HTTPError):
+            got = AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get)
 
-        self.assertEqual(blob.key, got.key)
-        self.assertIsNone(got.status)
-        mock_head.assert_called_once_with('http://blob')
+        mock_get.assert_called_once_with('http://blob', stream=True)
 
         blob = blob.key.get()
         self.assertIsNone(blob.status)
-        self.assertEqual(NOW, blob.last_checked)
+        self.assertEqual(NOW, blob.last_fetched)
 
-    @patch('requests.head', side_effect=requests.exceptions.ConnectionError('nope'))
-    def test_get_or_create_check_url_conn_error_doesnt_set_status(self, mock_head):
+    @patch('requests.get', side_effect=requests.exceptions.ConnectionError('nope'))
+    def test_get_or_create_fetch_conn_error_doesnt_set_status(self, mock_get):
         blob = AtpRemoteBlob(id='http://blob', cid='123', size=10)
         blob.put()
 
-        got = AtpRemoteBlob.get_or_create(url='http://blob', head_fn=mock_head)
+        with self.assertRaises(requests.HTTPError):
+            AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get)
 
-        self.assertEqual(blob.key, got.key)
-        self.assertIsNone(got.status)
-        mock_head.assert_called_once_with('http://blob')
+        mock_get.assert_called_once_with('http://blob', stream=True)
 
         blob = blob.key.get()
         self.assertIsNone(blob.status)
-        self.assertEqual(NOW, blob.last_checked)
+        self.assertEqual(NOW, blob.last_fetched)
