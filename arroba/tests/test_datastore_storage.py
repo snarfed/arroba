@@ -454,7 +454,8 @@ class DatastoreStorageTest(DatastoreTest):
         mock_get = MagicMock()
 
         with self.assertRaises(ValidationError):
-            AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get, max_size=99)
+            AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
+                                        max_size=99)
 
         mock_get.assert_not_called()
 
@@ -546,6 +547,7 @@ class DatastoreStorageTest(DatastoreTest):
                                         repo=repo)
 
         self.assertEqual(b'some video', mock_parse.call_args.args[0].read())
+        mock_get.assert_called_once_with('http://blob', stream=True)
 
     @patch('arroba.datastore_storage._MAX_KEYPART_BYTES', 20)
     def test_create_remote_blob_truncate_url(self):
@@ -562,6 +564,7 @@ class DatastoreStorageTest(DatastoreTest):
     @patch('requests.get', return_value=requests_response('blob contents'))
     def test_get_or_create_blob_old_last_fetched_refetches(self, mock_get):
         blob = AtpRemoteBlob(id='http://blob', cid='123', size=10,
+                             mime_type='image/foo',
                              last_fetched=NOW - timedelta(days=5))
         blob.put()
 
@@ -592,6 +595,7 @@ class DatastoreStorageTest(DatastoreTest):
     @patch('requests.get')
     def test_get_or_create_blob_recent_last_fetched(self, mock_get):
         blob = AtpRemoteBlob(id='http://blob', cid='123', size=10,
+                             mime_type='image/foo',
                              last_fetched=NOW - timedelta(days=1))
         blob.put()
 
@@ -608,8 +612,8 @@ class DatastoreStorageTest(DatastoreTest):
             new_contents, headers={'Content-Type': 'text/plain'})
 
         # create existing blob with old metadata
-        blob = AtpRemoteBlob(id='http://blob', cid='old-cid-123', size=len(old_contents),
-                             mime_type='application/octet-stream',
+        blob = AtpRemoteBlob(id='http://blob', cid='old-cid-123',
+                             size=len(old_contents), mime_type='image/foo',
                              last_fetched=NOW - timedelta(days=5))
         blob.put()
 
@@ -634,7 +638,8 @@ class DatastoreStorageTest(DatastoreTest):
 
     @patch('requests.get', return_value=requests_response('', status=404))
     def test_get_or_create_fetch_404_marks_inactive(self, mock_get):
-        blob = AtpRemoteBlob(id='http://blob', cid='123', size=10)
+        blob = AtpRemoteBlob(id='http://blob', cid='123', size=10,
+                             mime_type='image/foo')
         blob.put()
 
         with self.assertRaises(requests.RequestException) as e:
@@ -648,7 +653,8 @@ class DatastoreStorageTest(DatastoreTest):
 
     @patch('requests.get', return_value=requests_response('', status=500))
     def test_get_or_create_fetch_500_doesnt_set_status(self, mock_get):
-        blob = AtpRemoteBlob(id='http://blob', cid='123', size=10)
+        blob = AtpRemoteBlob(id='http://blob', cid='123', size=10,
+                             mime_type='image/foo')
         blob.put()
 
         with self.assertRaises(requests.HTTPError):
@@ -662,7 +668,8 @@ class DatastoreStorageTest(DatastoreTest):
 
     @patch('requests.get', side_effect=requests.exceptions.ConnectionError('nope'))
     def test_get_or_create_fetch_conn_error_doesnt_set_status(self, mock_get):
-        blob = AtpRemoteBlob(id='http://blob', cid='123', size=10)
+        blob = AtpRemoteBlob(id='http://blob', cid='123', size=10,
+                             mime_type='image/foo')
         blob.put()
 
         with self.assertRaises(requests.HTTPError):

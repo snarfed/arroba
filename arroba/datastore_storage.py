@@ -43,6 +43,7 @@ logger = logging.getLogger(__name__)
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 BLOB_REFETCH_AGE = timedelta(days=float(os.environ.get('BLOB_REFETCH_DAYS', 3)))
+BLOB_REFETCH_TYPES = tuple(os.environ.get('BLOB_REFETCH_DAYS', 'image').split(','))
 BLOB_MAX_BYTES = int(os.environ.get('BLOB_MAX_BYTES', 100_000_000))
 # https://bsky.app/profile/bsky.app/post/3lk26lxn6sk2u
 VIDEO_MAX_DURATION = timedelta(minutes=3)
@@ -403,8 +404,9 @@ class AtpRemoteBlob(ndb.Model):
         Args:
           get_fn (callable, optional): for making HTTP GET requests
         """
-        if self.mime_type.startswith('video/') and self.cid:
-            # we don't refetch videos
+        if ((self.cid or self.last_fetched)
+            and self.mime_type.split('/')[0] not in BLOB_REFETCH_TYPES):
+            # already fetched, and we don't refetch this type
             return
         elif self.last_fetched and self.last_fetched >= util.now() - BLOB_REFETCH_AGE:
             # we've (re)fetched this recently
@@ -430,11 +432,9 @@ class AtpRemoteBlob(ndb.Model):
             self.put()
 
         # check type, size
-        self.mime_type = resp.headers.get('Content-Type')
-        if not self.mime_type:
-            self.mime_type, _ = mimetypes.guess_type(url)
-        if not self.mime_type:
-            self.mime_type = 'application/octet-stream'
+        self.mime_type = (resp.headers.get('Content-Type')
+                          or mimetypes.guess_type(url)[0]
+                          or 'application/octet-stream')
         length = resp.headers.get('Content-Length')
         logger.info(f'Got {resp.status_code} {self.mime_type} {length} bytes {resp.url}')
 

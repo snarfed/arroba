@@ -1266,9 +1266,11 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
     def test_get_blob_multiple_first_refetch_404s(self, mock_get):
         cid = 'bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq'
         now = testutil.NOW.replace(tzinfo=None)
-        a = AtpRemoteBlob(id='http://blob/a', cid=cid, size=13, updated=now).put()
+        a = AtpRemoteBlob(id='http://blob/a', cid=cid, size=13, updated=now,
+                          mime_type='image/foo').put()
         b = AtpRemoteBlob(id='http://blob/b', cid=cid, size=13,
-                          updated=now + timedelta(days=1)).put()
+                          updated=now + timedelta(days=1),
+                          mime_type='image/foo').put()
 
         with self.assertRaises(Redirect) as r:
             resp = xrpc_sync.get_blob({}, did='did:web:user.com', cid=cid)
