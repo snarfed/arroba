@@ -10,6 +10,7 @@ from lexrpc.base import XrpcError
 from lexrpc.server import Redirect
 from multiformats import CID
 from multiformats.multibase import MultibaseKeyError, MultibaseValueError
+import requests
 from werkzeug.exceptions import TooManyRequests
 
 from .datastore_storage import AtpBlock, AtpRemoteBlob, AtpRepo, DatastoreStorage
@@ -211,12 +212,19 @@ def get_blob(input, did=None, cid=None):
     Right now only supports redirecting to "remote" blobs based on stored
     :class:`AtpRemoteBlob`\s.
     """
-    blobs, _, more = AtpRemoteBlob.query(AtpRemoteBlob.cid == cid).fetch_page(20)
-    if blobs:
-        if more:
-            logger.warning(f'More than 20 stored blobs with CID {cid}! May not be serving the latest one')
-        latest = sorted(blobs, key=lambda b: b.updated)[-1]
-        raise Redirect(to=latest.key.id(), status=301, headers=GET_BLOB_CACHE_CONTROL)
+    for blob in AtpRemoteBlob.query(AtpRemoteBlob.cid == cid
+                                    ).order(-AtpRemoteBlob.updated):
+        if blob.status:
+            continue
+
+        try:
+            blob.maybe_fetch(get_fn=requests.get)
+        except requests.RequestException:
+            continue
+
+        if not blob.status:
+            raise Redirect(to=blob.url or blob.key.id(), status=301,
+                           headers=GET_BLOB_CACHE_CONTROL)
 
     err = ValueError(f'No blob found for CID {cid}')
     err.headers = GET_BLOB_CACHE_CONTROL

@@ -6,7 +6,7 @@ import threading
 from threading import Barrier, Event, Semaphore, Thread
 import time
 from unittest import skip
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 from carbox.car import Block, read_car
 import dag_cbor
@@ -1228,7 +1228,8 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
     # getBlob depends on DatastoreStorage
     def test_get_blob(self):
         cid = 'bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq'
-        AtpRemoteBlob(id='http://blob', cid=cid, size=13).put()
+        AtpRemoteBlob(id='http://blob', cid=cid, size=13,
+                      last_fetched=testutil.NOW).put()
 
         with self.assertRaises(Redirect) as r:
             resp = xrpc_sync.get_blob({}, did='did:web:user.com', cid=cid)
@@ -1246,15 +1247,59 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
     def test_get_blob_multiple(self):
         cid = 'bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq'
         now = testutil.NOW.replace(tzinfo=None)
-        AtpRemoteBlob(id='http://blob/a', cid=cid, size=13, updated=now).put()
+        AtpRemoteBlob(id='http://blob/a', cid=cid, size=13, updated=now,
+                      last_fetched=testutil.NOW).put()
         AtpRemoteBlob(id='http://blob/b', cid=cid, size=13,
-                      updated=now + timedelta(days=1)).put()
+                      updated=now + timedelta(days=1),
+                      last_fetched=testutil.NOW).put()
 
         with self.assertRaises(Redirect) as r:
             resp = xrpc_sync.get_blob({}, did='did:web:user.com', cid=cid)
 
         self.assertEqual(301, r.exception.status)
         self.assertEqual('http://blob/b', r.exception.to)
+
+    @patch('requests.get', side_effect=[
+        testutil.requests_response(b'', status=404),  # blob/b
+        testutil.requests_response(b'asdf'),     # blob/a
+    ])
+    def test_get_blob_multiple_first_refetch_404s(self, mock_get):
+        cid = 'bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq'
+        now = testutil.NOW.replace(tzinfo=None)
+        a = AtpRemoteBlob(id='http://blob/a', cid=cid, size=13, updated=now).put()
+        b = AtpRemoteBlob(id='http://blob/b', cid=cid, size=13,
+                          updated=now + timedelta(days=1)).put()
+
+        with self.assertRaises(Redirect) as r:
+            resp = xrpc_sync.get_blob({}, did='did:web:user.com', cid=cid)
+
+        self.assertEqual(301, r.exception.status)
+        self.assertEqual('http://blob/a', r.exception.to)
+
+        self.assertIsNone(a.get().status)
+        self.assertEqual('inactive', b.get().status)
+
+        self.assertEqual([
+            call('http://blob/b', stream=True),
+            call('http://blob/a', stream=True),
+        ], mock_get.call_args_list)
+
+    @patch('requests.get', return_value=testutil.requests_response(b'', status=404))
+    def test_get_blob_multiple_first_refetch_404s_second_inactive(self, mock_get):
+        cid = 'bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq'
+        now = testutil.NOW.replace(tzinfo=None)
+        a = AtpRemoteBlob(id='http://blob/a', cid=cid, size=13, status='inactive',
+                          mime_type='image/foo', updated=now).put()
+        b = AtpRemoteBlob(id='http://blob/b', cid=cid, size=13, mime_type='image/foo',
+                          updated=now + timedelta(days=1)).put()
+
+        with self.assertRaises(ValueError) as r:
+            resp = xrpc_sync.get_blob({}, did='did:web:user.com', cid=cid)
+
+        self.assertEqual('inactive', a.get().status)
+        self.assertEqual('inactive', b.get().status)
+
+        mock_get.assert_called_once_with('http://blob/b', stream=True)
 
 
 @patch('arroba.datastore_storage.AtpBlock.created._now',
