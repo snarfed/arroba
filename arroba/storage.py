@@ -462,7 +462,10 @@ class Storage:
           ValueError: if the path for an update or delete doesn't currently exist
         """
         seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
-        return self._commit(repo, writes, seq, repo_did=repo_did)
+        commit_data = self._commit(repo, writes, seq, repo_did=repo_did)
+        if repo.callback:
+            repo.callback(commit_data)
+        return commit_data
 
     def _commit(self, repo, writes, seq, repo_did=None):
         """Separate from :meth:`commit` so that subclasses can put it in a tx."""
@@ -566,9 +569,6 @@ class Storage:
 
         orig_repo.mst = repo.mst
         orig_repo.head = commit_block
-        if orig_repo.callback:
-            orig_repo.callback(commit_data)
-
         return commit_data
 
 
