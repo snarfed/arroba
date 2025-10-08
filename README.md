@@ -112,7 +112,9 @@ _Breaking changes:_
 
 _Non-breaking changes:_
 
-* Add `AtpRemoteBlob.repos` property to track which repos have which blobs.
+* `AtpRemoteBlob`:
+  * Add `repos` property to track which repos have which blobs.
+  * Switch image handling to pymediainfo, drop Pillow dependency.
 * `xrpc_sync`:
   * `get_blob`: periodically check remote blobs with HTTP GET requests to see if they're still serving.
   * `get_record`: include MST covering proof blocks for record.

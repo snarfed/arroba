@@ -4,7 +4,6 @@ import io, logging, sys
 logging.basicConfig()
 if '-v' in sys.argv:
   logging.getLogger().setLevel(logging.DEBUG)
-  logging.getLogger('PIL').setLevel(logging.INFO)
 elif 'discover' in sys.argv or '-q' in sys.argv or '--quiet' in sys.argv:
   logging.disable(logging.CRITICAL + 1)
   # don't emit logs. do this instead of setLevel() or disable() so that the log

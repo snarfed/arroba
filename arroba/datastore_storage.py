@@ -18,7 +18,6 @@ from google.cloud.ndb.exceptions import ContextError
 from google.cloud.ndb.key import _MAX_KEYPART_BYTES
 from lexrpc import ValidationError
 from multiformats import CID, multicodec, multihash
-from PIL import Image, ImageFile
 from pymediainfo import MediaInfo
 
 from .mst import MST
@@ -37,10 +36,6 @@ from .util import (
 )
 
 logger = logging.getLogger(__name__)
-
-# Allow bad .ico files with truncated transparency masks
-# https://github.com/python-pillow/Pillow/issues/6507#issuecomment-2199724849
-ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 BLOB_REFETCH_AGE = timedelta(days=float(os.environ.get('BLOB_REFETCH_DAYS', 3)))
 BLOB_REFETCH_TYPES = tuple(os.environ.get('BLOB_REFETCH_DAYS', 'image').split(','))
@@ -480,26 +475,19 @@ class AtpRemoteBlob(ndb.Model):
         Args:
           content (bytes)
         """
-        if not self.mime_type:
-            return
+        try:
+            media_info = MediaInfo.parse(BytesIO(content))
+            tracks = media_info.video_tracks or media_info.image_tracks
+            if not tracks:
+                return
 
-        if self.mime_type.startswith('image/'):
-            try:
-                with Image.open(BytesIO(content)) as image:
-                    self.width, self.height = image.size
-            except (OSError, RuntimeError, Image.DecompressionBombError) as e:
-                logger.info(e)
-
-        elif self.mime_type.startswith('video/'):
-            try:
-                media_info = MediaInfo.parse(BytesIO(content))
-                if len(media_info.video_tracks) == 1:
-                    track = media_info.video_tracks[0]
-                    self.width = track.width
-                    self.height = track.height
-                    self.duration = int(float(track.duration))
-            except (OSError, RuntimeError, TypeError, ValueError) as e:
-                logger.info(e)
+            track = tracks[0]
+            self.width = track.width
+            self.height = track.height
+            if track.duration:
+                self.duration = int(float(track.duration))
+        except (OSError, RuntimeError, TypeError, ValueError) as e:
+            logger.info(e)
 
     def validate(self, max_size=None, accept_types=None, name=''):
         """Checks that this blob satisfies size and type constraints.
