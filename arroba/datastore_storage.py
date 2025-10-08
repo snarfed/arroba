@@ -513,10 +513,11 @@ class AtpRemoteBlob(ndb.Model):
 
         server.validate_mime_type(self.mime_type, accept_types, name=name)
 
-        if self.size > BLOB_MAX_BYTES:
-            raise ValidationError(f'{url} size {self.size} is over BLOB_MAX_BYTES')
-        elif max_size and self.size > max_size:
-            raise ValidationError(f'{url} size {self.size} is over {name} blob maxSize {max_size}')
+        if self.size:
+            if self.size > BLOB_MAX_BYTES:
+                raise ValidationError(f'{url} size {self.size} is over BLOB_MAX_BYTES')
+            elif max_size and self.size > max_size:
+                raise ValidationError(f'{url} size {self.size} is over {name} blob maxSize {max_size}')
 
         if self.duration and timedelta(milliseconds=self.duration) > VIDEO_MAX_DURATION:
             raise ValidationError(f'{url} duration {self.duration / 1000}s is over limit {VIDEO_MAX_DURATION}')

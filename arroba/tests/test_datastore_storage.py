@@ -727,3 +727,7 @@ class DatastoreStorageTest(DatastoreTest):
         blob = blob.key.get()
         self.assertIsNone(blob.status)
         self.assertEqual(NOW, blob.last_fetched)
+
+    def test_validate_size_unset(self):
+        blob = AtpRemoteBlob(id='http://blob', cid='123', mime_type='image/foo')
+        blob.validate(max_size=100)
