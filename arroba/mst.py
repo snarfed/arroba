@@ -938,7 +938,7 @@ class MST:
             will be added to this dict, in place.
 
         Returns:
-        sequence of Block: all blocks in covering proofs for this commit. If the
+        dict, CID => Block: all blocks in covering proofs for this commit. If the
           ``blocks`` arg was provided, this is it.
         """
         if blocks is None:

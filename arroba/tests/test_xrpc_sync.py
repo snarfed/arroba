@@ -182,15 +182,21 @@ class XrpcSyncTest(testutil.XrpcTestCase):
         }, resp)
 
     def test_get_record(self):
-        path, obj = next(iter(self.data.items()))
-        coll, rkey = path.split('/')
-        resp = xrpc_sync.get_record({}, did='did:web:user.com', collection=coll,
-                                    rkey=rkey)
+        repo = Repo.create(server.storage, 'did:web:foo.com',
+                           handle='han.dull', signing_key=self.key)
+        record = {'x': 'y'}
+        create = Write(Action.CREATE, 'a.b.c', 'foo', record)
+        self.storage.commit(repo, [create])
 
-        expected = Block(decoded=obj)
-        roots, blocks = read_car(resp)
-        self.assertEqual([expected.cid], roots)
-        self.assertEqual([expected], blocks)
+        resp = xrpc_sync.get_record({}, did='did:web:foo.com', collection='a.b.c',
+                                    rkey='foo')
+
+        cid = dag_cbor_cid(record)
+        expected = [Block(decoded=decoded) for decoded in (
+            record,
+            {'e': [{'k': b'a.b.c/foo', 'p': 0, 't': None, 'v': cid}], 'l': None},
+        )]
+        self.assertEqual(([cid], expected), read_car(resp))
 
     def test_get_record_not_found(self):
         with self.assertRaises(ValueError):

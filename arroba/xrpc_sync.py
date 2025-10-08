@@ -17,7 +17,7 @@ from .datastore_storage import AtpBlock, AtpRemoteBlob, AtpRepo, DatastoreStorag
 from . import firehose
 from .mst import MST
 from . import server
-from .storage import Action, CommitData, SUBSCRIBE_REPOS_NSID
+from .storage import Action, Block, CommitData, CommitOp, SUBSCRIBE_REPOS_NSID
 from . import util
 from . import xrpc_repo
 
@@ -185,24 +185,23 @@ def get_latest_commit(input, did=None):
 
 
 @server.server.method('com.atproto.sync.getRecord')
-def get_record(input, did=None, collection=None, rkey=None, commit=None):
-    """Handler for ``com.atproto.sync.getRecord`` XRPC method.
-
-    TODO:
-
-    * implement commit
-    * merge with xrpc_repo.get_record?
-    """
-    if commit:
-        raise ValueError('commit not supported yet')
-
+def get_record(input, did=None, collection=None, rkey=None):
+    """Handler for ``com.atproto.sync.getRecord`` XRPC method."""
     repo = server.load_repo(did)
     record = repo.get_record(collection, rkey)
     if record is None:
         raise ValueError(f'{collection} {rkey} not found')
 
     block = car.Block(decoded=record)
-    return car.write_car([block.cid], [block])
+
+    # include covering proof for a create of this record
+    create = Block(decoded=record,
+                   ops=[CommitOp(Action.CREATE, collection, block.cid)])
+    proofs = repo.mst.add_covering_proofs(CommitData(commit=create, blocks={}))
+    proof_blocks = [car.Block(data=val.encoded) for val in proofs.values()]
+
+    return car.write_car([block.cid], [block] + proof_blocks)
+
 
 
 @server.server.method('com.atproto.sync.getBlob')
