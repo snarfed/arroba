@@ -461,14 +461,16 @@ class AtpRemoteBlob(ndb.Model):
         https://atproto.com/specs/data-model#blob-type
 
         Returns:
-          dict: with ``$type: blob`` and ``ref``, ``mimeType``, and ``size`` fields
+          dict or None: with ``$type: blob`` and ``ref``, ``mimeType``, and
+            ``size`` fields. If :attr:`cid` is unset, returns None
         """
-        return {
-            '$type': 'blob',
-            'ref': CID.decode(self.cid),
-            'mimeType': self.mime_type,
-            'size': self.size,
-        }
+        if self.cid:
+            return {
+                '$type': 'blob',
+                'ref': CID.decode(self.cid),
+                'mimeType': self.mime_type,
+                'size': self.size,
+            }
 
     def generate_metadata(self, content):
         """Extracts and stores metadata from an image or video.

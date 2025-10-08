@@ -731,3 +731,7 @@ class DatastoreStorageTest(DatastoreTest):
     def test_validate_size_unset(self):
         blob = AtpRemoteBlob(id='http://blob', cid='123', mime_type='image/foo')
         blob.validate(max_size=100)
+
+    def test_as_object_no_cid(self):
+        blob = AtpRemoteBlob(id='http://blob', mime_type='image/foo')
+        self.assertIsNone(blob.as_object())
