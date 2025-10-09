@@ -9,7 +9,7 @@ blinker==1.6.2
 cachetools==5.3.1
 cbor2==5.6.2
 certifi==2024.7.4
-cffi==1.16.0
+cffi==2.0.0
 charset-normalizer==3.3.2
 click==8.1.7
 cryptography==45.0.5
@@ -28,7 +28,7 @@ google-cloud-error-reporting==1.10.0
 google-cloud-logging==3.9.0
 google-cloud-ndb==2.3.0
 googleapis-common-protos==1.62.0
-greenlet==2.0.2
+greenlet==3.2.4
 grapheme==0.6.0
 grpcio==1.62.0
 grpcio-status==1.62.0
