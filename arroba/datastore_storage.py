@@ -312,7 +312,7 @@ class AtpRemoteBlob(ndb.Model):
     * follow redirects, use final URL as key id
     * abstract this in :class:`Storage`
     """
-    url = ndb.StringProperty()
+    url = ndb.TextProperty()
     'full length URL'
     cid = ndb.StringProperty()
     size = ndb.IntegerProperty()
