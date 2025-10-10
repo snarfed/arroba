@@ -276,11 +276,11 @@ class AtpSequence(ndb.Model):
         Returns:
           integer, next sequence number for this NSID
         """
+        logger.info(f'Trying to allocate seq')
         seq = AtpSequence.get_or_insert(nsid, next=1)
         ret = seq.next
         seq.next += 1
         seq.put()
-        logger.info(f'Allocated seq {ret}')
         return ret
 
     @classmethod
@@ -724,7 +724,9 @@ class DatastoreStorage(Storage):
     @ndb_context
     def allocate_seq(self, nsid):
         assert nsid
-        return AtpSequence.allocate(nsid)
+        seq = AtpSequence.allocate(nsid)
+        logger.info(f'Allocated seq {seq}')
+        return seq
 
     @ndb_context
     def last_seq(self, nsid):
