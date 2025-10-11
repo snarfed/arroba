@@ -133,6 +133,7 @@ _Non-breaking changes:_
 * `DatastoreStorage`:
   * `AtpRemoteBlob.get_or_create`: truncate URLs to 1500 characters.
   * Extract out new `AtpRemoteBlob.generate_private_key` method.
+  * Optimize `write_blocks` to batch get and put.
 * `did`:
   * `resolve_handle`: support `did:web`s in the HTTPS `/.well-known/atproto-did` method.
 * `xrpc_sync`:

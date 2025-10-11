@@ -706,14 +706,12 @@ class DatastoreStorage(Storage):
 
     @ndb_context
     def write_blocks(self, blocks):
-        # TODO: switch to get_multi + put_multi?
-        for block in blocks:
-            template = AtpBlock.from_block(block)
-            # get_or_insert so we don't wipe out any existing blocks' sequence
-            # numbers. (occasionally we see existing blocks recur, eg MST nodes.)
-            atp_block = AtpBlock.get_or_insert(
-                template.key.id(), repo=template.repo, encoded=block.encoded,
-                seq=block.seq, ops=template.ops)
+        # check which blocks exist, only write the new blocks that don't already exist
+        atp_blocks = [AtpBlock.from_block(b) for b in blocks]
+        existing = ndb.get_multi(b.key for b in atp_blocks)
+        assert len(atp_blocks) == len(existing)
+        new_blocks = [b for b, e in zip(atp_blocks, existing) if not e]
+        ndb.put_multi(atp_blocks)
 
     @ndb_context
     @ndb.transactional(retries=10)
