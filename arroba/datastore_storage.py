@@ -710,8 +710,8 @@ class DatastoreStorage(Storage):
         atp_blocks = [AtpBlock.from_block(b) for b in blocks]
         existing = ndb.get_multi(b.key for b in atp_blocks)
         assert len(atp_blocks) == len(existing)
-        new_blocks = [b for b, e in zip(atp_blocks, existing) if not e]
-        ndb.put_multi(atp_blocks)
+        new_blocks = [b for b, e in zip(atp_blocks, existing) if e is None]
+        ndb.put_multi(new_blocks)
 
     @ndb_context
     @ndb.transactional(retries=10)
