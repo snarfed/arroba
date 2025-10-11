@@ -43,7 +43,16 @@ class DiffTest(testutil.TestCase):
             after = after.add(key, cid)
             expected_adds[key] = Change(key=key, cid=cid)
 
-        for (key, prev), new in zip(to_edit, dag_cbor.random.rand_cid()):
+        # rand_cid returns duplicates, so we have to manually check that we've gotten
+        # enough unique CIDs :(
+        # https://github.com/hashberg-io/dag-cbor/issues/15
+        new_cids = set()
+        for cid in dag_cbor.random.rand_cid(len(to_edit) * 2):
+            new_cids.add(cid)
+            if len(new_cids) >= len(to_edit):
+                break
+
+        for (key, prev), new in zip(to_edit, list(new_cids)[:len(to_edit)]):
             after = after.update(key, new)
             expected_updates[key] = Change(key=key, prev=prev, cid=new)
 
