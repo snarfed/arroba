@@ -706,12 +706,11 @@ class DatastoreStorage(Storage):
 
     @ndb_context
     def write_blocks(self, blocks):
-        # check which blocks exist, only write the new blocks that don't already exist
-        atp_blocks = [AtpBlock.from_block(b) for b in blocks]
-        existing = ndb.get_multi(b.key for b in atp_blocks)
-        assert len(atp_blocks) == len(existing)
-        new_blocks = [b for b, e in zip(atp_blocks, existing) if e is None]
-        ndb.put_multi(new_blocks)
+        keys = [AtpBlock(id=b.cid.encode('base32')).key for b in blocks]
+        existing = AtpBlock.query(AtpBlock.key.IN(keys)).fetch(keys_only=True)
+        existing_cids = [key.id() for key in existing]
+        ndb.put_multi(AtpBlock.from_block(b) for b in blocks
+                      if b.cid.encode('base32') not in existing_cids)
 
     @ndb_context
     @ndb.transactional(retries=10)
