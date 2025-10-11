@@ -127,7 +127,7 @@ class TestCase(unittest.TestCase):
 
     @staticmethod
     def random_keys_and_cids(num):
-        timestamps = random.choices(
+        timestamps = random.sample(
             range(int(datetime(2020, 1, 1).timestamp()) * 1000,
                   int(datetime(2100, 1, 1).timestamp()) * 1000),
             k=num)
@@ -143,7 +143,8 @@ class TestCase(unittest.TestCase):
 
     @staticmethod
     def random_objects(num):
-        return {next_tid(): {'foo': random.randint(1, 999999999)} for i in range(num)}
+        tids = [next_tid() for i in range(num)]
+        return {tid: {'foo': random.randint(1, 999999999)} for tid in tids}
 
     @contextlib.contextmanager
     def assertLogs(self):
