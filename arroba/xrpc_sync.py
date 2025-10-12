@@ -230,11 +230,22 @@ def get_blob(input, did=None, cid=None):
     raise err
 
 
-# @server.server.method('com.atproto.sync.listBlobs')
-# def list_blobs(input, did=None, since=None, limit=500):
-#     """Handler for ``com.atproto.sync.listBlobs`` XRPC method.
-#
-#     TODO. The difficulty with this one is that AtpRemoteBlob is
-#     repo-independent. Hrm.
-#     """
-#     # output: {'cids': [CID, ...]}
+@server.server.method('com.atproto.sync.listBlobs')
+def list_blobs(input, did=None, since=None, limit=500, cursor=None):
+    """Handler for ``com.atproto.sync.listBlobs`` XRPC method."""
+    if since:
+        raise ValueError('since parameter is not implemented')
+
+    server.load_repo(did)  # raises if the repo doesn't exist or is deactivated
+
+    query = AtpRemoteBlob.query(AtpRemoteBlob.repos == AtpRepo(id=did).key)
+    if cursor:
+        query = query.filter(AtpRemoteBlob.key > AtpRemoteBlob(id=cursor).key)
+
+    blobs = query.fetch(limit=limit)
+
+    ret = {'cids': [blob.cid for blob in blobs if blob.cid]}
+    if len(blobs) == limit:
+        ret['cursor'] = blobs[-1].key.id()
+
+    return ret

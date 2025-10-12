@@ -18,7 +18,7 @@ from multiformats import CID
 import os
 
 from .. import datastore_storage
-from ..datastore_storage import AtpRemoteBlob, DatastoreStorage
+from ..datastore_storage import AtpRemoteBlob, AtpRepo, DatastoreStorage
 from .. import firehose
 from ..repo import Repo, Write
 from .. import server
@@ -1308,6 +1308,70 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
         self.assertEqual('inactive', b.get().status)
 
         mock_get.assert_called_once_with('http://blob/b', stream=True)
+
+    def test_list_blobs(self):
+        cid1 = 'bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq'
+        cid2 = 'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e'
+
+        repo_key = AtpRepo(id='did:web:user.com').key
+        AtpRemoteBlob(id='http://blob1', cid=cid1, size=13, repos=[repo_key]).put()
+        AtpRemoteBlob(id='http://blob2', cid=cid2, size=14, repos=[repo_key]).put()
+
+        resp = xrpc_sync.list_blobs({}, did='did:web:user.com')
+
+        self.assertEqual({'cids': [cid1, cid2]}, resp)
+
+    def test_list_blobs_empty(self):
+        resp = xrpc_sync.list_blobs({}, did='did:web:user.com')
+        self.assertEqual({'cids': []}, resp)
+
+    def test_list_blobs_pagination(self):
+        cid1 = 'bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq'
+        cid2 = 'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e'
+        cid3 = 'bafkreigsccfkluvqcd24kw4uemdxqs6plcnmhzk7v4lx3jys7selmusjgi'
+
+        repo_key = AtpRepo(id='did:web:user.com').key
+        AtpRemoteBlob(id='http://blob1', cid=cid1, size=13, repos=[repo_key]).put()
+        AtpRemoteBlob(id='http://blob2', cid=cid2, size=14, repos=[repo_key]).put()
+        AtpRemoteBlob(id='http://blob3', cid=cid3, size=15, repos=[repo_key]).put()
+
+        resp = xrpc_sync.list_blobs({}, did='did:web:user.com', limit=2)
+        self.assertEqual({
+            'cids': [cid1, cid2],
+            'cursor': 'http://blob2',
+        }, resp)
+
+        resp = xrpc_sync.list_blobs({}, did='did:web:user.com', cursor=resp['cursor'])
+        self.assertEqual({'cids': [cid3]}, resp)
+
+    def test_list_blobs_filters_by_repo(self):
+        cid1 = 'bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq'
+        cid2 = 'bafkreifzjut3te2nhyekklss27nh3k72ysco7y32koao5eei66wof36n5e'
+
+        repo1_key = AtpRepo(id='did:web:user.com').key
+        repo2_key = AtpRepo(id='did:web:other.com').key
+
+        AtpRemoteBlob(id='http://blob1', cid=cid1, size=13, repos=[repo1_key]).put()
+        AtpRemoteBlob(id='http://blob2', cid=cid2, size=14, repos=[repo2_key]).put()
+
+        resp = xrpc_sync.list_blobs({}, did='did:web:user.com')
+        self.assertEqual({'cids': [cid1]}, resp)
+
+    def test_list_blobs_skips_blobs_without_cid(self):
+        cid = 'bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq'
+
+        repo_key = AtpRepo(id='did:web:user.com').key
+        AtpRemoteBlob(id='http://blob1', cid=cid, size=13, repos=[repo_key]).put()
+        AtpRemoteBlob(id='http://blob2', cid=None, size=14, repos=[repo_key]).put()
+
+        resp = xrpc_sync.list_blobs({}, did='did:web:user.com')
+        self.assertEqual({'cids': [cid]}, resp)
+
+    def test_list_blobs_since_not_implemented(self):
+        with self.assertRaises(ValueError) as e:
+            xrpc_sync.list_blobs({}, did='did:web:user.com', since='some-tid')
+
+        self.assertIn('not implemented', str(e.exception))
 
 
 @patch('arroba.datastore_storage.AtpBlock.created._now',
