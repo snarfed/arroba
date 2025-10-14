@@ -23,7 +23,7 @@ from . import xrpc_repo
 
 logger = logging.getLogger(__name__)
 
-GET_BLOB_CACHE_CONTROL = {'Cache-Control': 'public, max-age=3600'}  # 1 hour
+GET_BLOB_CACHE_CONTROL = {'Cache-Control': 'public, max-age=86400'}  # 1 day
 
 
 @server.server.method('com.atproto.sync.getCheckout')
