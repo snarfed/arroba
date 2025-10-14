@@ -20,6 +20,7 @@ from ..datastore_storage import (
     AtpRepo,
     AtpSequence,
     BLOB_MAX_BYTES,
+    BLOB_REFETCH_AGE,
     DatastoreStorage,
     WriteOnceBlobProperty,
 )
@@ -612,7 +613,7 @@ class DatastoreStorageTest(DatastoreTest):
     def test_get_or_create_blob_old_last_fetched_refetches(self, mock_get):
         blob = AtpRemoteBlob(id='http://blob', cid='123', size=10,
                              mime_type='image/foo',
-                             last_fetched=NOW - timedelta(days=5))
+                             last_fetched=NOW - BLOB_REFETCH_AGE - timedelta(days=1))
         blob.put()
 
         got = AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get)
@@ -625,7 +626,7 @@ class DatastoreStorageTest(DatastoreTest):
 
     @patch('requests.get')
     def test_get_or_create_video_blob_doesnt_refetch(self, mock_get):
-        for last_fetched in (None, NOW - timedelta(days=5)):
+        for last_fetched in (None, NOW - BLOB_REFETCH_AGE - timedelta(days=1)):
             with self.subTest(last_fetched=last_fetched):
                 blob = AtpRemoteBlob(id='http://blob', cid='123', size=10,
                                      mime_type='video/mp4', last_fetched=last_fetched)
@@ -661,7 +662,7 @@ class DatastoreStorageTest(DatastoreTest):
         # create existing blob with old metadata
         blob = AtpRemoteBlob(id='http://blob', cid='old-cid-123',
                              size=len(old_contents), mime_type='image/foo',
-                             last_fetched=NOW - timedelta(days=5))
+                             last_fetched=NOW - BLOB_REFETCH_AGE - timedelta(days=1))
         blob.put()
 
         got = AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get)

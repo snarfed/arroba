@@ -90,7 +90,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 * `PRELOAD_WINDOW`, number of events to preload into the [`subscribeRepos` rollback window](https://atproto.com/specs/event-stream#sequence-numbers) at startup, as an integer. Defaults to 4k.
 * `SUBSCRIBE_REPOS_BATCH_DELAY`, minimum time to wait between datastore queries in `com.atproto.sync.subscribeRepos`, in seconds, as a float. Defaults to 0 if unset.
 * `BLOB_MAX_BYTES`, maximum allowed size of blobs, in bytes. Defaults to 100MB.
-* `BLOB_REFETCH_DAYS`, how often in days to refetch remote URL-based blobs datastore to check that they're still serving. May be integer or float. Defaults to 3. These re-fetches happen on demand, during `com.atproto.sync.getBlob` requests.
+* `BLOB_REFETCH_DAYS`, how often in days to refetch remote URL-based blobs datastore to check that they're still serving. May be integer or float. Defaults to 7. These re-fetches happen on demand, during `com.atproto.sync.getBlob` requests.
 * `BLOB_REFETCH_TYPES`, comma-separated list of MIME types (without subtypes, ie the part after `/`) to refetch blobs for. Defaults to `image`.
 
 <!-- Only used in app.py:
