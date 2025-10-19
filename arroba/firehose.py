@@ -126,6 +126,7 @@ def subscribe(cursor=None):
 
                     break
 
+            logger.info(f'Emitting pre-rollback {payload["seq"]} {payload.get("did") or payload.get("repo")} {header.get("t")} to one subscriber')
             pre_rollback.append((header, payload))
             yield (header, payload)
 
@@ -185,7 +186,27 @@ def collect(limit=None):
 
     started.set()
 
+    while True:
+        try:
+            # return is only for unit tests, _collect only returns if it hits limit
+            return _collect(cur_seq, limit)
+        except BaseException as e:
+            # https://github.com/snarfed/bridgy-fed/issues/2150
+            logger.exception('Uncaught exception')
+            time.sleep(SUBSCRIBE_REPOS_BATCH_DELAY.total_seconds())
+
+
+def _collect(cur_seq, limit=None):
+    """Inner loop for collecting new events and sending them to subscribers.
+
+    Args:
+      cur_seq (int): sequence number to start from
+      limit (int): if provided, return after collecting this many *new* events. Only
+        used in tests.
+    """
     logger.info(f'collecting new events')
+
+    global rollback
     timeout_s = NEW_EVENTS_TIMEOUT.total_seconds()
     last_event = time.time()
     seen = 0

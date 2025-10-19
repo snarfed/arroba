@@ -28,6 +28,7 @@ from ..util import dag_cbor_cid, int_to_tid, next_tid, tid_to_int
 from .. import xrpc_sync
 
 from . import testutil
+from .testutil import NOW
 
 
 def load(blocks):
@@ -558,7 +559,8 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         super().tearDown()
 
-    def subscribe(self, received, delivered=None, started=None, limit=None, cursor=None):
+    def subscribe(self, received, delivered=None, started=None, limit=None,
+                  cursor=None):
         """subscribeRepos websocket client. May be run in a thread.
 
         Args:
@@ -635,7 +637,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             'repo': repo.did,
             'commit': cur,
             'ops': ops,
-            'time': testutil.NOW.isoformat(),
+            'time': NOW.isoformat(),
             'seq': seq,
             'rev': int_to_tid(seq, clock_id=0),
             # TODO
@@ -1100,7 +1102,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         self.assertEqual({
             'seq': 9,
             'did': 'did:web:user.com',
-            'time': testutil.NOW.isoformat(),
+            'time': NOW.isoformat(),
         }, payload)
 
         # bob's write, now from streaming
@@ -1122,7 +1124,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         self.assertEqual({
             'seq': 12,
             'did': 'did:bob',
-            'time': testutil.NOW.isoformat(),
+            'time': NOW.isoformat(),
         }, payload)
 
         subscriber.join()
@@ -1229,13 +1231,35 @@ class SubscribeReposTest(testutil.XrpcTestCase):
                           cur=self.repo.head.cid, prev=prev, seq=6,
                           check_commit=False)
 
+    @patch('arroba.firehose.PRELOAD_WINDOW', 0)
+    @patch('arroba.firehose.process_event', side_effect=[
+        # first call from collect to _collect raises exception
+        RuntimeError(),
+        # second one runs ok
+        ({'op': 1, 't': '#sync'}, {'seq': 321, 'time': NOW.isoformat()}),
+    ])
+    def test_collect_uncaught_exception(self, *_):
+        firehose.start(limit=1)
+
+        # store create
+        prev = self.repo.head
+        create = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})
+        self.storage.commit(self.repo, [create])
+
+        # start subscriber
+        received = []
+        subscriber = Thread(target=self.subscribe, args=[received, None, None, 1])
+        subscriber.start()
+        subscriber.join()
+
+        self.assertEqual({'op': 1, 't': '#sync'}, received[0][0])
+
 
 class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
     # getBlob depends on DatastoreStorage
     def test_get_blob(self):
         cid = 'bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq'
-        AtpRemoteBlob(id='http://blob', cid=cid, size=13,
-                      last_fetched=testutil.NOW).put()
+        AtpRemoteBlob(id='http://blob', cid=cid, size=13, last_fetched=NOW).put()
 
         with self.assertRaises(Redirect) as r:
             resp = xrpc_sync.get_blob({}, did='did:web:user.com', cid=cid)
@@ -1252,12 +1276,12 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
 
     def test_get_blob_multiple(self):
         cid = 'bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq'
-        now = testutil.NOW.replace(tzinfo=None)
+        now = NOW.replace(tzinfo=None)
         AtpRemoteBlob(id='http://blob/a', cid=cid, size=13, updated=now,
-                      last_fetched=testutil.NOW).put()
+                      last_fetched=NOW).put()
         AtpRemoteBlob(id='http://blob/b', cid=cid, size=13,
                       updated=now + timedelta(days=1),
-                      last_fetched=testutil.NOW).put()
+                      last_fetched=NOW).put()
 
         with self.assertRaises(Redirect) as r:
             resp = xrpc_sync.get_blob({}, did='did:web:user.com', cid=cid)
@@ -1271,7 +1295,7 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
     ])
     def test_get_blob_multiple_first_refetch_404s(self, mock_get):
         cid = 'bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq'
-        now = testutil.NOW.replace(tzinfo=None)
+        now = NOW.replace(tzinfo=None)
         a = AtpRemoteBlob(id='http://blob/a', cid=cid, size=13, updated=now,
                           mime_type='image/foo').put()
         b = AtpRemoteBlob(id='http://blob/b', cid=cid, size=13,
@@ -1295,7 +1319,7 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
     @patch('requests.get', return_value=testutil.requests_response(b'', status=404))
     def test_get_blob_multiple_first_refetch_404s_second_inactive(self, mock_get):
         cid = 'bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq'
-        now = testutil.NOW.replace(tzinfo=None)
+        now = NOW.replace(tzinfo=None)
         a = AtpRemoteBlob(id='http://blob/a', cid=cid, size=13, status='inactive',
                           mime_type='image/foo', updated=now).put()
         b = AtpRemoteBlob(id='http://blob/b', cid=cid, size=13, mime_type='image/foo',
@@ -1375,10 +1399,10 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
 
 
 @patch('arroba.datastore_storage.AtpBlock.created._now',
-       return_value=testutil.NOW.replace(tzinfo=None))
+       return_value=NOW.replace(tzinfo=None))
 class DatastoreSubscribeReposTest(SubscribeReposTest, testutil.DatastoreTest):
     @patch('arroba.datastore_storage.AtpBlock.created._now',
-           return_value=testutil.NOW.replace(tzinfo=None))
+           return_value=NOW.replace(tzinfo=None))
     def setUp(self, _):
         super().setUp()
 
