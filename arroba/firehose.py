@@ -116,13 +116,13 @@ def subscribe(cursor=None):
                         # extendleft reverses its argument; reverse again to undo that
                         pre_rollback = [e for e in pre_rollback
                                         if e[1]['seq'] < cursor]
-                        pre_rollback = pre_rollback[-remaining_len:]
-                        log(f'merging {pre_rollback[0][1]["seq"]}-{pre_rollback[-1][1]["seq"]} into rollback')
-                        assert len(rollback) + len(pre_rollback) <= rollback.maxlen, \
-                            (len(rollback), len(pre_rollback))
-                        assert pre_rollback[-1][1]['seq'] < rollback[0][1]['seq'], \
-                            (pre_rollback[-1][1]['seq'], rollback[0][1]['seq'])
-                        rollback.extendleft(reversed(pre_rollback))
+                        if pre_rollback := pre_rollback[-remaining_len:]:
+                            log(f'merging {pre_rollback[0][1]["seq"]}-{pre_rollback[-1][1]["seq"]} into rollback')
+                            assert len(rollback) + len(pre_rollback) <= rollback.maxlen, \
+                                (len(rollback), len(pre_rollback))
+                            assert pre_rollback[-1][1]['seq'] < rollback[0][1]['seq'],\
+                                (pre_rollback[-1][1]['seq'], rollback[0][1]['seq'])
+                            rollback.extendleft(reversed(pre_rollback))
 
                     break
 

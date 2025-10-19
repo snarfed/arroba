@@ -1034,6 +1034,55 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             self.subscribe(received, limit=4, cursor=2)
             self.assertEqual([2, 3, 4, 5], [event[1]['seq'] for event in received])
 
+    @patch('arroba.firehose.PRELOAD_WINDOW', 1)
+    def test_merge_handoff_into_rollback_empty_after_filtering(self, *_):
+        # edge case: pre_rollback becomes empty after filtering
+        # https://github.com/snarfed/bridgy-fed/issues/2150
+        self.storage.commit(
+            self.repo, [Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})])
+
+        # start firehose with seq 5 in rollback
+        firehose.start(limit=0)
+        firehose.collector.join()
+        self.assertEqual([5], [event[1]['seq'] for event in firehose.rollback])
+
+        orig_read_events = server.storage.read_events_by_seq
+
+        iteration = {'count': 0}
+
+        def read_with_rollback_manipulation(**kwargs):
+            for event in orig_read_events(**kwargs):
+                seq = event['seq'] if isinstance(event, dict) else event.commit.seq
+                iteration['count'] += 1
+
+                yield event
+
+                # AFTER yielding seq 4 (so it gets added to pre_rollback),
+                # manipulate rollback so that on the next iteration when we
+                # check the merge condition, cursor will filter out seq 4
+                if seq == 4 and iteration['count'] == 1:
+                    with firehose.lock:
+                        firehose.rollback.clear()
+                        # set rollback[0] to 4, so when we read seq 5 next,
+                        # we'll enter merge with cursor=4, filtering out seq 4
+                        firehose.rollback.append(({'op': 1, 't': '#sync'},
+                                                  {'seq': 4, 'time': NOW.isoformat()}))
+                        firehose.rollback.append(({'op': 1, 't': '#sync'},
+                                                  {'seq': 5, 'time': NOW.isoformat()}))
+
+        with patch.object(server.storage, 'read_events_by_seq',
+                          side_effect=read_with_rollback_manipulation):
+            received = []
+            # subscribe from seq 4
+            # will read seq 4, yield it, manipulate rollback, then read seq 5
+            # when checking merge logic for seq 5, cursor will be set to 4
+            # filtering pre_rollback=[seq 4] to seq < 4 gives empty list
+            # without the walrus operator fix, this would crash with IndexError
+            self.subscribe(received, limit=2, cursor=4)
+
+        # should not crash
+        self.assertEqual(4, received[0][1]['seq'])
+
     def test_include_preexisting_record_block(self, *_):
         # https://github.com/snarfed/bridgy-fed/issues/1016#issuecomment-2109276344
         # preexisting {'foo': 'bar'} record
