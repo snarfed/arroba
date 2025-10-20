@@ -119,6 +119,7 @@ _Non-breaking changes:_
   * `get_blob`: periodically check remote blobs with HTTP GET requests to see if they're still serving.
   * `get_record`: include MST covering proof blocks for record.
   * Implement `listBlobs`.
+  * `subscribeRepos`/`firehose`: handle uncaught exceptions and continue serving ([snarfed/bridgy-fed#2150](https://github.com/snarfed/bridgy-fed/issues/2150)).
 
 
 ### 1.0 - 2025-09-13
