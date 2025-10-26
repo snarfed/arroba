@@ -235,6 +235,72 @@ class DidTest(TestCase):
             'verificationMethods': {'atproto': did_key}
         }, update_op)
 
+    def test_rollback_plc(self):
+        did_key = did.encode_did_key(self.key.public_key())
+        op = {
+            'type': 'plc_operation',
+            'services': {
+                'atproto_pds': {
+                    'type': 'AtprotoPersonalDataServer',
+                    'endpoint': 'https://orig/pds',
+                },
+            },
+            'alsoKnownAs': ['at://orig.han.dull'],
+            'rotationKeys': [did_key],
+            'verificationMethods': {'atproto': did_key}
+        }
+
+        mock_get = MagicMock(return_value=requests_response([{
+            'did': 'did:plc:xyz',
+            'cid': 'first',
+            'operation': op,
+        }, {
+            'did': 'did:plc:xyz',
+            'cid': 'second',
+            'operation': {
+                'rotationKeys': [did_key],
+                'prev': 'first',
+            },
+        }]))
+        mock_post = MagicMock(return_value=requests_response('OK'))
+
+        did.rollback_plc('did:plc:xyz', get_fn=mock_get, post_fn=mock_post,
+                         rotation_key=self.key)
+
+        mock_post.assert_called_once()
+        self.assertEqual(('https://plc.bsky-sandbox.dev/did:plc:xyz',),
+                         mock_post.call_args.args)
+        op = mock_post.call_args.kwargs['json']
+        del op['sig']
+        self.assertEqual({**op, 'prev': 'second'}, op)
+
+    def test_rollback_plc_wrong_rotation_key(self):
+        did_key = did.encode_did_key(self.key.public_key())
+        mock_get = MagicMock(return_value=requests_response([{
+            'did': 'did:plc:xyz',
+            'cid': 'first',
+            'operation': {
+                'type': 'plc_operation',
+                'alsoKnownAs': ['at://orig.han.dull'],
+                'rotationKeys': [did_key],
+                'verificationMethods': {'atproto': did_key}
+            },
+        }, {
+            'did': 'did:plc:xyz',
+            'cid': 'second',
+            'operation': {
+                'rotationKeys': ['did:key:nope'],
+                'prev': 'first',
+            },
+        }]))
+        mock_post = MagicMock()
+
+        with self.assertRaises(AssertionError):
+            did.rollback_plc('did:plc:xyz', get_fn=mock_get, post_fn=mock_post,
+                             rotation_key=self.key)
+
+        mock_post.assert_not_called()
+
     def test_encode_decode_did_key(self):
         did_key = did.encode_did_key(self.key.public_key())
         self.assertTrue(did_key.startswith('did:key:'))

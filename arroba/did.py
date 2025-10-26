@@ -178,14 +178,12 @@ def write_plc(did=None, handle=None, signing_key=None, rotation_key=None,
       post_fn (callable): for making HTTP POST requests
 
     Returns:
-      DidPlc: with the newly created ``did:plc``, keys, and DID document
+      DidPlc: with the DID, keys, and DID document
 
     Raises:
       ValueError: if any inputs are invalid
       requests.RequestException: if the HTTP request to the PLC directory fails
     """
-    plc_host = os.environ['PLC_HOST']
-
     if not isinstance(handle, str) or not handle:
         raise ValueError(f'{handle} is not a valid handle')
 
@@ -229,6 +227,25 @@ def write_plc(did=None, handle=None, signing_key=None, rotation_key=None,
         },
         'prev': prev,
     }
+
+    did_plc = write_plc_operation(op=op, rotation_key=rotation_key, did=did,
+                                  post_fn=post_fn)
+    return did_plc._replace(signing_key=signing_key, rotation_key=rotation_key)
+
+
+def write_plc_operation(op, rotation_key, did=None, post_fn=requests.post):
+    """Signs and sends a PLC operation to the directory.
+
+    Args:
+      op (dict): PLC operation
+      rotation_key (ec.EllipticCurvePrivateKey): The curve must be SECP256K1.
+        Must match the DID's current rotation key in the PLC directory.
+      did (str): if provided, updates an existing DID, otherwise creates a new one.
+      post_fn (callable): for making HTTP POST requests
+
+    Returns:
+      DidPlc: with the DID and DID document, but not keys
+    """
     op = util.sign(op, rotation_key)
     op['sig'] = base64.urlsafe_b64encode(op['sig']).decode().rstrip('=')
 
@@ -241,7 +258,7 @@ def write_plc(did=None, handle=None, signing_key=None, rotation_key=None,
         did = 'did:plc:' + base64.b32encode(hash)[:24].lower().decode()
         logger.info(f'Creating new DID {did}')
 
-    plc_url = f'https://{plc_host}/{did}'
+    plc_url = f'https://{os.environ["PLC_HOST"]}/{did}'
     logger.info(f'Publishing to {plc_url}  ...')
     resp = post_fn(plc_url, json=op)
     logger.info(f'{resp} {resp.content}')
@@ -249,7 +266,46 @@ def write_plc(did=None, handle=None, signing_key=None, rotation_key=None,
 
     op['did'] = did
     return DidPlc(did=did, doc=plc_operation_to_did_doc(op),
-                  signing_key=signing_key, rotation_key=rotation_key)
+                  signing_key=None, rotation_key=None)
+
+
+def rollback_plc(did, rotation_key, get_fn=requests_get, post_fn=requests.post):
+    """Reverts a DID PLC document to its last version.
+
+    Reads a did:plc's audit log from the directory, extracts its *previous*
+    operation, and re-applies that operation. Reverts the DID to its last document,
+    before the current one.
+
+    Args:
+      did (str)
+      rotation_key (ec.EllipticCurvePrivateKey): The curve must be SECP256K1.
+        Must match the DID's current rotation key in the PLC directory.
+      get_fn (callable): for making HTTP GET requests
+      post_fn (callable): for making HTTP POST requests
+
+    Returns:
+      DidPlc: with the DID and DID document, but not keys
+    """
+    assert did
+    assert rotation_key
+
+    # get previous operation from PLC audit log
+    # response is a JSON list with operations from earliest to latest
+    # https://github.com/did-method-plc/did-method-plc#audit-logs
+    resp = get_fn(f'https://{os.environ["PLC_HOST"]}/{did}/log/audit')
+    resp.raise_for_status()
+    log = resp.json()
+
+    assert len(log) >= 2, log
+    rotation_did_key = encode_did_key(rotation_key.public_key())
+    assert rotation_did_key in log[-1]['operation']['rotationKeys'], rotation_did_key
+
+    assert log[-2]['did'] == did
+    op = log[-2]['operation']
+    op['prev'] = log[-1]['cid']
+    op.pop('sig', None)
+
+    write_plc_operation(op, rotation_key=rotation_key, did=did, post_fn=post_fn)
 
 
 def encode_did_key(pubkey):
