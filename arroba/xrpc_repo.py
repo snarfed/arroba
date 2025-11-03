@@ -195,6 +195,7 @@ def describe_repo(input, repo=None):
             'app.bsky.feed.repost',
             'app.bsky.graph.block',
             'app.bsky.graph.follow',
+            'app.bsky.graph.listblock',
             'chat.bsky.actor.declaration',
         ],
         'handleIsCorrect': True,

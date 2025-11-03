@@ -73,6 +73,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
                 'app.bsky.feed.repost',
                 'app.bsky.graph.block',
                 'app.bsky.graph.follow',
+                'app.bsky.graph.listblock',
                 'chat.bsky.actor.declaration',
             ],
             'handleIsCorrect': True,
