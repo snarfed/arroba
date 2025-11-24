@@ -9,7 +9,15 @@ from multiformats import CID
 from ..datastore_storage import DatastoreStorage
 from ..mst import MST
 from ..repo import Repo, Write
-from ..storage import Action, Block, CommitOp, MemoryStorage, SUBSCRIBE_REPOS_NSID
+from ..storage import (
+    Action,
+    Block,
+    CommitOp,
+    MAX_OPERATIONS_PER_COMMIT,
+    MAX_RECORD_SIZE_BYTES,
+    MemoryStorage,
+    SUBSCRIBE_REPOS_NSID,
+)
 from ..util import dag_cbor_cid, next_tid, DEACTIVATED, TOMBSTONED
 
 from .testutil import DatastoreTest, NOW, TestCase
@@ -443,6 +451,24 @@ class StorageTest(TestCase):
         update = Write(Action.DELETE, 'co.ll', next_tid(), {'x': 'y'})
         with self.assertRaises(ValueError):
             self.storage.commit(repo, update)
+
+    def test_commit_too_many_operations(self):
+        repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
+        writes = [Write(Action.CREATE, 'co.ll', next_tid(), {'x': i})
+                  for i in range(MAX_OPERATIONS_PER_COMMIT + 1)]
+        with self.assertRaises(ValueError) as cm:
+            self.storage.commit(repo, writes)
+
+    def test_commit_record_too_large(self):
+        repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
+        large_record = {
+            '$type': 'app.bsky.feed.post',
+            'text': 'x' * MAX_RECORD_SIZE_BYTES,
+        }
+
+        create = Write(Action.CREATE, 'co.ll', next_tid(), large_record)
+        with self.assertRaises(ValueError) as cm:
+            self.storage.commit(repo, create)
 
     def test_commit_callback(self):
         repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)

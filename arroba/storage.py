@@ -20,6 +20,13 @@ from .util import dag_cbor_cid, DEACTIVATED, tid_to_int, TOMBSTONED, InactiveRep
 
 SUBSCRIBE_REPOS_NSID = 'com.atproto.sync.subscribeRepos'
 
+# Sync 1.1 commit size limits
+# https://github.com/bluesky-social/proposals/blob/main/0006-sync-iteration%2FREADME.md#commit-size-limits
+MAX_RECORD_SIZE_BYTES = 1_000_000  # 1 MB
+MAX_COMMIT_BLOCKS_BYTES = 2_000_000  # 2 MB
+MAX_EVENT_SIZE_BYTES = 5_000_000  # 5 MB
+MAX_OPERATIONS_PER_COMMIT = 200
+
 logger = logging.getLogger(__name__)
 
 
@@ -459,7 +466,8 @@ class Storage:
 
         Raises:
           InactiveError: if the repo is not active
-          ValueError: if the path for an update or delete doesn't currently exist
+          ValueError: if the commit is invalid, eg the path for an update or delete
+            doesn't currently exist
         """
         seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
         commit_data = self._commit(repo, writes, seq, repo_did=repo_did)
@@ -496,6 +504,9 @@ class Storage:
         if isinstance(writes, Write):
             writes = [writes]
 
+        if len(writes) > MAX_OPERATIONS_PER_COMMIT:
+            raise ValueError(f'Too many operations ({len(writes)}), max is {MAX_OPERATIONS_PER_COMMIT}')
+
         ops = []
         for write in copy.copy(writes):
             assert isinstance(write, Write), type(write)
@@ -519,6 +530,8 @@ class Storage:
             server.validate(write.record.get('$type'), 'record', write.record)
 
             block = Block(decoded=write.record, repo=repo_did, seq=seq)
+            if len(block.encoded) > MAX_RECORD_SIZE_BYTES:
+                raise ValueError(f'Record {path} size {len(block.encoded)} bytes exceeds max {MAX_RECORD_SIZE_BYTES}')
             commit_blocks[block.cid] = block
 
             op = CommitOp(action=write.action, path=path,

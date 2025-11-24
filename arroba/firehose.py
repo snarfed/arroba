@@ -18,7 +18,13 @@ from multiformats import CID
 
 from .mst import MST
 from . import server
-from .storage import Action, CommitData, SUBSCRIBE_REPOS_NSID
+from .storage import (
+    Action,
+    CommitData,
+    MAX_COMMIT_BLOCKS_BYTES,
+    MAX_EVENT_SIZE_BYTES,
+    SUBSCRIBE_REPOS_NSID,
+)
 from . import util
 
 NEW_EVENTS_TIMEOUT = timedelta(seconds=20)
@@ -303,20 +309,38 @@ def process_event(event):
                 event_op['prev'] = op.prev_cid
             ops.append(event_op)
 
-    return ({  # header
+    blocks_car = car.write_car([event.commit.cid], car_blocks)
+    # TODO: this is a sync v1.1 limit. ideally we should check it at commit write
+    # time, way before here
+    # https://github.com/bluesky-social/proposals/blob/main/0006-sync-iteration%2FREADME.md#commit-size-limits
+    # if len(blocks_car) > MAX_COMMIT_BLOCKS_BYTES:
+    #     raise ValueError(f'Commit blocks size {len(blocks_car)} bytes exceeds max {MAX_COMMIT_BLOCKS_BYTES}')
+
+    header = {
         'op': 1,
         't': '#commit',
-    }, {  # payload
+    }
+    payload = {
         'repo': commit['did'],
         'ops': ops,
         'commit': event.commit.cid,
-        'blocks': car.write_car([event.commit.cid], car_blocks),
+        'blocks': blocks_car,
         'time': event.commit.time.replace(tzinfo=timezone.utc).isoformat(),
         'seq': event.commit.seq,
         'rev': util.int_to_tid(event.commit.seq, clock_id=0),
         'since': None,  # TODO: load event.commit['prev']'s CID
         'rebase': False,
-        'tooBig': False,
         'blobs': [],
         'prevData': prev_data,
-    })
+    }
+
+    # TODO: this is a sync v1.1 limit. ideally we should check it at commit write
+    # time, way before here
+    # https://github.com/bluesky-social/proposals/blob/main/0006-sync-iteration%2FREADME.md#commit-size-limits
+    #
+    # rough estimate: dag_cbor encoding is similar size to the dict
+    # event_size = len(dag_cbor.encode(header)) + len(dag_cbor.encode(payload))
+    # if event_size > MAX_EVENT_SIZE_BYTES:
+    #     raise ValueError(f'Event size {event_size} bytes exceeds max {MAX_EVENT_SIZE_BYTES}')
+
+    return (header, payload)
