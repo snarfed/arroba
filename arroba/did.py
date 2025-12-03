@@ -269,7 +269,8 @@ def write_plc_operation(op, rotation_key, did=None, post_fn=requests.post):
                   signing_key=None, rotation_key=None)
 
 
-def rollback_plc(did, rotation_key, get_fn=requests_get, post_fn=requests.post):
+def rollback_plc(did, rotation_key, num_operations=1,
+                 get_fn=requests_get, post_fn=requests.post):
     """Reverts a DID PLC document to its last version.
 
     Reads a did:plc's audit log from the directory, extracts its *previous*
@@ -280,6 +281,7 @@ def rollback_plc(did, rotation_key, get_fn=requests_get, post_fn=requests.post):
       did (str)
       rotation_key (ec.EllipticCurvePrivateKey): The curve must be SECP256K1.
         Must match the DID's current rotation key in the PLC directory.
+      num_operations (int): how many operations back to revert. Defaults to 1.
       get_fn (callable): for making HTTP GET requests
       post_fn (callable): for making HTTP POST requests
 
@@ -296,12 +298,13 @@ def rollback_plc(did, rotation_key, get_fn=requests_get, post_fn=requests.post):
     resp.raise_for_status()
     log = resp.json()
 
-    assert len(log) >= 2, log
+    assert len(log) >= num_operations + 1, log
     rotation_did_key = encode_did_key(rotation_key.public_key())
     assert rotation_did_key in log[-1]['operation']['rotationKeys'], rotation_did_key
 
-    assert log[-2]['did'] == did
-    op = log[-2]['operation']
+    target = log[-(num_operations + 1)]
+    assert target['did'] == did
+    op = target['operation']
     op['prev'] = log[-1]['cid']
     op.pop('sig', None)
 
