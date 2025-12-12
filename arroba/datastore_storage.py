@@ -262,8 +262,7 @@ class AtpSequence(ndb.Model):
     # propagation=context.TransactionOptions.INDEPENDENT is important here so that we
     # don't include this in heavy, long-running commit transactions, since it's a
     # single-row bottleneck! (the default is join=True.)
-    @ndb.transactional(retries=10,
-                       propagation=context.TransactionOptions.INDEPENDENT, join=None)
+    @ndb.transactional(propagation=context.TransactionOptions.INDEPENDENT, join=None)
     def allocate(cls, nsid):
         """Returns the next sequence number for a given NSID.
 
@@ -713,7 +712,7 @@ class DatastoreStorage(Storage):
                       if b.cid.encode('base32') not in existing_cids)
 
     @ndb_context
-    @ndb.transactional(retries=10)
+    @ndb.transactional()
     def _commit(self, *args, **kwargs):
         """Just runs :meth:`Storage._commit` in a transaction."""
         return super()._commit(*args, **kwargs)
