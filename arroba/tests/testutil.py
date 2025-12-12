@@ -20,9 +20,10 @@ from flask import Flask, request
 from google.auth.credentials import AnonymousCredentials
 from google.cloud import ndb
 from multiformats import CID
+from pymemcache.test.utils import MockMemcacheClient
 import requests
 
-from ..datastore_storage import DatastoreStorage
+from .. import datastore_storage
 from ..repo import Repo
 from .. import server
 from ..storage import MemoryStorage
@@ -171,7 +172,8 @@ class DatastoreTest(TestCase):
 
     def setUp(self):
         super().setUp()
-        self.storage = server.storage = DatastoreStorage(ndb_client=self.ndb_client)
+        self.storage = server.storage = datastore_storage.DatastoreStorage(
+            ndb_client=self.ndb_client)
 
         # clear datastore
         requests.post(f'http://{self.ndb_client.host}/reset')
@@ -186,8 +188,13 @@ class DatastoreTest(TestCase):
         self.ndb_context = self.ndb_client.context(cache_policy=lambda key: False)
         self.ndb_context.__enter__()
 
+        # memcache sequence allocation stuff
+        datastore_storage.memcache = MockMemcacheClient()
+        datastore_storage.max_seqs.clear()
+
     def tearDown(self):
         self.ndb_context.__exit__(None, None, None)
+        datastore_storage.memcache = None
         super().tearDown()
 
 

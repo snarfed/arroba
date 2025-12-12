@@ -1462,3 +1462,27 @@ class DatastoreSubscribeReposTest(SubscribeReposTest, testutil.DatastoreTest):
             # we may be in a separate thread; make a new ndb context
             with self.ndb_client.context():
                 super().subscribe(*args, **kwargs)
+
+
+# TODO make this work. it currently hangs, haven't debugged.
+#
+# @patch('arroba.datastore_storage.MEMCACHE_SEQUENCE_ALLOCATION', True)
+# @patch('arroba.datastore_storage.MEMCACHE_SEQUENCE_BATCH', 5)
+# @patch('arroba.datastore_storage.MEMCACHE_SEQUENCE_BUFFER', 3)
+# @patch('arroba.datastore_storage.AtpBlock.created._now',
+#        return_value=NOW.replace(tzinfo=None))
+# class DatastoreMemcacheSequenceAllocationSubscribeReposTest(
+#         SubscribeReposTest, testutil.DatastoreTest):
+#     @patch('arroba.datastore_storage.AtpBlock.created._now',
+#            return_value=NOW.replace(tzinfo=None))
+#     def setUp(self, _):
+#         super().setUp()
+
+#     def subscribe(self, *args, **kwargs):
+#         try:
+#             ndb.context.get_context()
+#             super().subscribe(*args, **kwargs)
+#         except ContextError:
+#             # we may be in a separate thread; make a new ndb context
+#             with self.ndb_client.context():
+#                 super().subscribe(*args, **kwargs)

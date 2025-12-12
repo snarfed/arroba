@@ -7,6 +7,7 @@ Huge thanks to the Bluesky team for working in the public, in open source, and t
 Daniel Holmgren and Devin Ivy for this code specifically!
 """
 import copy
+from unittest.mock import ANY, call, patch
 
 from carbox import car
 import dag_cbor
@@ -19,10 +20,11 @@ from ..storage import Action, CommitOp, MemoryStorage
 from .. import util
 from ..util import dag_cbor_cid, next_tid, verify_sig
 
-from .testutil import DatastoreTest, NOW, TestCase
+from . import testutil
+from .testutil import NOW
 
 
-class RepoTest(TestCase):
+class RepoTest(testutil.TestCase):
     def setUp(self):
         super().setUp()
         server._validate = False
@@ -149,6 +151,14 @@ class RepoTest(TestCase):
         self.assertEqual({'co.ll': objs}, reloaded.get_contents())
 
 
-class DatastoreRepoTest(RepoTest, DatastoreTest):
-    """Run all of RepoTest's tests with DatastoreStorage."""
+class DatastoreRepoTest(RepoTest, testutil.DatastoreTest):
+    """Run all of RepoTest with DatastoreStorage."""
+    pass
+
+
+@patch('arroba.datastore_storage.MEMCACHE_SEQUENCE_ALLOCATION', True)
+@patch('arroba.datastore_storage.MEMCACHE_SEQUENCE_BATCH', 5)
+@patch('arroba.datastore_storage.MEMCACHE_SEQUENCE_BUFFER', 3)
+class DatastoreMemcacheSequenceAllocationReposTest(RepoTest, testutil.DatastoreTest):
+    """Run all of RepoTest with DatastoreStorage and memcache sequence allocation."""
     pass

@@ -7,6 +7,7 @@ import logging
 import mimetypes
 import os
 import requests
+import threading
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -42,6 +43,19 @@ BLOB_REFETCH_TYPES = tuple(os.environ.get('BLOB_REFETCH_TYPES', 'image').split('
 BLOB_MAX_BYTES = int(os.environ.get('BLOB_MAX_BYTES', 100_000_000))
 # https://bsky.app/profile/bsky.app/post/3lk26lxn6sk2u
 VIDEO_MAX_DURATION = timedelta(minutes=3)
+
+MEMCACHE_SEQUENCE_ALLOCATION = \
+    os.environ.get('BLOB_MAX_BYTES', '').strip().lower() not in ('', '0', 'false')
+MEMCACHE_SEQUENCE_BATCH = int(os.environ.get('MEMCACHE_SEQUENCE_BATCH', 1000))
+MEMCACHE_SEQUENCE_BUFFER = int(os.environ.get('MEMCACHE_SEQUENCE_BUFFER', 100))
+# clients must set this to a pymemcache.Client to use MEMCACHE_SEQUENCE_ALLOCATION
+memcache = None
+# maps string nsid to integer max sequence number, the lower bound on the
+# AtpSequence's current value. this is the highest seq we can allocate from memcache
+# without allocating a new batch from the datastore and updating the stored
+# AtpSequence's value.
+max_seqs = {}
+max_seqs_lock = threading.Lock()
 
 
 class WriteOnce:
@@ -259,10 +273,6 @@ class AtpSequence(ndb.Model):
     updated = ndb.DateTimeProperty(auto_now=True)
 
     @classmethod
-    # propagation=context.TransactionOptions.INDEPENDENT is important here so that we
-    # don't include this in heavy, long-running commit transactions, since it's a
-    # single-row bottleneck! (the default is join=True.)
-    @ndb.transactional(propagation=context.TransactionOptions.INDEPENDENT, join=None)
     def allocate(cls, nsid):
         """Returns the next sequence number for a given NSID.
 
@@ -275,7 +285,63 @@ class AtpSequence(ndb.Model):
         Returns:
           integer, next sequence number for this NSID
         """
-        logger.info(f'Trying to allocate seq')
+        return (cls._allocate_memcache(nsid) if MEMCACHE_SEQUENCE_ALLOCATION
+                else cls._allocate_datastore(nsid))
+
+    @classmethod
+    def _allocate_memcache(cls, nsid):
+        """Allocates a single sequence number from memcache.
+
+        Backed by :class:`AtpSequence` in the datastore, but only allocates from it
+        in batches.
+
+        See :meth:`allocate` for args etc.
+        """
+        global max_seqs
+        assert memcache
+        assert MEMCACHE_SEQUENCE_BATCH > MEMCACHE_SEQUENCE_BUFFER > 1, \
+            (MEMCACHE_SEQUENCE_BATCH, MEMCACHE_SEQUENCE_BUFFER)
+
+        logger.info(f'allocating seq via memcache for {nsid}')
+
+        key = f'{nsid}-last-seq'
+        seq = memcache.incr(key, 1)
+        if seq is None:  # not in memcache
+            with max_seqs_lock:
+                max_seqs[nsid] = cls.last(nsid)
+                # we'll allocate a new batch below
+                if memcache.add(key, max_seqs[nsid]):
+                    logger.info(f'initialized memcache sequence counter {key} to {max_seqs[nsid]}')
+            seq = memcache.incr(key, 1)
+
+        @ndb.transactional(propagation=context.TransactionOptions.INDEPENDENT,
+                           join=None)
+        def alloc_batch():
+            stored_seq = AtpSequence.get_or_insert(nsid, next=1)
+            if stored_seq.next - seq < MEMCACHE_SEQUENCE_BUFFER:
+                stored_seq.next = seq + MEMCACHE_SEQUENCE_BATCH
+                logger.info(f'allocating {MEMCACHE_SEQUENCE_BATCH} seqs batch for {nsid}, up to {stored_seq.next}')
+                stored_seq.put()
+            max_seqs[nsid] = stored_seq.next
+
+        with max_seqs_lock:
+            if max_seqs.get(nsid, 0) - seq < MEMCACHE_SEQUENCE_BUFFER:
+                alloc_batch()
+
+        assert seq and seq <= max_seqs[nsid], (seq, max_seqs[nsid])
+        return seq
+
+    @classmethod
+    # propagation=context.TransactionOptions.INDEPENDENT is important here so that we
+    # don't include this in heavy, long-running commit transactions, since it's a
+    # single-row bottleneck! (the default is join=True.)
+    @ndb.transactional(propagation=context.TransactionOptions.INDEPENDENT, join=None)
+    def _allocate_datastore(cls, nsid):
+        """Allocates a single sequence number from a stored :class:`AtpSequence`.
+
+        See :meth:`allocate` for args etc.
+        """
+        logger.info(f'allocating seq via datastore for {nsid}')
         seq = AtpSequence.get_or_insert(nsid, next=1)
         ret = seq.next
         seq.next += 1

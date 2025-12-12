@@ -3,6 +3,7 @@ from collections import namedtuple
 from datetime import timedelta
 import os
 from pathlib import Path
+from threading import Barrier, Thread
 from unittest.mock import MagicMock, patch
 
 from cryptography.hazmat.primitives import serialization
@@ -14,6 +15,7 @@ from multiformats import CID
 from pymediainfo import MediaInfo
 import requests
 
+from .. import datastore_storage
 from ..datastore_storage import (
     AtpBlock,
     AtpRemoteBlob,
@@ -736,3 +738,136 @@ class DatastoreStorageTest(DatastoreTest):
     def test_as_object_no_cid(self):
         blob = AtpRemoteBlob(id='http://blob', mime_type='image/foo')
         self.assertIsNone(blob.as_object())
+
+
+@patch('arroba.datastore_storage.MEMCACHE_SEQUENCE_ALLOCATION', True)
+@patch('arroba.datastore_storage.MEMCACHE_SEQUENCE_BATCH', 10)
+@patch('arroba.datastore_storage.MEMCACHE_SEQUENCE_BUFFER', 5)
+class MemcacheSequenceAllocationTest(DatastoreTest):
+    def test_first_time(self):
+        self.assertIsNone(AtpSequence.query().get())
+        self.assertEqual(1, AtpSequence.allocate('foo'))
+        self.assertEqual(11, AtpSequence.get_by_id('foo').next)
+
+    def test_sequential(self):
+        seqs = [AtpSequence.allocate('foo') for _ in range(10)]
+        self.assertEqual(list(range(1, 11)), seqs)
+        self.assertEqual(17, AtpSequence.get_by_id('foo').next)
+
+    def test_across_batch_boundary(self):
+        seqs = [AtpSequence.allocate('foo') for _ in range(15)]
+        self.assertEqual(list(range(1, 16)), seqs)
+        self.assertEqual(23, AtpSequence.get_by_id('foo').next)
+
+    def test_flush_reloads(self):
+        seqs = [AtpSequence.allocate('foo') for _ in range(10)]
+        self.assertEqual(list(range(1, 11)), seqs)
+        self.assertEqual(10, datastore_storage.memcache.get('foo-last-seq'))
+        self.assertEqual(16, AtpSequence.last('foo'))
+
+        datastore_storage.memcache.flush_all()
+
+        self.assertEqual(17, AtpSequence.allocate('foo'))
+        self.assertEqual(17, datastore_storage.memcache.get('foo-last-seq'))
+        self.assertEqual(26, AtpSequence.last('foo'))
+
+    def test_concurrent_no_duplicates(self):
+        num_threads = 10
+        seqs_per_thread = 50
+        barrier = Barrier(num_threads)
+        results = [[] for _ in range(num_threads)]
+
+        def allocate_seqs(thread_id):
+            barrier.wait()
+            for _ in range(seqs_per_thread):
+                with self.ndb_client.context():
+                    results[thread_id].append(AtpSequence.allocate('foo'))
+
+        threads = []
+        for i in range(num_threads):
+            thread = Thread(target=allocate_seqs, args=[i])
+            thread.start()
+            threads.append(thread)
+
+        for thread in threads:
+            thread.join()
+
+        all_seqs = []
+        for result in results:
+            all_seqs.extend(result)
+
+        self.assertEqual(len(all_seqs), len(set(all_seqs)))
+        self.assertEqual(list(range(1, num_threads * seqs_per_thread + 1)),
+                         sorted(all_seqs))
+
+    def test_concurrent_with_flush(self):
+        num_threads = 5
+        seqs_per_thread = 20
+        barrier = Barrier(num_threads + 1)
+        results = [[] for _ in range(num_threads)]
+
+        def allocate_seqs(thread_id):
+            barrier.wait()
+            for i in range(seqs_per_thread):
+                with self.ndb_client.context():
+                    results[thread_id].append(AtpSequence.allocate('foo'))
+
+        def flush_memcache():
+            barrier.wait()
+            datastore_storage.memcache.flush_all()
+
+        threads = []
+        for i in range(num_threads):
+            thread = Thread(target=allocate_seqs, args=[i])
+            thread.start()
+            threads.append(thread)
+
+        flusher = Thread(target=flush_memcache)
+        flusher.start()
+        threads.append(flusher)
+
+        for thread in threads:
+            thread.join()
+
+        all_seqs = []
+        for result in results:
+            all_seqs.extend(result)
+
+        self.assertEqual(num_threads * seqs_per_thread, len(all_seqs))
+        self.assertEqual(len(all_seqs), len(set(all_seqs)))
+
+    def test_different_nsids(self):
+        self.assertEqual(1, AtpSequence.allocate('foo'))
+        self.assertEqual(1, AtpSequence.allocate('bar'))
+        self.assertEqual(2, AtpSequence.allocate('foo'))
+        self.assertEqual(2, AtpSequence.allocate('bar'))
+
+    def test_initialize_memcache(self):
+        self.assertIsNone(datastore_storage.memcache.get('foo-last-seq'))
+
+        AtpSequence(id='foo', next=25).put()
+        self.assertEqual(25, AtpSequence.allocate('foo'))
+        self.assertEqual(35, AtpSequence.get_by_id('foo').next)
+
+    def test_batch_updates_datastore(self):
+        initial_stored = AtpSequence.get_by_id('foo')
+        self.assertIsNone(initial_stored)
+
+        AtpSequence.allocate('foo')
+
+        stored = AtpSequence.get_by_id('foo')
+        self.assertIsNotNone(stored)
+        self.assertEqual(stored.next, 11)
+
+        stored_before = stored.next
+        for _ in range(3):
+            AtpSequence.allocate('foo')
+
+        stored = AtpSequence.get_by_id('foo')
+        self.assertEqual(stored_before, stored.next)
+
+        for _ in range(10):
+            AtpSequence.allocate('foo')
+
+        stored = AtpSequence.get_by_id('foo')
+        self.assertGreater(stored.next, stored_before)
