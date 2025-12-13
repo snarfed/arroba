@@ -285,6 +285,10 @@ class AtpSequence(ndb.Model):
         Returns:
           integer, next sequence number for this NSID
         """
+        if MEMCACHE_SEQUENCE_ALLOCATION == 'shadow':
+            cls._allocate_memcache(nsid + '-shadow')
+            return cls._allocate_datastore(nsid)
+
         return (cls._allocate_memcache(nsid) if MEMCACHE_SEQUENCE_ALLOCATION
                 else cls._allocate_datastore(nsid))
 
@@ -311,7 +315,7 @@ class AtpSequence(ndb.Model):
                 max_seqs[nsid] = cls.last(nsid)
                 # we'll allocate a new batch below
                 if memcache.add(key, max_seqs[nsid]):
-                    logger.info(f'initialized memcache sequence counter {key} to {max_seqs[nsid]}')
+                    logger.info(f'  initialized memcache sequence counter {key} to {max_seqs[nsid]}')
             seq = memcache.incr(key, 1)
 
         @ndb.transactional(propagation=context.TransactionOptions.INDEPENDENT,
@@ -320,7 +324,7 @@ class AtpSequence(ndb.Model):
             stored_seq = AtpSequence.get_or_insert(nsid, next=1)
             if stored_seq.next - seq < MEMCACHE_SEQUENCE_BUFFER:
                 stored_seq.next = seq + MEMCACHE_SEQUENCE_BATCH
-                logger.info(f'allocating {MEMCACHE_SEQUENCE_BATCH} seqs batch for {nsid}, up to {stored_seq.next}')
+                logger.info(f'  allocating {MEMCACHE_SEQUENCE_BATCH} seqs batch for {nsid}, up to {stored_seq.next}')
                 stored_seq.put()
             max_seqs[nsid] = stored_seq.next
 
@@ -329,6 +333,7 @@ class AtpSequence(ndb.Model):
                 alloc_batch()
 
         assert seq and seq <= max_seqs[nsid], (seq, max_seqs[nsid])
+        logger.info(f'  allocated seq {seq}')
         return seq
 
     @classmethod
@@ -346,6 +351,7 @@ class AtpSequence(ndb.Model):
         ret = seq.next
         seq.next += 1
         seq.put()
+        logger.info(f'  allocated seq {ret}')
         return ret
 
     @classmethod
@@ -787,7 +793,6 @@ class DatastoreStorage(Storage):
     def allocate_seq(self, nsid):
         assert nsid
         seq = AtpSequence.allocate(nsid)
-        logger.info(f'Allocated seq {seq}')
         return seq
 
     @ndb_context

@@ -159,6 +159,6 @@ class DatastoreRepoTest(RepoTest, testutil.DatastoreTest):
 @patch('arroba.datastore_storage.MEMCACHE_SEQUENCE_ALLOCATION', True)
 @patch('arroba.datastore_storage.MEMCACHE_SEQUENCE_BATCH', 5)
 @patch('arroba.datastore_storage.MEMCACHE_SEQUENCE_BUFFER', 3)
-class DatastoreMemcacheSequenceAllocationReposTest(RepoTest, testutil.DatastoreTest):
+class DatastoreMemcacheSequenceAllocationRepoTest(RepoTest, testutil.DatastoreTest):
     """Run all of RepoTest with DatastoreStorage and memcache sequence allocation."""
     pass
