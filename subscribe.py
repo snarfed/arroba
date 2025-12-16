@@ -21,15 +21,14 @@ if __name__ == '__main__':
     host = sys.argv[1] if len(sys.argv) >= 2 else 'bsky.network'
     scheme = 'http' if host.split(':')[0] == 'localhost' else 'https'
     client = Client(f'{scheme}://{host}')
-    kwargs = {'cursor': sys.argv[2]} if len(sys.argv) == 3 else {}
+    kwargs = {'cursor': int(sys.argv[2])} if len(sys.argv) == 3 else {}
 
     for header, payload in client.com.atproto.sync.subscribeRepos(**kwargs):
         output = json.loads(dag_json.encode(payload).decode())
         if blocks := output.get('blocks'):
             output['blocks'] = blocks['/']['bytes'][:32] + '…'
 
-        print(output.get('seq'), header, output,
-              file=sys.stdout, flush=True)
+        print(output.get('seq'), header, output, file=sys.stdout, flush=True)
 
         if not blocks:
             continue
