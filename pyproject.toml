@@ -52,6 +52,9 @@ flask = [
     'Flask>=2.0',
     'flask-sock',
 ]
+tests = [
+    'pymemcache',
+]
 
 [project.urls]
 'Homepage' = 'https://github.com/snarfed/arroba'
