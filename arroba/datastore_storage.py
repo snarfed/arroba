@@ -387,11 +387,11 @@ class AtpSequence(ndb.Model):
         Returns:
           integer, last sequence number for this NSID, or None if we don't know it
         """
-        if MEMCACHE_SEQUENCE_ALLOCATION:
+        if MEMCACHE_SEQUENCE_ALLOCATION is True:
             return memcache.get(cls._memcache_key(nsid))
         else:
-            seq = cls.get_or_insert(nsid, next=1)
-            return seq.next - 1
+            if seq := cls.get_by_id(nsid):
+                return seq.next - 1
 
 
 class AtpRemoteBlob(ndb.Model):

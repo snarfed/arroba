@@ -179,6 +179,7 @@ def collect(limit=None):
     """
     logger.info(f'collect: preloading rollback window ({PRELOAD_WINDOW})')
     cur_seq = server.storage.last_seq(SUBSCRIBE_REPOS_NSID)
+    assert cur_seq is not None
     query = server.storage.read_events_by_seq(
         start=max(cur_seq - PRELOAD_WINDOW + 1, 0))
 

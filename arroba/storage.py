@@ -441,13 +441,15 @@ class Storage:
         raise NotImplementedError()
 
     def last_seq(self, nsid):
-        """Returns the last (highest) stored sequence number for the given NSID.
+        """Returns the last (highest) allocated sequence number for the given NSID.
+
+        ...or None if no sequence number has ever been allocated for this NSID.
 
         Args:
           nsid (str): subscription XRPC method this sequence number is for
 
         Returns:
-          int:
+          int or None:
         """
         raise NotImplementedError()
 
@@ -666,4 +668,5 @@ class MemoryStorage(Storage):
 
     def last_seq(self, nsid):
         assert nsid
-        return self.sequences.setdefault(nsid, 1) - 1
+        if next := self.sequences.get(nsid):
+            return next - 1

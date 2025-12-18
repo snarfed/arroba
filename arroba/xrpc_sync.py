@@ -120,6 +120,7 @@ def subscribe_repos(cursor=None):
       (dict, dict) tuple: (header, payload)
     """
     cur_seq = server.storage.last_seq(SUBSCRIBE_REPOS_NSID)
+    assert cur_seq is not None
 
     if cursor is not None:
         # validate cursor

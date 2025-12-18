@@ -112,6 +112,7 @@ _Breaking changes:_
 
 * When creating a new repo, the first commit is now always empty. `Repo.create_from_commit` has been removed; all repos should now be created with `Repo.create`.
 * Removed `Repo.apply_writes`, `format_commit`, `apply_commit`, and `writes_to_commit_ops`. Use the new `Storage.commit` method instead.
+* If no sequence number has ever been allocated for a given NSID, `Storage.last_seq` now returns `None`, and _does not_ initialize the sequence.
 
 _Non-breaking changes:_
 

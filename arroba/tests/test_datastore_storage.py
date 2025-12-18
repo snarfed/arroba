@@ -62,8 +62,8 @@ class DatastoreStorageTest(DatastoreTest):
 
     def test_atpsequence_last_new(self):
         self.assertIsNone(AtpSequence.query().get())
-        self.assertEqual(0, AtpSequence.last('foo'))
-        self.assertEqual(1, AtpSequence.get_by_id('foo').next)
+        self.assertIsNone(AtpSequence.last('foo'))
+        self.assertIsNone(AtpSequence.get_by_id('foo'))
 
     def test_atpsequence_last_existing(self):
         AtpSequence(id='foo', next=42).put()
@@ -745,6 +745,7 @@ class DatastoreStorageTest(DatastoreTest):
 @patch('arroba.datastore_storage.MEMCACHE_SEQUENCE_BUFFER', 5)
 class MemcacheSequenceAllocationTest(DatastoreTest):
     def test_first_time(self):
+        self.assertIsNone(AtpSequence.last('foo'))
         self.assertIsNone(AtpSequence.query().get())
         self.assertEqual(1, AtpSequence.allocate('foo'))
         self.assertEqual(1, AtpSequence.last('foo'))
