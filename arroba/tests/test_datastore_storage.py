@@ -747,29 +747,39 @@ class MemcacheSequenceAllocationTest(DatastoreTest):
     def test_first_time(self):
         self.assertIsNone(AtpSequence.query().get())
         self.assertEqual(1, AtpSequence.allocate('foo'))
+        self.assertEqual(1, AtpSequence.last('foo'))
+        self.assertEqual(1, datastore_storage.memcache.get('foo-last-seq'))
         self.assertEqual(11, AtpSequence.get_by_id('foo').next)
 
     def test_sequential(self):
         seqs = [AtpSequence.allocate('foo') for _ in range(10)]
         self.assertEqual(list(range(1, 11)), seqs)
+        self.assertEqual(10, AtpSequence.last('foo'))
+        self.assertEqual(10, datastore_storage.memcache.get('foo-last-seq'))
         self.assertEqual(17, AtpSequence.get_by_id('foo').next)
 
     def test_across_batch_boundary(self):
         seqs = [AtpSequence.allocate('foo') for _ in range(15)]
         self.assertEqual(list(range(1, 16)), seqs)
+        self.assertEqual(15, AtpSequence.last('foo'))
+        self.assertEqual(15, datastore_storage.memcache.get('foo-last-seq'))
         self.assertEqual(23, AtpSequence.get_by_id('foo').next)
 
     def test_flush_reloads(self):
         seqs = [AtpSequence.allocate('foo') for _ in range(10)]
         self.assertEqual(list(range(1, 11)), seqs)
+        self.assertEqual(10, AtpSequence.last('foo'))
         self.assertEqual(10, datastore_storage.memcache.get('foo-last-seq'))
-        self.assertEqual(16, AtpSequence.last('foo'))
+        self.assertEqual(17, AtpSequence.get_by_id('foo').next)
 
         datastore_storage.memcache.flush_all()
 
+        self.assertIsNone(AtpSequence.last('foo'))
+
         self.assertEqual(17, AtpSequence.allocate('foo'))
+        self.assertEqual(17, AtpSequence.last('foo'))
         self.assertEqual(17, datastore_storage.memcache.get('foo-last-seq'))
-        self.assertEqual(26, AtpSequence.last('foo'))
+        self.assertEqual(27, AtpSequence.get_by_id('foo').next)
 
     def test_concurrent_no_duplicates(self):
         num_threads = 10

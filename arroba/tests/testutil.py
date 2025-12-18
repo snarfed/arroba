@@ -111,7 +111,7 @@ class TestCase(unittest.TestCase):
         if not TestCase.key:
             TestCase.key = util.new_key(seed=2349872879569)
 
-        self.storage = server.storage = MemoryStorage()
+        self.storage = server.storage = self._make_storage()
         server.server._validate = server.server._truncate = False
 
         # clear caches
@@ -125,6 +125,10 @@ class TestCase(unittest.TestCase):
         os.environ.setdefault('REPO_TOKEN', 'towkin')
         os.environ.pop('APPVIEW_HOST', None)
         os.environ.pop('APPVIEW_JWT', None)
+
+    @classmethod
+    def _make_storage(cls):
+        return MemoryStorage()
 
     @staticmethod
     def random_keys_and_cids(num):
@@ -171,9 +175,13 @@ class DatastoreTest(TestCase):
     ndb_client = ndb.Client(project='app', credentials=AnonymousCredentials())
 
     def setUp(self):
+        # couldn't get this to work as a patch in
+        # test_xrpc_sync.DatastoreMemcacheSequenceAllocationSubscribeReposTest.
+        # patching there worked, but then somehow leaked through to
+        # DatastoreSubscribeReposTest too, even though it wasn't patched. no idea why.
+        datastore_storage.MEMCACHE_SEQUENCE_ALLOCATION = False
+
         super().setUp()
-        self.storage = server.storage = datastore_storage.DatastoreStorage(
-            ndb_client=self.ndb_client)
 
         # clear datastore
         requests.post(f'http://{self.ndb_client.host}/reset')
@@ -191,6 +199,10 @@ class DatastoreTest(TestCase):
         # memcache sequence allocation stuff
         datastore_storage.memcache = MockMemcacheClient()
         datastore_storage.max_seqs.clear()
+
+    @classmethod
+    def _make_storage(cls):
+        return datastore_storage.DatastoreStorage(ndb_client=cls.ndb_client)
 
     def tearDown(self):
         self.ndb_context.__exit__(None, None, None)

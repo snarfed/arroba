@@ -1446,11 +1446,13 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
         self.assertIn('not implemented', str(e.exception))
 
 
-@patch('arroba.datastore_storage.AtpBlock.created._now',
-       return_value=NOW.replace(tzinfo=None))
+patch_atpblock_created = patch('arroba.datastore_storage.AtpBlock.created._now',
+                               return_value=NOW.replace(tzinfo=None))
+
+@patch_atpblock_created
 class DatastoreSubscribeReposTest(SubscribeReposTest, testutil.DatastoreTest):
-    @patch('arroba.datastore_storage.AtpBlock.created._now',
-           return_value=NOW.replace(tzinfo=None))
+
+    @patch_atpblock_created
     def setUp(self, _):
         super().setUp()
 
@@ -1464,25 +1466,27 @@ class DatastoreSubscribeReposTest(SubscribeReposTest, testutil.DatastoreTest):
                 super().subscribe(*args, **kwargs)
 
 
-# TODO make this work. it currently hangs, haven't debugged.
-#
-# @patch('arroba.datastore_storage.MEMCACHE_SEQUENCE_ALLOCATION', True)
-# @patch('arroba.datastore_storage.MEMCACHE_SEQUENCE_BATCH', 5)
-# @patch('arroba.datastore_storage.MEMCACHE_SEQUENCE_BUFFER', 3)
-# @patch('arroba.datastore_storage.AtpBlock.created._now',
-#        return_value=NOW.replace(tzinfo=None))
-# class DatastoreMemcacheSequenceAllocationSubscribeReposTest(
-#         SubscribeReposTest, testutil.DatastoreTest):
-#     @patch('arroba.datastore_storage.AtpBlock.created._now',
-#            return_value=NOW.replace(tzinfo=None))
-#     def setUp(self, _):
-#         super().setUp()
 
-#     def subscribe(self, *args, **kwargs):
-#         try:
-#             ndb.context.get_context()
-#             super().subscribe(*args, **kwargs)
-#         except ContextError:
-#             # we may be in a separate thread; make a new ndb context
-#             with self.ndb_client.context():
-#                 super().subscribe(*args, **kwargs)
+@patch_atpblock_created
+class DatastoreMemcacheSequenceAllocationSubscribeReposTest(
+        SubscribeReposTest, testutil.DatastoreTest):
+
+    @patch_atpblock_created
+    def setUp(self, _):
+        # couldn't get these to work as patches. patching them here and on the class
+        # worked, but then somehow leaked through to DatastoreSubscribeReposTest
+        # above too, even though it wasn't patched. no idea why.
+        datastore_storage.MEMCACHE_SEQUENCE_ALLOCATION = True
+        datastore_storage.MEMCACHE_SEQUENCE_BATCH = 5
+        datastore_storage.MEMCACHE_SEQUENCE_BUFFER = 3
+
+        super().setUp()
+
+    def subscribe(self, *args, **kwargs):
+        try:
+            ndb.context.get_context()
+            super().subscribe(*args, **kwargs)
+        except ContextError:
+            # we may be in a separate thread; make a new ndb context
+            with self.ndb_client.context():
+                super().subscribe(*args, **kwargs)
