@@ -273,6 +273,10 @@ class AtpSequence(ndb.Model):
     updated = ndb.DateTimeProperty(auto_now=True)
 
     @classmethod
+    # propagation=context.TransactionOptions.INDEPENDENT is important here so that we
+    # don't include this in heavy, long-running commit transactions, since it's a
+    # single-row bottleneck! (the default is join=True.)
+    @ndb.transactional(propagation=context.TransactionOptions.INDEPENDENT, join=None)
     def allocate(cls, nsid):
         """Returns the next sequence number for a given NSID.
 
@@ -284,87 +288,6 @@ class AtpSequence(ndb.Model):
 
         Returns:
           integer, next sequence number for this NSID
-        """
-        if MEMCACHE_SEQUENCE_ALLOCATION == 'shadow':
-            cls._allocate_memcache(nsid + '-shadow')
-            return cls._allocate_datastore(nsid)
-
-        return (cls._allocate_memcache(nsid) if MEMCACHE_SEQUENCE_ALLOCATION
-                else cls._allocate_datastore(nsid))
-
-    @classmethod
-    def _memcache_key(cls, nsid):
-        """Returns the sequence number memcache key for a given NSID.
-
-        Raises ``AssertionError`` if memcache sequence allocation isn't enabled.
-
-        Args:
-          nsid (str)
-
-        Returns:
-          str: memcache key
-        """
-        assert MEMCACHE_SEQUENCE_ALLOCATION
-        assert nsid
-        return f'{nsid}-last-seq'
-
-    @classmethod
-    def _allocate_memcache(cls, nsid):
-        """Allocates a single sequence number from memcache.
-
-        The memcache key is ``[nsid]-last-seq``. Its value is the last sequence
-        number we've allocated.
-
-        Backed by :class:`AtpSequence` in the datastore, but only allocates from it
-        in batches.
-
-        See :meth:`allocate` for args etc.
-        """
-        global max_seqs
-        assert memcache
-        assert MEMCACHE_SEQUENCE_BATCH > MEMCACHE_SEQUENCE_BUFFER > 1, \
-            (MEMCACHE_SEQUENCE_BATCH, MEMCACHE_SEQUENCE_BUFFER)
-
-        logger.info(f'allocating seq via memcache for {nsid}')
-
-        key = cls._memcache_key(nsid)
-        seq = memcache.incr(key, 1)
-        if seq is None:  # not in memcache
-            with max_seqs_lock:
-                # can't use last() because it looks in memcache
-                max_seqs[nsid] = cls.get_or_insert(nsid, next=1).next - 1
-                # we'll allocate a new batch below
-                if memcache.add(key, max_seqs[nsid]):
-                    logger.info(f'  initialized memcache sequence counter {key} to {max_seqs[nsid]}')
-            seq = memcache.incr(key, 1)
-
-        @ndb.transactional(propagation=context.TransactionOptions.INDEPENDENT,
-                           join=None)
-        def alloc_batch():
-            stored_seq = cls.get_or_insert(nsid, next=1)
-            if stored_seq.next - seq < MEMCACHE_SEQUENCE_BUFFER:
-                stored_seq.next = seq + MEMCACHE_SEQUENCE_BATCH
-                logger.info(f'  allocating {MEMCACHE_SEQUENCE_BATCH} seqs batch for {nsid}, up to {stored_seq.next}')
-                stored_seq.put()
-            max_seqs[nsid] = stored_seq.next
-
-        with max_seqs_lock:
-            if max_seqs.get(nsid, 0) - seq < MEMCACHE_SEQUENCE_BUFFER:
-                alloc_batch()
-
-        assert seq and seq <= max_seqs[nsid], (seq, max_seqs[nsid])
-        logger.info(f'  allocated seq {seq}')
-        return seq
-
-    @classmethod
-    # propagation=context.TransactionOptions.INDEPENDENT is important here so that we
-    # don't include this in heavy, long-running commit transactions, since it's a
-    # single-row bottleneck! (the default is join=True.)
-    @ndb.transactional(propagation=context.TransactionOptions.INDEPENDENT, join=None)
-    def _allocate_datastore(cls, nsid):
-        """Allocates a single sequence number from a stored :class:`AtpSequence`.
-
-        See :meth:`allocate` for args etc.
         """
         logger.info(f'allocating seq via datastore for {nsid}')
         seq = cls.get_or_insert(nsid, next=1)
@@ -378,20 +301,14 @@ class AtpSequence(ndb.Model):
     def last(cls, nsid):
         """Returns the last allocated sequence number for a given NSID.
 
-        Creates a new :class:`AtpSequence` entity if one doesn't already exist
-        for the given NSID.
-
         Args:
           nsid (str): the subscription XRPC method for this sequence number
 
         Returns:
           integer, last sequence number for this NSID, or None if we don't know it
         """
-        if MEMCACHE_SEQUENCE_ALLOCATION is True:
-            return memcache.get(cls._memcache_key(nsid))
-        else:
-            if seq := cls.get_by_id(nsid):
-                return seq.next - 1
+        if seq := cls.get_by_id(nsid):
+            return seq.next - 1
 
 
 class AtpRemoteBlob(ndb.Model):
@@ -815,10 +732,81 @@ class DatastoreStorage(Storage):
     @ndb_context
     def allocate_seq(self, nsid):
         assert nsid
-        seq = AtpSequence.allocate(nsid)
-        return seq
+
+        if MEMCACHE_SEQUENCE_ALLOCATION == 'shadow':
+            self._allocate_seq_memcache(nsid + '-shadow')
+            return AtpSequence.allocate(nsid)
+        elif MEMCACHE_SEQUENCE_ALLOCATION is True:
+            return self._allocate_seq_memcache(nsid)
+        else:
+            return AtpSequence.allocate(nsid)
 
     @ndb_context
     def last_seq(self, nsid):
         assert nsid
-        return AtpSequence.last(nsid)
+        if MEMCACHE_SEQUENCE_ALLOCATION is True:
+            return memcache.get(self._memcache_seq_key(nsid))
+        else:
+            return AtpSequence.last(nsid)
+
+    def _memcache_seq_key(self, nsid):
+        """Returns the sequence number memcache key for a given NSID.
+
+        Raises ``AssertionError`` if memcache sequence allocation isn't enabled.
+
+        Args:
+          nsid (str)
+
+        Returns:
+          str: memcache key
+        """
+        assert MEMCACHE_SEQUENCE_ALLOCATION
+        assert nsid
+        return f'{nsid}-last-seq'
+
+    def _allocate_seq_memcache(self, nsid):
+        """Allocates a single sequence number from memcache.
+
+        The memcache key is ``[nsid]-last-seq``. Its value is the last sequence
+        number we've allocated.
+
+        Backed by :class:`AtpSequence` in the datastore, but only allocates from it
+        in batches.
+
+        See :meth:`allocate` for args etc.
+        """
+        global max_seqs
+        assert memcache
+        assert MEMCACHE_SEQUENCE_BATCH > MEMCACHE_SEQUENCE_BUFFER > 1, \
+            (MEMCACHE_SEQUENCE_BATCH, MEMCACHE_SEQUENCE_BUFFER)
+
+        logger.info(f'allocating seq via memcache for {nsid}')
+
+        key = self._memcache_seq_key(nsid)
+        seq = memcache.incr(key, 1)
+        if seq is None:  # not in memcache
+            with max_seqs_lock:
+                # can't use last() because it looks in memcache
+                max_seqs[nsid] = AtpSequence.get_or_insert(nsid, next=1).next - 1
+                # we'll allocate a new batch below
+                if memcache.add(key, max_seqs[nsid]):
+                    logger.info(f'  initialized memcache sequence counter {key} to {max_seqs[nsid]}')
+            seq = memcache.incr(key, 1)
+
+        @ndb.transactional(propagation=context.TransactionOptions.INDEPENDENT,
+                           join=None)
+        def alloc_batch():
+            stored_seq = AtpSequence.get_or_insert(nsid, next=1)
+            if stored_seq.next - seq < MEMCACHE_SEQUENCE_BUFFER:
+                stored_seq.next = seq + MEMCACHE_SEQUENCE_BATCH
+                logger.info(f'  allocating {MEMCACHE_SEQUENCE_BATCH} seqs batch for {nsid}, up to {stored_seq.next}')
+                stored_seq.put()
+            max_seqs[nsid] = stored_seq.next
+
+        with max_seqs_lock:
+            if max_seqs.get(nsid, 0) - seq < MEMCACHE_SEQUENCE_BUFFER:
+                alloc_batch()
+
+        assert seq and seq <= max_seqs[nsid], (seq, max_seqs[nsid])
+        logger.info(f'  allocated seq {seq}')
+        return seq

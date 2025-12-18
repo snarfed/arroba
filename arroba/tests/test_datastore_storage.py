@@ -207,9 +207,9 @@ class DatastoreStorageTest(DatastoreTest):
             self.storage.read_many(cids))
 
     def test_read_blocks_by_seq(self):
-        AtpSequence.allocate(SUBSCRIBE_REPOS_NSID)
+        self.storage.allocate_seq(SUBSCRIBE_REPOS_NSID)
         foo = self.storage.write(repo_did='did:plc:123', obj={'foo': 2})  # seq 2
-        AtpSequence.allocate(SUBSCRIBE_REPOS_NSID)
+        self.storage.allocate_seq(SUBSCRIBE_REPOS_NSID)
         bar = self.storage.write(repo_did='did:plc:123', obj={'bar': 4})  # seq 4
         baz = self.storage.write(repo_did='did:plc:123', obj={'baz': 5})  # seq 5
 
@@ -241,14 +241,14 @@ class DatastoreStorageTest(DatastoreTest):
             [b.cid for b in self.storage.read_blocks_by_seq(repo='did:plc:789')])
 
     def test_read_blocks_by_seq_no_ndb_context(self):
-        AtpSequence.allocate(SUBSCRIBE_REPOS_NSID)
+        self.storage.allocate_seq(SUBSCRIBE_REPOS_NSID)
         block = self.storage.write(repo_did='did:plc:123', obj={'foo': 2})
 
         self.ndb_context.__exit__(None, None, None)
         self.assertEqual([block], list(self.storage.read_blocks_by_seq()))
 
     def test_read_blocks_by_seq_ndb_context_closes_while_running(self):
-        AtpSequence.allocate(SUBSCRIBE_REPOS_NSID)
+        self.storage.allocate_seq(SUBSCRIBE_REPOS_NSID)
         blocks = [
             self.storage.write(repo_did='did:plc:123', obj={'foo': 2}),
             self.storage.write(repo_did='did:plc:123', obj={'bar': 3}),
@@ -743,42 +743,45 @@ class DatastoreStorageTest(DatastoreTest):
 @patch('arroba.datastore_storage.MEMCACHE_SEQUENCE_ALLOCATION', True)
 @patch('arroba.datastore_storage.MEMCACHE_SEQUENCE_BATCH', 10)
 @patch('arroba.datastore_storage.MEMCACHE_SEQUENCE_BUFFER', 5)
-class MemcacheSequenceAllocationTest(DatastoreTest):
+class MemcacheSequenceAllocationDatastoreStorageTest(DatastoreStorageTest):
+    # run all of the DatastoreStorageTest tests and also the dedicated
+    # memcache seq allocation tests below
+
     def test_first_time(self):
-        self.assertIsNone(AtpSequence.last('foo'))
+        self.assertIsNone(self.storage.last_seq('foo'))
         self.assertIsNone(AtpSequence.query().get())
-        self.assertEqual(1, AtpSequence.allocate('foo'))
-        self.assertEqual(1, AtpSequence.last('foo'))
+        self.assertEqual(1, self.storage.allocate_seq('foo'))
+        self.assertEqual(1, self.storage.last_seq('foo'))
         self.assertEqual(1, datastore_storage.memcache.get('foo-last-seq'))
         self.assertEqual(11, AtpSequence.get_by_id('foo').next)
 
     def test_sequential(self):
-        seqs = [AtpSequence.allocate('foo') for _ in range(10)]
+        seqs = [self.storage.allocate_seq('foo') for _ in range(10)]
         self.assertEqual(list(range(1, 11)), seqs)
-        self.assertEqual(10, AtpSequence.last('foo'))
+        self.assertEqual(10, self.storage.last_seq('foo'))
         self.assertEqual(10, datastore_storage.memcache.get('foo-last-seq'))
         self.assertEqual(17, AtpSequence.get_by_id('foo').next)
 
     def test_across_batch_boundary(self):
-        seqs = [AtpSequence.allocate('foo') for _ in range(15)]
+        seqs = [self.storage.allocate_seq('foo') for _ in range(15)]
         self.assertEqual(list(range(1, 16)), seqs)
-        self.assertEqual(15, AtpSequence.last('foo'))
+        self.assertEqual(15, self.storage.last_seq('foo'))
         self.assertEqual(15, datastore_storage.memcache.get('foo-last-seq'))
         self.assertEqual(23, AtpSequence.get_by_id('foo').next)
 
     def test_flush_reloads(self):
-        seqs = [AtpSequence.allocate('foo') for _ in range(10)]
+        seqs = [self.storage.allocate_seq('foo') for _ in range(10)]
         self.assertEqual(list(range(1, 11)), seqs)
-        self.assertEqual(10, AtpSequence.last('foo'))
+        self.assertEqual(10, self.storage.last_seq('foo'))
         self.assertEqual(10, datastore_storage.memcache.get('foo-last-seq'))
         self.assertEqual(17, AtpSequence.get_by_id('foo').next)
 
         datastore_storage.memcache.flush_all()
 
-        self.assertIsNone(AtpSequence.last('foo'))
+        self.assertIsNone(self.storage.last_seq('foo'))
 
-        self.assertEqual(17, AtpSequence.allocate('foo'))
-        self.assertEqual(17, AtpSequence.last('foo'))
+        self.assertEqual(17, self.storage.allocate_seq('foo'))
+        self.assertEqual(17, self.storage.last_seq('foo'))
         self.assertEqual(17, datastore_storage.memcache.get('foo-last-seq'))
         self.assertEqual(27, AtpSequence.get_by_id('foo').next)
 
@@ -792,7 +795,7 @@ class MemcacheSequenceAllocationTest(DatastoreTest):
             barrier.wait()
             for _ in range(seqs_per_thread):
                 with self.ndb_client.context():
-                    results[thread_id].append(AtpSequence.allocate('foo'))
+                    results[thread_id].append(self.storage.allocate_seq('foo'))
 
         threads = []
         for i in range(num_threads):
@@ -821,7 +824,7 @@ class MemcacheSequenceAllocationTest(DatastoreTest):
             barrier.wait()
             for i in range(seqs_per_thread):
                 with self.ndb_client.context():
-                    results[thread_id].append(AtpSequence.allocate('foo'))
+                    results[thread_id].append(self.storage.allocate_seq('foo'))
 
         def flush_memcache():
             barrier.wait()
@@ -848,23 +851,23 @@ class MemcacheSequenceAllocationTest(DatastoreTest):
         self.assertEqual(len(all_seqs), len(set(all_seqs)))
 
     def test_different_nsids(self):
-        self.assertEqual(1, AtpSequence.allocate('foo'))
-        self.assertEqual(1, AtpSequence.allocate('bar'))
-        self.assertEqual(2, AtpSequence.allocate('foo'))
-        self.assertEqual(2, AtpSequence.allocate('bar'))
+        self.assertEqual(1, self.storage.allocate_seq('foo'))
+        self.assertEqual(1, self.storage.allocate_seq('bar'))
+        self.assertEqual(2, self.storage.allocate_seq('foo'))
+        self.assertEqual(2, self.storage.allocate_seq('bar'))
 
     def test_initialize_memcache(self):
         self.assertIsNone(datastore_storage.memcache.get('foo-last-seq'))
 
         AtpSequence(id='foo', next=25).put()
-        self.assertEqual(25, AtpSequence.allocate('foo'))
+        self.assertEqual(25, self.storage.allocate_seq('foo'))
         self.assertEqual(35, AtpSequence.get_by_id('foo').next)
 
     def test_batch_updates_datastore(self):
         initial_stored = AtpSequence.get_by_id('foo')
         self.assertIsNone(initial_stored)
 
-        AtpSequence.allocate('foo')
+        self.storage.allocate_seq('foo')
 
         stored = AtpSequence.get_by_id('foo')
         self.assertIsNotNone(stored)
@@ -872,13 +875,13 @@ class MemcacheSequenceAllocationTest(DatastoreTest):
 
         stored_before = stored.next
         for _ in range(3):
-            AtpSequence.allocate('foo')
+            self.storage.allocate_seq('foo')
 
         stored = AtpSequence.get_by_id('foo')
         self.assertEqual(stored_before, stored.next)
 
         for _ in range(10):
-            AtpSequence.allocate('foo')
+            self.storage.allocate_seq('foo')
 
         stored = AtpSequence.get_by_id('foo')
         self.assertGreater(stored.next, stored_before)
