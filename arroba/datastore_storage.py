@@ -45,7 +45,7 @@ BLOB_MAX_BYTES = int(os.environ.get('BLOB_MAX_BYTES', 100_000_000))
 VIDEO_MAX_DURATION = timedelta(minutes=3)
 
 MEMCACHE_SEQUENCE_ALLOCATION = \
-    os.environ.get('BLOB_MAX_BYTES', '').strip().lower() not in ('', '0', 'false')
+    os.environ.get('MEMCACHE_SEQUENCE_ALLOCATION', '').strip().lower() in ('true', '1')
 MEMCACHE_SEQUENCE_BATCH = int(os.environ.get('MEMCACHE_SEQUENCE_BATCH', 1000))
 MEMCACHE_SEQUENCE_BUFFER = int(os.environ.get('MEMCACHE_SEQUENCE_BUFFER', 100))
 # clients must set this to a pymemcache.Client to use MEMCACHE_SEQUENCE_ALLOCATION
