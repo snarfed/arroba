@@ -745,7 +745,8 @@ class DatastoreStorage(Storage):
     def last_seq(self, nsid):
         assert nsid
         if MEMCACHE_SEQUENCE_ALLOCATION is True:
-            return memcache.get(self._memcache_seq_key(nsid))
+            val = memcache.get(self._memcache_seq_key(nsid))
+            return int(val) if val else None
         else:
             return AtpSequence.last(nsid)
 
