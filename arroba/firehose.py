@@ -228,7 +228,14 @@ def _collect(cur_seq, limit=None):
         for event in server.storage.read_events_by_seq(start=cur_seq + 1):
             last_seq = cur_seq
             cur_seq = event['seq'] if isinstance(event, dict) else event.commit.seq
-            assert cur_seq > last_seq
+            if cur_seq <= last_seq:
+                msg = 'Cowardly refusing to emit non-monotonic seq! {cur_seq} after {last_seq}, '
+                if isinstance(event, dict):
+                    msg += f'event {event}'
+                else:
+                    msg += f'commit {event.commit.cid} {event.commit.ops} {event.commit.decoded}'
+                logger.error(msg)
+                continue
 
             # if we see a sequence number skipped, and we're not too far behind, wait
             # up to WAIT_FOR_SKIPPED_SEQ_WINDOW for it before giving up on it and
