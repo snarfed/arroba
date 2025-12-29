@@ -1156,14 +1156,14 @@ def ensure_valid_key(key):
     Raises:
       ValueError: if key is not a valid MST key
     """
-    valid = re.compile(r'[a-zA-Z0-9_\-:.]*$')
+    valid = re.compile(r'[a-zA-Z0-9_\-:.]+')
     split = key.split('/')
     if not (len(key) <= 256 and
             len(split) == 2 and
             split[0] and
             split[1] and
-            valid.match(split[0]) and
-            valid.match(split[1])
+            valid.fullmatch(split[0]) and
+            valid.fullmatch(split[1])
             ):
         raise ValueError(f'Invalid MST key: {key}')
 

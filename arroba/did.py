@@ -486,7 +486,8 @@ def resolve_handle(handle, get_fn=requests_get):
     Raises:
       ValueError: if handle is not a domain
     """
-    if not handle or not isinstance(handle, str) or not util.DOMAIN_RE.match(handle):
+    if (not handle or not isinstance(handle, str)
+            or not util.DOMAIN_RE.fullmatch(handle)):
         raise ValueError(f"{handle} doesn't look like a domain")
 
     logger.info(f'Resolving handle {handle}')
