@@ -105,8 +105,15 @@ def subscribe(cursor=None):
     if cursor is not None and cursor < rollback_start:
         log(f'cursor {cursor} is behind rollback start {rollback_start}; loading rest manually')
         pre_rollback = []  # events prior to rollback window that we load here
+        last_seq = None
         for i, event in enumerate(server.storage.read_events_by_seq(start=cursor)):
             header, payload = process_event(event)
+
+            if last_seq and payload['seq'] <= last_seq:
+                non_monotonic(payload['seq'], last_seq, event)
+                continue
+            last_seq = payload['seq']
+
             # TODO: remove once https://github.com/snarfed/arroba/issues/57 is done
             if i % 10 == 0:
                 time.sleep(.01)
@@ -150,8 +157,14 @@ def subscribe(cursor=None):
                         subscriber.put_nowait((header, payload))
 
                 log(f'backfilling from rollback from {cursor}')
+                last_seq = None
                 for header, payload in rollback:
                     if payload['seq'] >= cursor:
+                        if last_seq and payload['seq'] <= last_seq:
+                            non_monotonic(payload['seq'], last_seq, payload, header)
+                            continue
+                        last_seq = payload['seq']
+
                         log(f'Backfilled rollback {payload["seq"]}', DEBUG)
                         subscriber.put_nowait((header, payload))
 
@@ -229,12 +242,7 @@ def _collect(cur_seq, limit=None):
             last_seq = cur_seq
             cur_seq = event['seq'] if isinstance(event, dict) else event.commit.seq
             if cur_seq <= last_seq:
-                msg = 'Cowardly refusing to emit non-monotonic seq! {cur_seq} after {last_seq}, '
-                if isinstance(event, dict):
-                    msg += f'event {event}'
-                else:
-                    msg += f'commit {event.commit.cid} {event.commit.ops} {event.commit.decoded}'
-                logger.error(msg)
+                non_monotonic(cur_seq, last_seq, event)
                 continue
 
             # if we see a sequence number skipped, and we're not too far behind, wait
@@ -352,3 +360,12 @@ def process_event(event):
     #     raise ValueError(f'Event size {event_size} bytes exceeds max {MAX_EVENT_SIZE_BYTES}')
 
     return (header, payload)
+
+
+def non_monotonic(cur_seq, last_seq, event, header=None):
+    msg = f'Cowardly refusing to emit non-monotonic seq! {cur_seq} after {last_seq}, '
+    if isinstance(event, dict):
+        msg += f'event {event}'
+    else:
+        msg += f'commit {event.commit.cid.encode("base32")} {event.commit.ops} {event.commit.decoded} {header}'
+    logger.error(msg)
