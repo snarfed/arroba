@@ -1237,7 +1237,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
         subscriber.join()
 
-    @patch('arroba.firehose.WAIT_FOR_SKIPPED_SEQ_WINDOW', 10)
+    @patch('arroba.firehose.SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW', 10)
     @patch('arroba.firehose.SUBSCRIBE_REPOS_BATCH_DELAY', timedelta(seconds=.01))
     def test_dont_wait_for_old_skipped_seq(self, *_):
         # already mocked out, just changing its value

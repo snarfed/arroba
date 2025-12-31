@@ -34,7 +34,8 @@ PRELOAD_WINDOW = int(os.getenv('PRELOAD_WINDOW', 4000))
 SUBSCRIBE_REPOS_BATCH_DELAY = timedelta(seconds=float(os.getenv('SUBSCRIBE_REPOS_BATCH_DELAY', 0)))
 # only wait for a skipped seq if we're within this many seqs of current
 # https://github.com/snarfed/arroba/issues/56
-WAIT_FOR_SKIPPED_SEQ_WINDOW = 300  # roughly 5m as of May 2025
+# at 1qps of emitted seqs, 600 is roughly 10m
+SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW = int(os.getenv('SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW', 600))
 
 new_events = threading.Condition()
 subscribers = []
@@ -246,12 +247,12 @@ def _collect(cur_seq, limit=None):
                 continue
 
             # if we see a sequence number skipped, and we're not too far behind, wait
-            # up to WAIT_FOR_SKIPPED_SEQ_WINDOW for it before giving up on it and
-            # moving on
+            # up to SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW for it before giving up on it
+            # and moving on
             if cur_seq > last_seq + 1:
                 if time.time() - last_event <= timeout_s:
                     seqs_behind = server.storage.last_seq(SUBSCRIBE_REPOS_NSID) - cur_seq
-                    if seqs_behind <= WAIT_FOR_SKIPPED_SEQ_WINDOW:
+                    if seqs_behind <= SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW:
                         logger.info(f'Waiting for seq {last_seq + 1}')
                         cur_seq = last_seq
                         break

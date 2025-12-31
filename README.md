@@ -89,6 +89,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 * `ROLLBACK_WINDOW`, number of events to serve in the [`subscribeRepos` rollback window](https://atproto.com/specs/event-stream#sequence-numbers), as an integer. Defaults to 50k.
 * `PRELOAD_WINDOW`, number of events to preload into the [`subscribeRepos` rollback window](https://atproto.com/specs/event-stream#sequence-numbers) at startup, as an integer. Defaults to 4k.
 * `SUBSCRIBE_REPOS_BATCH_DELAY`, minimum time to wait between datastore queries in `com.atproto.sync.subscribeRepos`, in seconds, as a float. Defaults to 0 if unset.
+* `SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW`, number of sequence numbers to wait before skipping emitting a missing one over the firehose. Defaults to 600, ie 10 minutes at 1qps emitted events.
 * `BLOB_MAX_BYTES`, maximum allowed size of blobs, in bytes. Defaults to 100MB.
 * `BLOB_REFETCH_DAYS`, how often in days to refetch remote URL-based blobs datastore to check that they're still serving. May be integer or float. Defaults to 7. These re-fetches happen on demand, during `com.atproto.sync.getBlob` requests.
 * `BLOB_REFETCH_TYPES`, comma-separated list of MIME types (without subtypes, ie the part after `/`) to refetch blobs for. Defaults to `image`.
