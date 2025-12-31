@@ -724,7 +724,7 @@ class DatastoreStorage(Storage):
                       if b.cid.encode('base32') not in existing_cids)
 
     @ndb_context
-    @ndb.transactional()
+    @ndb.transactional(retries=10)
     def _commit(self, *args, **kwargs):
         """Just runs :meth:`Storage._commit` in a transaction."""
         return super()._commit(*args, **kwargs)
