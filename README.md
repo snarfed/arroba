@@ -90,12 +90,13 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 * `PRELOAD_WINDOW`, number of events to preload into the [`subscribeRepos` rollback window](https://atproto.com/specs/event-stream#sequence-numbers) at startup, as an integer. Defaults to 4k.
 * `SUBSCRIBE_REPOS_BATCH_DELAY`, minimum time to wait between datastore queries in `com.atproto.sync.subscribeRepos`, in seconds, as a float. Defaults to 0 if unset.
 * `SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW`, number of sequence numbers to wait before skipping emitting a missing one over the firehose. Defaults to 600, ie 10 minutes at 1qps emitted events.
+* `SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY`, seconds to wait before skipping emitting a missing sequence number over the firehose. Defaults to 120, ie 2 minutes.
 * `BLOB_MAX_BYTES`, maximum allowed size of blobs, in bytes. Defaults to 100MB.
 * `BLOB_REFETCH_DAYS`, how often in days to refetch remote URL-based blobs datastore to check that they're still serving. May be integer or float. Defaults to 7. These re-fetches happen on demand, during `com.atproto.sync.getBlob` requests.
 * `BLOB_REFETCH_TYPES`, comma-separated list of MIME types (without subtypes, ie the part after `/`) to refetch blobs for. Defaults to `image`.
 * `MEMCACHE_SEQUENCE_ALLOCATION`, boolean, whether to allocate `subscribeRepos` sequence numbers via memcache atomic operations, and only update the datastore in batches, instead of allocating each sequence number from the datastore individually. Requires `datastore_storage.memcache` to be set to a `pymemcache.Client`.
-* `MEMCACHE_SEQUENCE_BATCH`, integer, size of batch of sequence numbers to allocate from `AtpSequence` into memcache.
-* `MEMCACHE_SEQUENCE_BUFFER`, integer, how close we should let memcache get to the current max allocated sequence number in `AtpSequence` before we allocate a new batch.
+* `MEMCACHE_SEQUENCE_BATCH`, integer, size of batch of sequence numbers to allocate from `AtpSequence` into memcache. Defaults to 1000.
+* `MEMCACHE_SEQUENCE_BUFFER`, integer, how close we should let memcache get to the current max allocated sequence number in `AtpSequence` before we allocate a new batch. Defaults to 100.
 
 <!-- Only used in app.py:
 * `REPO_DID`, repo user's DID, defaults to contents of `repo_did` file
@@ -117,6 +118,9 @@ _Breaking changes:_
 
 _Non-breaking changes:_
 
+Add new feature to allocate `subscribeRepos` (firehose) sequence numbers from memcache, backed by the datastore in batches. Reduces datastore contention when writing commits at 5-10qps and higher. Enable by setting the `MEMCACHE_SEQUENCE_ALLOCATION` environment variable to true; configure with `MEMCACHE_SEQUENCE_BUFFER` and  `MEMCACHE_SEQUENCE_BATCH`.
+
+* Add new `SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW` and `SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY` environment variables for `subscribeRepos` (firehose) serving.
 * `AtpRemoteBlob`:
   * Add `repos` property to track which repos have which blobs.
   * Switch image handling to pymediainfo, drop Pillow dependency.

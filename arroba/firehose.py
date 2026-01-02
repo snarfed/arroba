@@ -27,7 +27,6 @@ from .storage import (
 )
 from . import util
 
-NEW_EVENTS_TIMEOUT = timedelta(seconds=20)
 ROLLBACK_WINDOW = int(os.getenv('ROLLBACK_WINDOW', 50_000))
 # 4000 seqs is ~1h as of May 2025, loads in prod in ~2m
 PRELOAD_WINDOW = int(os.getenv('PRELOAD_WINDOW', 4000))
@@ -36,6 +35,7 @@ SUBSCRIBE_REPOS_BATCH_DELAY = timedelta(seconds=float(os.getenv('SUBSCRIBE_REPOS
 # https://github.com/snarfed/arroba/issues/56
 # at 1qps of emitted seqs, 600 is roughly 10m
 SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW = int(os.getenv('SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW', 600))
+SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY = timedelta(seconds=float(os.getenv('SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY', 0)))
 
 new_events = threading.Condition()
 subscribers = []
@@ -228,7 +228,7 @@ def _collect(cur_seq, limit=None):
     logger.info(f'collecting new events')
 
     global rollback
-    timeout_s = NEW_EVENTS_TIMEOUT.total_seconds()
+    timeout_s = SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY.total_seconds()
     last_event = time.time()
     seen = 0
 

@@ -542,7 +542,7 @@ class XrpcSyncTest(testutil.XrpcTestCase):
     #     self.assertEqual(full.repos, pt1.repos + pt2.repos)
 
 
-@patch('arroba.firehose.NEW_EVENTS_TIMEOUT', timedelta(seconds=.01))
+@patch('arroba.firehose.SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY', timedelta(seconds=.01))
 class SubscribeReposTest(testutil.XrpcTestCase):
     def setUp(self):
         super().setUp()
@@ -1114,7 +1114,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
     def test_tombstoned(self, *_):
         # already mocked out, just changing its value
-        firehose.NEW_EVENTS_TIMEOUT = timedelta(seconds=.5)
+        firehose.SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY = timedelta(seconds=.5)
 
         firehose.start(limit=8)
 
@@ -1179,7 +1179,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
     def test_skipped_seq(self, *_):
         # already mocked out, just changing its value
-        firehose.NEW_EVENTS_TIMEOUT = timedelta(seconds=1)
+        firehose.SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY = timedelta(seconds=1)
 
         # https://github.com/snarfed/arroba/issues/34
         firehose.start(limit=2)
@@ -1241,7 +1241,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
     @patch('arroba.firehose.SUBSCRIBE_REPOS_BATCH_DELAY', timedelta(seconds=.01))
     def test_dont_wait_for_old_skipped_seq(self, *_):
         # already mocked out, just changing its value
-        firehose.NEW_EVENTS_TIMEOUT = timedelta(seconds=60)
+        firehose.SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY = timedelta(seconds=60)
 
         firehose.start(limit=1)
 
