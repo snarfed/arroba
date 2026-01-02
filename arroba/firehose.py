@@ -35,7 +35,7 @@ SUBSCRIBE_REPOS_BATCH_DELAY = timedelta(seconds=float(os.getenv('SUBSCRIBE_REPOS
 # https://github.com/snarfed/arroba/issues/56
 # at 1qps of emitted seqs, 600 is roughly 10m
 SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW = int(os.getenv('SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW', 600))
-SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY = timedelta(seconds=float(os.getenv('SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY', 0)))
+SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY = timedelta(seconds=float(os.getenv('SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY', 120)))
 
 new_events = threading.Condition()
 subscribers = []
