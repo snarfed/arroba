@@ -126,6 +126,9 @@ Add new feature to allocate `subscribeRepos` (firehose) sequence numbers from me
   * Switch image handling to pymediainfo, drop Pillow dependency.
 * `did`:
   * Add new `rollback_plc` function.
+* `storage`:
+  * Add new abstract `Sequences` class and concrete subclasses `MemorySequences`, `DatastoreSequences`, and `MemcacheSequences`.
+  * Add new optional `sequences` kwarg to `Storage` and subclasses' constructors.
 * `xrpc_repo`:
   * `describe_repo`: add `app.bsky.graph.listblock`.
 * `xrpc_sync`:

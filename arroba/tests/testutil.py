@@ -198,7 +198,6 @@ class DatastoreTest(TestCase):
 
         # memcache sequence allocation stuff
         datastore_storage.memcache = MockMemcacheClient()
-        datastore_storage.max_seqs.clear()
 
     @classmethod
     def _make_storage(cls):

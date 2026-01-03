@@ -140,12 +140,58 @@ class Block:
         return hash(self.cid)
 
 
+class Sequences:
+    """Abstract base class for managing sequence numbers for event streams.
+
+    ...eg the ``com.atproto.sync.subscribeRepos`` firehose.
+
+    Background: https://atproto.com/specs/event-stream#sequence-numbers
+    """
+
+    def allocate(self, nsid):
+        """Generates and returns a sequence number for a given NSID.
+
+        Args:
+          nsid (str): subscription XRPC method this sequence number is for
+
+        Returns:
+          int:
+        """
+        raise NotImplementedError()
+
+    def last(self, nsid):
+        """Returns the last (highest) allocated sequence number for a given NSID.
+
+        ...or None if no sequence number has ever been allocated for this NSID.
+
+        Args:
+          nsid (str): subscription XRPC method this sequence number is for
+
+        Returns:
+          int or None:
+        """
+        raise NotImplementedError()
+
+
 class Storage:
     """Abstract base class for storing nodes: records, MST entries, commits, etc.
 
     Concrete subclasses should implement this on top of physical storage,
     eg database, filesystem, in memory.
+
+    Attributes:
+      sequences (class): Sequences subclass for allocating sequence numbers
     """
+
+    def __init__(self, *, sequences, **kwargs):
+        """Constructor.
+
+        Args:
+          sequences (Sequences)
+        """
+        super().__init__(**kwargs)
+        assert sequences
+        self.sequences = sequences
 
     def create_repo(self, repo):
         """Stores a new repo's metadata in storage.
@@ -402,7 +448,7 @@ class Storage:
         """
         assert type in ('account', 'identity', 'sync', 'tombstone'), type
 
-        seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
+        seq = self.sequences.allocate(SUBSCRIBE_REPOS_NSID)
         block = self.write(repo.did, {
             '$type': f'com.atproto.sync.subscribeRepos#{type}',
             'seq': seq,
@@ -425,34 +471,6 @@ class Storage:
         """
         raise NotImplementedError()
 
-    def allocate_seq(self, nsid):
-        """Generates and returns a sequence number for the given NSID.
-
-        Sequence numbers must be monotonically increasing positive integers, per
-        NSID. They may have gaps. Background:
-        https://atproto.com/specs/event-stream#sequence-numbers
-
-        Args:
-          nsid (str): subscription XRPC method this sequence number is for
-
-        Returns:
-          int:
-        """
-        raise NotImplementedError()
-
-    def last_seq(self, nsid):
-        """Returns the last (highest) allocated sequence number for the given NSID.
-
-        ...or None if no sequence number has ever been allocated for this NSID.
-
-        Args:
-          nsid (str): subscription XRPC method this sequence number is for
-
-        Returns:
-          int or None:
-        """
-        raise NotImplementedError()
-
     def commit(self, repo, writes, repo_did=None):
         """Commits zero or more writes to storage.
 
@@ -471,7 +489,7 @@ class Storage:
           ValueError: if the commit is invalid, eg the path for an update or delete
             doesn't currently exist
         """
-        seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
+        seq = self.sequences.allocate(SUBSCRIBE_REPOS_NSID)
         commit_data = self._commit(repo, writes, seq, repo_did=repo_did)
         if repo.callback:
             repo.callback(commit_data)
@@ -587,22 +605,46 @@ class Storage:
         return commit_data
 
 
+class MemorySequences(Sequences):
+    """In memory sequence numbers.
+
+    Attributes:
+      sequences (dict): {str NSID: int next sequence number}
+    """
+    def __init__(self):
+        self.sequences = {}
+
+    def allocate(self, nsid):
+        assert nsid
+        next = self.sequences.setdefault(nsid, 1)
+        logger.info(f'Allocated seq {next}')
+        self.sequences[nsid] += 1
+        return next
+
+    def last(self, nsid):
+        assert nsid
+        if next := self.sequences.get(nsid):
+            return next - 1
+
+
 class MemoryStorage(Storage):
     """In memory storage implementation.
 
     Attributes:
       repos (dict mapping str DID to :class:`Repo`)
       blocks (dict): {:class:`CID`: :class:`Block`}
-      sequences (dict): {str NSID: int next sequence number}
     """
     repos = None
     blocks = None
-    sequences = None
 
-    def __init__(self):
+    def __init__(self, *, sequences=None):
+        """
+        Args:
+          sequences (Sequences): optional; defaults to a :class:`MemorySequences`
+        """
+        super().__init__(sequences=sequences or MemorySequences())
         self.blocks = {}
         self.repos = {}
-        self.sequences = {}
 
     def create_repo(self, repo):
         self.repos[repo.did] = repo
@@ -649,7 +691,7 @@ class MemoryStorage(Storage):
 
     def write(self, repo_did, obj, seq=None):
         if seq is None:
-            seq = self.allocate_seq(SUBSCRIBE_REPOS_NSID)
+            seq = self.sequences.allocate(SUBSCRIBE_REPOS_NSID)
 
         block = Block(decoded=obj, seq=seq, repo=repo_did)
         self.blocks.setdefault(block.cid, block)
@@ -658,15 +700,3 @@ class MemoryStorage(Storage):
     def write_blocks(self, blocks):
         for block in blocks:
             self.blocks.setdefault(block.cid, block)
-
-    def allocate_seq(self, nsid):
-        assert nsid
-        next = self.sequences.setdefault(nsid, 1)
-        logger.info(f'Allocated seq {next}')
-        self.sequences[nsid] += 1
-        return next
-
-    def last_seq(self, nsid):
-        assert nsid
-        if next := self.sequences.get(nsid):
-            return next - 1

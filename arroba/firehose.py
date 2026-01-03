@@ -192,7 +192,7 @@ def collect(limit=None):
         used in tests.
     """
     logger.info(f'collect: preloading rollback window ({PRELOAD_WINDOW})')
-    cur_seq = server.storage.last_seq(SUBSCRIBE_REPOS_NSID)
+    cur_seq = server.storage.sequences.last(SUBSCRIBE_REPOS_NSID)
     assert cur_seq is not None
     query = server.storage.read_events_by_seq(
         start=max(cur_seq - PRELOAD_WINDOW + 1, 0))
@@ -251,7 +251,7 @@ def _collect(cur_seq, limit=None):
             # and moving on
             if cur_seq > last_seq + 1:
                 if time.time() - last_event <= timeout_s:
-                    seqs_behind = server.storage.last_seq(SUBSCRIBE_REPOS_NSID) - cur_seq
+                    seqs_behind = server.storage.sequences.last(SUBSCRIBE_REPOS_NSID) - cur_seq
                     if seqs_behind <= SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW:
                         logger.info(f'Waiting for seq {last_seq + 1}')
                         cur_seq = last_seq

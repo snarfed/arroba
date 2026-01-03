@@ -231,14 +231,14 @@ class StorageTest(TestCase):
     def test_tombstone_repo(self):
         seen = []
         repo = Repo.create(self.storage, 'did:user', signing_key=self.key)
-        self.assertEqual(4, self.storage.last_seq(SUBSCRIBE_REPOS_NSID))
+        self.assertEqual(4, self.storage.sequences.last(SUBSCRIBE_REPOS_NSID))
 
         repo.callback = lambda event: seen.append(event)
         self.storage.tombstone_repo(repo)
 
         self.assertEqual(TOMBSTONED, repo.status)
 
-        self.assertEqual(5, self.storage.last_seq(SUBSCRIBE_REPOS_NSID))
+        self.assertEqual(5, self.storage.sequences.last(SUBSCRIBE_REPOS_NSID))
         expected = {
             '$type': 'com.atproto.sync.subscribeRepos#tombstone',
             'seq': 5,
@@ -253,14 +253,14 @@ class StorageTest(TestCase):
     def test_deactivate_repo(self):
         seen = []
         repo = Repo.create(self.storage, 'did:user', signing_key=self.key)
-        self.assertEqual(4, self.storage.last_seq(SUBSCRIBE_REPOS_NSID))
+        self.assertEqual(4, self.storage.sequences.last(SUBSCRIBE_REPOS_NSID))
 
         repo.callback = lambda event: seen.append(event)
         self.storage.deactivate_repo(repo)
         self.assertEqual(DEACTIVATED, repo.status)
         self.assertEqual(DEACTIVATED, self.storage.load_repo('did:user').status)
 
-        self.assertEqual(5, self.storage.last_seq(SUBSCRIBE_REPOS_NSID))
+        self.assertEqual(5, self.storage.sequences.last(SUBSCRIBE_REPOS_NSID))
         expected = {
             '$type': 'com.atproto.sync.subscribeRepos#account',
             'seq': 5,
@@ -276,13 +276,13 @@ class StorageTest(TestCase):
         seen = []
         repo = Repo.create(self.storage, 'did:user', signing_key=self.key)
         self.storage.deactivate_repo(repo)
-        self.assertEqual(5, self.storage.last_seq(SUBSCRIBE_REPOS_NSID))
+        self.assertEqual(5, self.storage.sequences.last(SUBSCRIBE_REPOS_NSID))
 
         repo.callback = lambda event: seen.append(event)
         self.storage.activate_repo(repo)
         self.assertIsNone(repo.status)
 
-        self.assertEqual(6, self.storage.last_seq(SUBSCRIBE_REPOS_NSID))
+        self.assertEqual(6, self.storage.sequences.last(SUBSCRIBE_REPOS_NSID))
         expected = {
             '$type': 'com.atproto.sync.subscribeRepos#account',
             'seq': 6,
@@ -297,7 +297,7 @@ class StorageTest(TestCase):
 
     def test_write_event(self):
         repo = Repo.create(self.storage, 'did:user', signing_key=self.key)
-        self.assertEqual(4, self.storage.last_seq(SUBSCRIBE_REPOS_NSID))
+        self.assertEqual(4, self.storage.sequences.last(SUBSCRIBE_REPOS_NSID))
 
         block = self.storage.write_event(repo=repo, type='identity',
                                     active=False, status='foo')

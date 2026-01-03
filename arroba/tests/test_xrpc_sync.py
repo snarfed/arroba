@@ -788,7 +788,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         received = []
         self.subscribe(received, limit=7, cursor=0)
 
-        self.assertEqual(8, server.storage.allocate_seq(SUBSCRIBE_REPOS_NSID))
+        self.assertEqual(8, server.storage.sequences.allocate(SUBSCRIBE_REPOS_NSID))
         self.assertCommit(received[0], cur=orig_commit.cid, seq=1)
 
         self.assertCommit(
@@ -814,7 +814,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
     @patch('arroba.firehose.ROLLBACK_WINDOW', 2)
     def test_cursor_before_rollback_window(self, *_):
-        while seq := server.storage.allocate_seq(SUBSCRIBE_REPOS_NSID):
+        while seq := server.storage.sequences.allocate(SUBSCRIBE_REPOS_NSID):
             if seq >= 6:
                 break
         assert seq == 6
@@ -1192,7 +1192,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
 
         # prepare two writes with seqs 5 and 6
-        self.assertEqual(4, server.storage.last_seq(SUBSCRIBE_REPOS_NSID))
+        self.assertEqual(4, server.storage.sequences.last(SUBSCRIBE_REPOS_NSID))
 
         orig_head = self.repo.head
 
@@ -1200,12 +1200,12 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             subscriber.start()
             started.wait()
 
-            self.storage.allocate_seq(SUBSCRIBE_REPOS_NSID)
-            self.storage.allocate_seq(SUBSCRIBE_REPOS_NSID)
+            self.storage.sequences.allocate(SUBSCRIBE_REPOS_NSID)
+            self.storage.sequences.allocate(SUBSCRIBE_REPOS_NSID)
 
             # first write, skip seq 5, write with seq 6 instead
             write_6 = Write(Action.CREATE, 'co.ll', next_tid(), {'x': 'y'})
-            with patch.object(self.storage, 'allocate_seq', return_value=6):
+            with patch.object(self.storage.sequences, 'allocate', return_value=6):
                 self.storage.commit(self.repo, write_6)
             head_6 = self.repo.head
 
@@ -1219,7 +1219,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
 
             # second write, use seq 5 that we skipped above
             write_5 = Write(Action.CREATE, 'co.ll', next_tid(), {'a': 'b'})
-            with patch.object(self.storage, 'allocate_seq', return_value=5):
+            with patch.object(self.storage.sequences, 'allocate', return_value=5):
                 self.storage.commit(self.repo, write_5)
 
             delivered.acquire()
@@ -1246,8 +1246,8 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         firehose.start(limit=1)
 
         # skip seq 5, commit with seq 6
-        server.storage.allocate_seq(SUBSCRIBE_REPOS_NSID)
-        self.assertEqual(5, server.storage.last_seq(SUBSCRIBE_REPOS_NSID))
+        server.storage.sequences.allocate(SUBSCRIBE_REPOS_NSID)
+        self.assertEqual(5, server.storage.sequences.last(SUBSCRIBE_REPOS_NSID))
         prev = self.repo.head
 
         write_6 = Write(Action.CREATE, 'co.ll', next_tid(), {'x': 'y'})
@@ -1256,7 +1256,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             self.storage.commit(self.repo, [write_6])
 
         for i in range(11):
-            server.storage.allocate_seq(SUBSCRIBE_REPOS_NSID)
+            server.storage.sequences.allocate(SUBSCRIBE_REPOS_NSID)
 
         # ok, now firehose.collect can read events
         with firehose.new_events:
@@ -1468,7 +1468,7 @@ class DatastoreSubscribeReposTest(SubscribeReposTest, testutil.DatastoreTest):
 
 
 @patch_atpblock_created
-class DatastoreMemcacheSequenceAllocationSubscribeReposTest(
+class DatastoreMemcacheSequencesSubscribeReposTest(
         SubscribeReposTest, testutil.DatastoreTest):
 
     @patch_atpblock_created
