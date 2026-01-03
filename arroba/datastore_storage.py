@@ -274,6 +274,7 @@ class NdbMixin:
           ndb_context_kwargs (dict): optional, used when creating a new ndb context
         """
         super().__init__(**kwargs)
+        assert ndb_client
         self.ndb_client = ndb_client
         self.ndb_context_kwargs = ndb_context_kwargs or {}
 

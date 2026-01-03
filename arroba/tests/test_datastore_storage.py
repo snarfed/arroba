@@ -23,6 +23,7 @@ from ..datastore_storage import (
     AtpSequence,
     BLOB_MAX_BYTES,
     BLOB_REFETCH_AGE,
+    DatastoreSequences,
     DatastoreStorage,
     MemcacheSequences,
     WriteOnceBlobProperty,
@@ -52,25 +53,25 @@ BLOB_CID = CID.decode('bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lm
 class DatastoreStorageTest(DatastoreTest):
 
     def test_datastore_sequences_allocate_new(self):
-        sequences = datastore_storage.DatastoreSequences()
+        sequences = DatastoreSequences(ndb_client=self.ndb_client)
         self.assertIsNone(AtpSequence.query().get())
         self.assertEqual(1, sequences.allocate('foo'))
         self.assertEqual(2, AtpSequence.get_by_id('foo').next)
 
     def test_datastore_sequences_allocate_existing(self):
-        sequences = datastore_storage.DatastoreSequences()
+        sequences = DatastoreSequences(ndb_client=self.ndb_client)
         AtpSequence(id='foo', next=42).put()
         self.assertEqual(42, sequences.allocate('foo'))
         self.assertEqual(43, AtpSequence.get_by_id('foo').next)
 
     def test_datastore_sequences_last_new(self):
-        sequences = datastore_storage.DatastoreSequences()
+        sequences = DatastoreSequences(ndb_client=self.ndb_client)
         self.assertIsNone(AtpSequence.query().get())
         self.assertIsNone(sequences.last('foo'))
         self.assertIsNone(AtpSequence.get_by_id('foo'))
 
     def test_datastore_sequences_last_existing(self):
-        sequences = datastore_storage.DatastoreSequences()
+        sequences = DatastoreSequences(ndb_client=self.ndb_client)
         AtpSequence(id='foo', next=42).put()
         self.assertEqual(41, sequences.last('foo'))
         self.assertEqual(42, AtpSequence.get_by_id('foo').next)
