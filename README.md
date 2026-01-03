@@ -94,7 +94,6 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 * `BLOB_MAX_BYTES`, maximum allowed size of blobs, in bytes. Defaults to 100MB.
 * `BLOB_REFETCH_DAYS`, how often in days to refetch remote URL-based blobs datastore to check that they're still serving. May be integer or float. Defaults to 7. These re-fetches happen on demand, during `com.atproto.sync.getBlob` requests.
 * `BLOB_REFETCH_TYPES`, comma-separated list of MIME types (without subtypes, ie the part after `/`) to refetch blobs for. Defaults to `image`.
-* `MEMCACHE_SEQUENCE_ALLOCATION`, boolean, whether to allocate `subscribeRepos` sequence numbers via memcache atomic operations, and only update the datastore in batches, instead of allocating each sequence number from the datastore individually. Requires `datastore_storage.memcache` to be set to a `pymemcache.Client`.
 * `MEMCACHE_SEQUENCE_BATCH`, integer, size of batch of sequence numbers to allocate from `AtpSequence` into memcache. Defaults to 1000.
 * `MEMCACHE_SEQUENCE_BUFFER`, integer, how close we should let memcache get to the current max allocated sequence number in `AtpSequence` before we allocate a new batch. Defaults to 100.
 
@@ -118,7 +117,7 @@ _Breaking changes:_
 
 _Non-breaking changes:_
 
-Add new feature to allocate `subscribeRepos` (firehose) sequence numbers from memcache, backed by the datastore in batches. Reduces datastore contention when writing commits at 5-10qps and higher. Enable by setting the `MEMCACHE_SEQUENCE_ALLOCATION` environment variable to true; configure with `MEMCACHE_SEQUENCE_BUFFER` and  `MEMCACHE_SEQUENCE_BATCH`.
+Add new feature to allocate sequence numbers from memcache, atomically, backed by the datastore in batches. Reduces datastore contention when writing commits at 5-10qps and higher. Enable by passing a `MemcacheSequences` to the `DatastoreStorage` constructor; configure with the `MEMCACHE_SEQUENCE_BUFFER` and `MEMCACHE_SEQUENCE_BATCH` environment variables.
 
 * Add new `SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW` and `SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY` environment variables for `subscribeRepos` (firehose) serving.
 * `AtpRemoteBlob`:

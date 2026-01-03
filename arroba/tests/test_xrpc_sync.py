@@ -18,7 +18,12 @@ from multiformats import CID
 import os
 
 from .. import datastore_storage
-from ..datastore_storage import AtpRemoteBlob, AtpRepo, DatastoreStorage
+from ..datastore_storage import (
+    AtpRemoteBlob,
+    AtpRepo,
+    DatastoreStorage,
+    MemcacheSequences,
+)
 from .. import firehose
 from ..repo import Repo, Write
 from .. import server
@@ -1456,37 +1461,20 @@ class DatastoreSubscribeReposTest(SubscribeReposTest, testutil.DatastoreTest):
     def setUp(self, _):
         super().setUp()
 
-    def subscribe(self, *args, **kwargs):
-        try:
-            ndb.context.get_context()
-            super().subscribe(*args, **kwargs)
-        except ContextError:
-            # we may be in a separate thread; make a new ndb context
-            with self.ndb_client.context():
-                super().subscribe(*args, **kwargs)
-
-
 
 @patch_atpblock_created
-class DatastoreMemcacheSequencesSubscribeReposTest(
-        SubscribeReposTest, testutil.DatastoreTest):
-
+class DatastoreMemcacheSequencesSubscribeReposTest(SubscribeReposTest,
+                                                   testutil.DatastoreTest):
     @patch_atpblock_created
     def setUp(self, _):
         # couldn't get these to work as patches. patching them here and on the class
         # worked, but then somehow leaked through to DatastoreSubscribeReposTest
         # above too, even though it wasn't patched. no idea why.
-        datastore_storage.MEMCACHE_SEQUENCE_ALLOCATION = True
         datastore_storage.MEMCACHE_SEQUENCE_BATCH = 5
         datastore_storage.MEMCACHE_SEQUENCE_BUFFER = 3
-
         super().setUp()
 
-    def subscribe(self, *args, **kwargs):
-        try:
-            ndb.context.get_context()
-            super().subscribe(*args, **kwargs)
-        except ContextError:
-            # we may be in a separate thread; make a new ndb context
-            with self.ndb_client.context():
-                super().subscribe(*args, **kwargs)
+    def _make_storage(self):
+        sequences = MemcacheSequences(memcache=self.memcache,
+                                      ndb_client=self.ndb_client)
+        return DatastoreStorage(sequences=sequences, ndb_client=self.ndb_client)

@@ -748,10 +748,10 @@ class DatastoreStorageTest(DatastoreTest):
 @patch('arroba.datastore_storage.MEMCACHE_SEQUENCE_BATCH', 10)
 @patch('arroba.datastore_storage.MEMCACHE_SEQUENCE_BUFFER', 5)
 class MemcacheSequencesDatastoreStorageTest(DatastoreStorageTest):
-    @classmethod
-    def _make_storage(cls):
-        return DatastoreStorage(sequences=MemcacheSequences(ndb_client=cls.ndb_client),
-                                ndb_client=cls.ndb_client)
+    def _make_storage(self):
+        sequences = MemcacheSequences(memcache=self.memcache,
+                                      ndb_client=self.ndb_client)
+        return DatastoreStorage(sequences=sequences, ndb_client=self.ndb_client)
 
 
 @patch('arroba.datastore_storage.MEMCACHE_SEQUENCE_BATCH', 10)
@@ -759,44 +759,45 @@ class MemcacheSequencesDatastoreStorageTest(DatastoreStorageTest):
 class MemcacheSequencesTest(DatastoreTest):
     def setUp(self):
         super().setUp()
-        self.sequences = MemcacheSequences(ndb_client=self.ndb_client)
+        self.sequences = MemcacheSequences(memcache=self.memcache,
+                                           ndb_client=self.ndb_client)
 
     def test_first_time(self):
         self.assertIsNone(self.sequences.last('foo'))
         self.assertIsNone(AtpSequence.query().get())
         self.assertEqual(1, self.sequences.allocate('foo'))
         self.assertEqual(1, self.sequences.last('foo'))
-        self.assertEqual(1, datastore_storage.memcache.get('foo-last-seq'))
+        self.assertEqual(1, self.memcache.get('foo-last-seq'))
         self.assertEqual(11, AtpSequence.get_by_id('foo').next)
 
     def test_sequential(self):
         seqs = [self.sequences.allocate('foo') for _ in range(10)]
         self.assertEqual(list(range(1, 11)), seqs)
         self.assertEqual(10, self.sequences.last('foo'))
-        self.assertEqual(10, datastore_storage.memcache.get('foo-last-seq'))
+        self.assertEqual(10, self.memcache.get('foo-last-seq'))
         self.assertEqual(17, AtpSequence.get_by_id('foo').next)
 
     def test_across_batch_boundary(self):
         seqs = [self.sequences.allocate('foo') for _ in range(15)]
         self.assertEqual(list(range(1, 16)), seqs)
         self.assertEqual(15, self.sequences.last('foo'))
-        self.assertEqual(15, datastore_storage.memcache.get('foo-last-seq'))
+        self.assertEqual(15, self.memcache.get('foo-last-seq'))
         self.assertEqual(23, AtpSequence.get_by_id('foo').next)
 
     def test_flush_reloads(self):
         seqs = [self.sequences.allocate('foo') for _ in range(10)]
         self.assertEqual(list(range(1, 11)), seqs)
         self.assertEqual(10, self.sequences.last('foo'))
-        self.assertEqual(10, datastore_storage.memcache.get('foo-last-seq'))
+        self.assertEqual(10, self.memcache.get('foo-last-seq'))
         self.assertEqual(17, AtpSequence.get_by_id('foo').next)
 
-        datastore_storage.memcache.flush_all()
+        self.memcache.flush_all()
 
         self.assertIsNone(self.sequences.last('foo'))
 
         self.assertEqual(17, self.sequences.allocate('foo'))
         self.assertEqual(17, self.sequences.last('foo'))
-        self.assertEqual(17, datastore_storage.memcache.get('foo-last-seq'))
+        self.assertEqual(17, self.memcache.get('foo-last-seq'))
         self.assertEqual(27, AtpSequence.get_by_id('foo').next)
 
     def test_concurrent_no_duplicates(self):
@@ -842,7 +843,7 @@ class MemcacheSequencesTest(DatastoreTest):
 
         def flush_memcache():
             barrier.wait()
-            datastore_storage.memcache.flush_all()
+            self.memcache.flush_all()
 
         threads = []
         for i in range(num_threads):
@@ -871,7 +872,7 @@ class MemcacheSequencesTest(DatastoreTest):
         self.assertEqual(2, self.sequences.allocate('bar'))
 
     def test_initialize_memcache(self):
-        self.assertIsNone(datastore_storage.memcache.get('foo-last-seq'))
+        self.assertIsNone(self.memcache.get('foo-last-seq'))
 
         AtpSequence(id='foo', next=25).put()
         self.assertEqual(25, self.sequences.allocate('foo'))

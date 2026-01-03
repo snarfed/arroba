@@ -147,6 +147,8 @@ class Sequences:
 
     Background: https://atproto.com/specs/event-stream#sequence-numbers
     """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     def allocate(self, nsid):
         """Generates and returns a sequence number for a given NSID.

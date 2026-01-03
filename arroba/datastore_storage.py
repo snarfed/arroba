@@ -43,13 +43,8 @@ BLOB_REFETCH_TYPES = tuple(os.environ.get('BLOB_REFETCH_TYPES', 'image').split('
 BLOB_MAX_BYTES = int(os.environ.get('BLOB_MAX_BYTES', 100_000_000))
 # https://bsky.app/profile/bsky.app/post/3lk26lxn6sk2u
 VIDEO_MAX_DURATION = timedelta(minutes=3)
-
-MEMCACHE_SEQUENCE_ALLOCATION = \
-    os.environ.get('MEMCACHE_SEQUENCE_ALLOCATION', '').strip().lower() in ('true', '1')
 MEMCACHE_SEQUENCE_BATCH = int(os.environ.get('MEMCACHE_SEQUENCE_BATCH', 1000))
 MEMCACHE_SEQUENCE_BUFFER = int(os.environ.get('MEMCACHE_SEQUENCE_BUFFER', 100))
-# clients must set this to a pymemcache.Client to use MEMCACHE_SEQUENCE_ALLOCATION
-memcache = None
 
 
 class WriteOnce:
@@ -278,7 +273,7 @@ class NdbMixin:
             an ndb context active
           ndb_context_kwargs (dict): optional, used when creating a new ndb context
         """
-        super().__init__()
+        super().__init__(**kwargs)
         self.ndb_client = ndb_client
         self.ndb_context_kwargs = ndb_context_kwargs or {}
 
@@ -350,14 +345,23 @@ class MemcacheSequences(storage.Sequences, NdbMixin):
 
     Allocates sequence numbers from memcache for better performance, backed by
     :class:`AtpSequence`s in the datastore that allocate in batches.
-    """
 
-    # maps string nsid to integer max sequence number, the lower bound on the
-    # AtpSequence's current value. this is the highest seq we can allocate from
-    # memcache without allocating a new batch from the datastore and updating the
-    # stored AtpSequence's value.
+    Attributes:
+    * memcache (pymemcache.client.base.Client)
+    * max_seqs (dict): maps string nsid to integer max sequence number, the lower
+      bound on the AtpSequence's current value. this is the highest seq we can
+      allocate from memcache without allocating a new batch from the datastore and
+      updating the stored AtpSequence's value.
+    * max_seqs_lock (threading.Lock): for modifying max_seqs
+    """
+    memcache = None
     max_seqs = {}
     max_seqs_lock = threading.Lock()
+
+    def __init__(self, *, memcache, **kwargs):
+        super().__init__(**kwargs)
+        assert memcache
+        self.memcache = memcache
 
     @ndb_context
     def allocate(self, nsid):
@@ -378,15 +382,15 @@ class MemcacheSequences(storage.Sequences, NdbMixin):
         logger.info(f'allocating seq via memcache for {nsid}')
 
         key = self._memcache_key(nsid)
-        seq = memcache.incr(key, 1)
+        seq = self.memcache.incr(key, 1)
         if seq is None:  # not in memcache
             with self.max_seqs_lock:
                 # can't use last() because it looks in memcache
                 self.max_seqs[nsid] = AtpSequence.get_or_insert(nsid, next=1).next - 1
                 # we'll allocate a new batch below
-                if memcache.add(key, self.max_seqs[nsid]):
+                if self.memcache.add(key, self.max_seqs[nsid]):
                     logger.info(f'  initialized memcache sequence counter {key} to {self.max_seqs[nsid]}')
-            seq = memcache.incr(key, 1)
+            seq = self.memcache.incr(key, 1)
 
         @ndb.transactional(propagation=context.TransactionOptions.INDEPENDENT,
                            join=None)
@@ -416,7 +420,7 @@ class MemcacheSequences(storage.Sequences, NdbMixin):
         Returns:
           integer, last sequence number for this NSID, or None if we don't know it
         """
-        val = memcache.get(self._memcache_key(nsid))
+        val = self.memcache.get(self._memcache_key(nsid))
         return int(val) if val else None
 
     def _memcache_key(self, nsid):
@@ -656,10 +660,8 @@ class DatastoreStorage(Storage, NdbMixin):
           ndb_context_kwargs (dict): optional, used when creating a new ndb context
         """
         if not sequences:
-            cls = (MemcacheSequences if MEMCACHE_SEQUENCE_ALLOCATION
-                   else DatastoreSequences)
-            sequences = cls(ndb_client=ndb_client,
-                            ndb_context_kwargs=ndb_context_kwargs)
+            sequences = DatastoreSequences(ndb_client=ndb_client,
+                                           ndb_context_kwargs=ndb_context_kwargs)
 
         super().__init__(sequences=sequences, ndb_client=ndb_client,
                          ndb_context_kwargs=ndb_context_kwargs)

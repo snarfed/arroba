@@ -13,7 +13,7 @@ from carbox import car
 import dag_cbor
 
 from .. import firehose
-from ..datastore_storage import DatastoreStorage
+from ..datastore_storage import DatastoreStorage, MemcacheSequences
 from ..repo import Repo, Write
 from ..server import server
 from ..storage import Action, CommitOp, MemoryStorage
@@ -156,9 +156,11 @@ class DatastoreRepoTest(RepoTest, testutil.DatastoreTest):
     pass
 
 
-@patch('arroba.datastore_storage.MEMCACHE_SEQUENCE_ALLOCATION', True)
 @patch('arroba.datastore_storage.MEMCACHE_SEQUENCE_BATCH', 5)
 @patch('arroba.datastore_storage.MEMCACHE_SEQUENCE_BUFFER', 3)
 class DatastoreMemcacheSequenceAllocationRepoTest(RepoTest, testutil.DatastoreTest):
     """Run all of RepoTest with DatastoreStorage and memcache sequence allocation."""
-    pass
+    def _make_storage(self):
+        sequences = MemcacheSequences(memcache=self.memcache,
+                                      ndb_client=self.ndb_client)
+        return DatastoreStorage(sequences=sequences, ndb_client=self.ndb_client)
