@@ -278,6 +278,16 @@ class Collector(threading.Thread):
                 delay_s = int((util.now() - datetime.fromisoformat(payload['time']))\
                               .total_seconds())
                 logger.info(f'Emitting to {len(subscribers)} subscribers: {payload["seq"]} {did} {header.get("t")} ({delay_s} s behind)')
+
+                # minor race condition, if we crash while enqueuing this event for
+                # subscribers, below, we'll end up skipping this event. I think
+                # that's better than re-emitting the same event with the same seq
+                # twice, but I'm not sure how relays handle that, or if it's any
+                # different than going backward. (as of 2026-01-15, going backward
+                # breaks Bluesky's own relays for our PDS, they have to do a manual
+                # reconnect to fix that. :/ )
+                self.last_seq = cur_seq
+
                 with lock:
                     rollback.append((header, payload))
                     for subscriber in subscribers:
@@ -286,7 +296,6 @@ class Collector(threading.Thread):
                         # block here, put_nowait will raise queue.Full instead.)
                         subscriber.put_nowait((header, payload))
 
-                self.last_seq = cur_seq
                 seen += 1
 
             time.sleep(SUBSCRIBE_REPOS_BATCH_DELAY.total_seconds())
