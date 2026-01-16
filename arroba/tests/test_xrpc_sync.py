@@ -2,6 +2,7 @@
 import copy
 from datetime import datetime, timedelta
 from io import BytesIO
+import logging
 import threading
 from threading import Barrier, Event, Semaphore, Thread
 import time
@@ -1512,3 +1513,22 @@ class DatastoreMemcacheSequencesSubscribeReposTest(SubscribeReposTest,
         sequences = MemcacheSequences(memcache=self.memcache,
                                       ndb_client=self.ndb_client)
         return DatastoreStorage(sequences=sequences, ndb_client=self.ndb_client)
+
+    @patch('arroba.firehose.PRELOAD_WINDOW', 0)
+    @patch('arroba.firehose.SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY', timedelta(seconds=.1))
+    def test_collect_sequence_number_not_in_memcache(self, *_):
+        firehose.start(limit=1)
+
+        # start subscriber
+        received = []
+        started = Event()
+        subscriber = Thread(target=self.subscribe,
+                            args=[received, None, started, 1])
+        subscriber.start()
+        started.wait()
+
+        with patch.object(MemcacheSequences, 'last', return_value=None), \
+             self.assertNoLogs(firehose.logger, logging.ERROR):
+            self.storage.sequences.allocate(SUBSCRIBE_REPOS_NSID)  # skip a seq
+            self.storage.write_event(self.repo, 'identity')
+            subscriber.join()
