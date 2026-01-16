@@ -265,10 +265,13 @@ class Collector(threading.Thread):
                 if cur_seq > self.last_seq + 1:
                     if time.time() - last_event <= timeout_s:
                         last = server.storage.sequences.last(SUBSCRIBE_REPOS_NSID)
-                        if (last is None
-                                or last - cur_seq <= SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW):
+                        if last is None:
+                            logger.warning('No last seq! will retry...')
+                            break  # out of the read_events_by_seq loop
+                        elif last - cur_seq <= SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW:
                             logger.info(f'Waiting for seq {self.last_seq + 1}')
                             break  # out of the read_events_by_seq loop
+
                     logger.info(f'Gave up waiting for seqs {self.last_seq + 1} to {cur_seq - 1}!')
 
                 # emit event!
