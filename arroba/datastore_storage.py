@@ -21,6 +21,7 @@ from lexrpc import ValidationError
 from multiformats import CID, multicodec, multihash
 from pymediainfo import MediaInfo
 
+from . import memcache
 from .mst import MST
 from .repo import Repo
 from .server import server
@@ -832,6 +833,18 @@ class DatastoreStorage(Storage, NdbMixin):
 
     @ndb_context
     @ndb.transactional(retries=10)
-    def _commit(self, *args, **kwargs):
+    def _commit(self, repo, *args, repo_did=None, **kwargs):
         """Just runs :meth:`Storage._commit` in a transaction."""
-        return super()._commit(*args, **kwargs)
+        did = repo.did or repo_did
+        if isinstance(self.sequences, MemcacheSequences) and did:
+            # serialize commits per repo. constructing and writing the commits can
+            # take some time, so without serializing, we hit datastore contention,
+            # which makes us drop sequence numbers, since they're allocated before
+            # the commit transaction, and those delay hub from emitting commit events
+            # over the firehose while it waits for the skipped seqs, and sometimes
+            # those delays mean we drop events entirely.
+            # https://github.com/snarfed/arroba/issues/74
+            with memcache.Lease(self.sequences.memcache, f'arroba-commit-{did}'):
+                return super()._commit(repo, *args, repo_did=repo_did, **kwargs)
+        else:
+            return super()._commit(repo, *args, repo_did=repo_did, **kwargs)
