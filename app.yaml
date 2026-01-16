@@ -8,7 +8,7 @@ env: flex
 runtime: python
 runtime_config:
     operating_system: ubuntu18
-    runtime_version: 3.9
+    runtime_version: 3.12
 
 # need only one instance so that new events can be delivered to subscribeRepos
 # subscribers in memory
