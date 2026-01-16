@@ -1295,7 +1295,6 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         firehose.start(limit=1)
 
         # store create
-        prev = self.repo.head
         create = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})
         self.storage.commit(self.repo, [create])
 
@@ -1306,6 +1305,41 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         subscriber.join()
 
         self.assertEqual({'op': 1, 't': '#sync'}, received[0][0])
+
+    @patch('arroba.firehose.PRELOAD_WINDOW', 0)
+    def test_collect_uncaught_exception_updates_last_seq(self, *_):
+        orig_process_event = firehose.process_event
+        call_num = 0
+
+        def process_event(event):
+            nonlocal call_num
+            call_num += 1
+            if call_num == 2:
+                raise RuntimeError('foo')
+
+            return orig_process_event(event)
+
+        with patch('arroba.firehose.process_event', side_effect=process_event):
+            firehose.start(limit=2)
+
+            # start subscriber
+            received = []
+            started = Event()
+            subscriber = Thread(target=self.subscribe,
+                                args=[received, None, started, 2])
+            subscriber.start()
+            started.wait()
+
+            # store two events
+            first = self.storage.write_event(self.repo, 'identity')
+            second = self.storage.write_event(self.repo, 'identity')
+
+            subscriber.join()
+
+        del first.decoded['$type']
+        del second.decoded['$type']
+        self.assertEqual(({'op': 1, 't': '#identity'}, first.decoded), received[0])
+        self.assertEqual(({'op': 1, 't': '#identity'}, second.decoded), received[1])
 
 
 class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):

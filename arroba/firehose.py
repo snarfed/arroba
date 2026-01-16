@@ -38,8 +38,8 @@ SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW = int(os.getenv('SUBSCRIBE_REPOS_SKIPPED_SEQ_
 SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY = timedelta(seconds=float(os.getenv('SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY', 120)))
 
 new_events = threading.Condition()
-subscribers = []
-collector = None  # Thread; initialized in start()
+subscribers = []  # list of SimpleQueues
+collector = None  # Collector; initialized in start()
 rollback = None   # deque of (dict header, dict payload); initialized in collect()
 started = threading.Event()  # notified once the collecter has fully started
 
@@ -54,8 +54,7 @@ def start(limit=None):
         global collector
         if collector:
             return
-        collector = threading.Thread(target=collect, name='firehose collector',
-                                     daemon=True, kwargs={'limit': limit})
+        collector = Collector(limit=limit)
 
     logger.info(f'Starting firehose collector with limit {limit}')
     collector.start()
@@ -184,98 +183,113 @@ def subscribe(cursor=None):
                 subscribers.remove(subscriber)
 
 
-def collect(limit=None):
-    """Daemon thread. Collects new events and sends them to each subscriber.
+class Collector(threading.Thread):
+    """Singleton. Daemon thread that collects new events and sends them to subscribers.
 
-    Args:
+    Attributes:
+      last_seq (int): last sequence number sent to subscribers
       limit (int): if provided, return after collecting this many *new* events. Only
         used in tests.
     """
-    logger.info(f'collect: preloading rollback window ({PRELOAD_WINDOW})')
-    cur_seq = server.storage.sequences.last(SUBSCRIBE_REPOS_NSID)
-    assert cur_seq is not None
-    query = server.storage.read_events_by_seq(
-        start=max(cur_seq - PRELOAD_WINDOW + 1, 0))
+    last_seq = None
+    limit = None
 
-    with lock:
+    def __init__(self, *args, limit=None, **kwargs):
+        """Constructor.
+
+        Args: limit (int): if provided, return after collecting this many *new*
+          events. Only used in tests.
+        """
+        super().__init__(*args, daemon=True, name='firehose collector', **kwargs)
+        self.limit = limit
+
+    def run(self):
+        logger.info(f'collect: preloading rollback window ({PRELOAD_WINDOW})')
+        self.last_seq = server.storage.sequences.last(SUBSCRIBE_REPOS_NSID)
+        assert self.last_seq is not None
+        query = server.storage.read_events_by_seq(
+            start=max(self.last_seq - PRELOAD_WINDOW + 1, 0))
+
+        with lock:
+            global rollback
+            rollback = deque((process_event(e) for e in query), maxlen=ROLLBACK_WINDOW)
+
+        if rollback:
+            self.last_seq = rollback[-1][1]['seq']
+            logger.info(f'  preloaded seqs {rollback[0][1]["seq"]}-{self.last_seq}')
+
+        started.set()
+
+        while True:
+            last_seq_before = self.last_seq
+
+            try:
+                # return is only for unit tests, _collect only returns if it hits limit
+                return self._collect()
+            except BaseException as e:
+                # https://github.com/snarfed/bridgy-fed/issues/2150
+                logger.exception('Uncaught exception')
+                time.sleep(SUBSCRIBE_REPOS_BATCH_DELAY.total_seconds())
+
+            # only for unit tests
+            if self.limit:
+                seen = self.last_seq - last_seq_before
+                self.limit -= seen
+                logger.info(f'saw {seen} events, lowered limit to {self.limit}')
+
+    def _collect(self):
+        """Inner loop for collecting new events and sending them to subscribers."""
+        logger.info(f'collecting new events')
+
         global rollback
-        rollback = deque((process_event(e) for e in query), maxlen=ROLLBACK_WINDOW)
+        timeout_s = SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY.total_seconds()
+        last_event = time.time()
+        seen = 0
 
-    if rollback:
-        cur_seq = rollback[-1][1]['seq']
-        logger.info(f'  preloaded seqs {rollback[0][1]["seq"]}-{cur_seq}')
+        while True:
+            if self.limit is not None and seen >= self.limit:
+                return
 
-    started.set()
+            with new_events:
+                new_events.wait(timeout_s)
 
-    while True:
-        try:
-            # return is only for unit tests, _collect only returns if it hits limit
-            return _collect(cur_seq, limit)
-        except BaseException as e:
-            # https://github.com/snarfed/bridgy-fed/issues/2150
-            logger.exception('Uncaught exception')
+            for event in server.storage.read_events_by_seq(start=self.last_seq + 1):
+                cur_seq = event['seq'] if isinstance(event, dict) else event.commit.seq
+                if cur_seq <= self.last_seq:
+                    non_monotonic(cur_seq, self.last_seq, event)
+                    continue
+
+                # if we see a sequence number skipped, and we're not too far behind,
+                # wait up to SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW for it before giving
+                # up on it and moving on
+                if cur_seq > self.last_seq + 1:
+                    if time.time() - last_event <= timeout_s:
+                        seqs_behind = server.storage.sequences.last(SUBSCRIBE_REPOS_NSID) - cur_seq
+                        if seqs_behind <= SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW:
+                            logger.info(f'Waiting for seq {self.last_seq + 1}')
+                            cur_seq = self.last_seq
+                            break
+                    logger.info(f'Gave up waiting for seqs {self.last_seq + 1} to {cur_seq - 1}!')
+
+                # emit event!
+                last_event = time.time()
+                header, payload = process_event(event)
+                did = payload.get('did') or payload.get('repo')
+                delay_s = int((util.now() - datetime.fromisoformat(payload['time']))\
+                              .total_seconds())
+                logger.info(f'Emitting to {len(subscribers)} subscribers: {payload["seq"]} {did} {header.get("t")} ({delay_s} s behind)')
+                with lock:
+                    rollback.append((header, payload))
+                    for subscriber in subscribers:
+                        # subscriber here is an unbounded SimpleQueue, so put should
+                        # never block, but I want to be extra sure. (if put would
+                        # block here, put_nowait will raise queue.Full instead.)
+                        subscriber.put_nowait((header, payload))
+
+                self.last_seq = cur_seq
+                seen += 1
+
             time.sleep(SUBSCRIBE_REPOS_BATCH_DELAY.total_seconds())
-
-
-def _collect(cur_seq, limit=None):
-    """Inner loop for collecting new events and sending them to subscribers.
-
-    Args:
-      cur_seq (int): sequence number to start from
-      limit (int): if provided, return after collecting this many *new* events. Only
-        used in tests.
-    """
-    logger.info(f'collecting new events')
-
-    global rollback
-    timeout_s = SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY.total_seconds()
-    last_event = time.time()
-    seen = 0
-
-    while True:
-        if limit is not None and seen >= limit:
-            return
-
-        with new_events:
-            new_events.wait(timeout_s)
-
-        for event in server.storage.read_events_by_seq(start=cur_seq + 1):
-            last_seq = cur_seq
-            cur_seq = event['seq'] if isinstance(event, dict) else event.commit.seq
-            if cur_seq <= last_seq:
-                non_monotonic(cur_seq, last_seq, event)
-                continue
-
-            # if we see a sequence number skipped, and we're not too far behind, wait
-            # up to SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW for it before giving up on it
-            # and moving on
-            if cur_seq > last_seq + 1:
-                if time.time() - last_event <= timeout_s:
-                    seqs_behind = server.storage.sequences.last(SUBSCRIBE_REPOS_NSID) - cur_seq
-                    if seqs_behind <= SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW:
-                        logger.info(f'Waiting for seq {last_seq + 1}')
-                        cur_seq = last_seq
-                        break
-                logger.info(f'Gave up waiting for seqs {last_seq + 1} to {cur_seq - 1}!')
-
-            # emit event!
-            last_event = time.time()
-            header, payload = process_event(event)
-            did = payload.get('did') or payload.get('repo')
-            delay_s = int((util.now() - datetime.fromisoformat(payload['time']))\
-                          .total_seconds())
-            logger.info(f'Emitting to {len(subscribers)} subscribers: {payload["seq"]} {did} {header.get("t")} ({delay_s} s behind)')
-            with lock:
-                rollback.append((header, payload))
-                for subscriber in subscribers:
-                    # subscriber here is an unbounded SimpleQueue, so put should
-                    # never block, but I want to be extra sure. (if put would
-                    # block here, put_nowait will raise queue.Full instead.)
-                    subscriber.put_nowait((header, payload))
-
-            seen += 1
-
-        time.sleep(SUBSCRIBE_REPOS_BATCH_DELAY.total_seconds())
 
 
 def process_event(event):
