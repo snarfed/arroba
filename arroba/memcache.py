@@ -64,11 +64,11 @@ class Lease:
             if self.client.add(self.key, 'locked', noreply=False,
                                expire=int(self.expiration.total_seconds())):
                 self.expires_at = util.now() + self.expiration
-                logger.info(f'acquired memcache lease {self.key}')
+                logger.debug(f'acquired memcache lease {self.key}')
                 return
 
             if attempt < self.retries:
-                logger.info(f'memcache lease {self.key} already held, sleeping {delay}s')
+                logger.debug(f'memcache lease {self.key} already held, sleeping {delay}s')
                 time.sleep(delay.total_seconds())
                 delay *= 2
 
@@ -80,7 +80,7 @@ class Lease:
 
         if util.now() <= self.expires_at:
             self.client.delete(self.key)
-            logger.info(f'released memcache lease {self.key}')
+            logger.debug(f'released memcache lease {self.key}')
         else:
             logger.warning(f'memcache lease {self.key} expired before release')
 
