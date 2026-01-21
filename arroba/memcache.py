@@ -70,7 +70,8 @@ class Lease:
             if attempt < self.retries:
                 logger.debug(f'memcache lease {self.key} already held, sleeping {delay}s')
                 time.sleep(delay.total_seconds())
-                delay *= 2
+                # TODO: bring back or add a cap
+                # delay *= 2
 
         raise RuntimeError(f"couldn't acquire memcache lease {self.key} after {self.retries + 1} attempts")
 
