@@ -33,8 +33,8 @@ PRELOAD_WINDOW = int(os.getenv('PRELOAD_WINDOW', 4000))
 SUBSCRIBE_REPOS_BATCH_DELAY = timedelta(seconds=float(os.getenv('SUBSCRIBE_REPOS_BATCH_DELAY', 0)))
 # only wait for a skipped seq if we're within this many seqs of current
 # https://github.com/snarfed/arroba/issues/56
-# at 1qps of emitted seqs, 600 is roughly 10m
-SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW = int(os.getenv('SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW', 600))
+# at 1qps of emitted seqs, 300 is roughly 5m
+SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW = int(os.getenv('SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW', 300))
 SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY = timedelta(seconds=float(os.getenv('SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY', 120)))
 
 new_events = threading.Condition()
