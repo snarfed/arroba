@@ -460,7 +460,7 @@ class Storage:
         }, seq=seq)
 
         if repo.callback:
-            repo.callback(block.decoded)
+            repo.callback(data=block.decoded)
         return block
 
     def write_blocks(self, blocks):
@@ -492,9 +492,16 @@ class Storage:
             doesn't currently exist
         """
         seq = self.sequences.allocate(SUBSCRIBE_REPOS_NSID)
-        commit_data = self._commit(repo, writes, seq, repo_did=repo_did)
-        if repo.callback:
-            repo.callback(commit_data)
+
+        try:
+            commit_data = self._commit(repo, writes, seq, repo_did=repo_did)
+            if repo.callback:
+                repo.callback(data=commit_data)
+        except BaseException:
+            if repo.callback:
+                repo.callback(lost_seq=seq)
+            raise
+
         return commit_data
 
     def _commit(self, repo, writes, seq, repo_did=None):

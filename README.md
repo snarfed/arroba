@@ -125,6 +125,8 @@ Add new feature to allocate sequence numbers from memcache, atomically, backed b
   * Switch image handling to pymediainfo, drop Pillow dependency.
 * `did`:
   * Add new `rollback_plc` function.
+* `repo`:
+  * Add `lost_seq` kwarg to repo callback for marking sequence numbers lost.
 * `storage`:
   * Add new abstract `Sequences` class and concrete subclasses `MemorySequences`, `DatastoreSequences`, and `MemcacheSequences`.
   * Add new optional `sequences` kwarg to `Storage` and subclasses' constructors.

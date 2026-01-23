@@ -42,8 +42,10 @@ subscribers = []  # list of SimpleQueues
 collector = None  # Collector; initialized in start()
 rollback = None   # deque of (dict header, dict payload); initialized in collect()
 started = threading.Event()  # notified once the collecter has fully started
+lock = threading.Lock()  # for subscribers, rollback
 
-lock = threading.RLock()  # TODO: RLock seems unneeded, switch back to Lock?
+lost_seqs = set()
+lost_seqs_lock = threading.Lock()
 
 thread_local = threading.local()
 logger = thread_local.logger = logging.getLogger(__name__)
@@ -62,7 +64,7 @@ def start(limit=None):
 
 
 def reset():
-    global new_events, subscribers, collector, rollback
+    global collector, lost_seqs, new_events, rollback, subscribers
 
     with lock:
         new_events = threading.Condition()
@@ -72,11 +74,24 @@ def reset():
             assert not collector.is_alive()
         collector = rollback = None
 
+    with lost_seqs_lock:
+        lost_seqs = set()
+
 
 def send_events():
     """Trigger for when new event(s) are available."""
     with new_events:
         new_events.notify_all()
+
+def mark_seq_lost(seq):
+    """Marks a sequence number lost.
+
+    Args:
+      seq (int)
+    """
+    assert seq and isinstance(seq, int), repr(seq)
+    with lost_seqs_lock:
+        lost_seqs.add(seq)
 
 
 def subscribe(cursor=None):
@@ -259,20 +274,29 @@ class Collector(threading.Thread):
                     non_monotonic(cur_seq, self.last_seq, event)
                     continue
 
-                # if we see a sequence number skipped, and we're not too far behind,
-                # wait up to SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW for it before giving
-                # up on it and moving on
-                if cur_seq > self.last_seq + 1:
+                # skip sequence numbers that we know are lost, ie we allocated but
+                # then didn't use in a commit or event
+                with lost_seqs_lock:
+                    for next_seq in range(self.last_seq + 1, cur_seq + 1):
+                        if next_seq in lost_seqs:
+                            logger.info(f'Skipping lost seq {next_seq}')
+                        else:
+                            break
+
+                # if we don't see a sequence number, and it's not marked lost, and
+                # we're not too far behind, wait for it before giving up on it and
+                # moving on
+                if cur_seq > next_seq:
                     if time.time() - last_event <= timeout_s:
                         last = server.storage.sequences.last(SUBSCRIBE_REPOS_NSID)
                         if last is None:
                             logger.warning('No last seq! will retry...')
                             break  # out of the read_events_by_seq loop
                         elif last - cur_seq <= SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW:
-                            logger.info(f'Waiting for seq {self.last_seq + 1}')
+                            logger.info(f'Waiting for seq {next_seq}')
                             break  # out of the read_events_by_seq loop
 
-                    logger.info(f'Gave up waiting for seqs {self.last_seq + 1} to {cur_seq - 1}!')
+                    logger.info(f'Gave up waiting for seqs {next_seq} to {cur_seq - 1}!')
 
                 # emit event!
                 last_event = time.time()

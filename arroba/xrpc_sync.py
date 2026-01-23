@@ -110,7 +110,13 @@ def subscribe_repos(cursor=None):
     Here's how to register that callback and this XRPC method in a threaded
     context:
 
-        server.repo.callback = lambda commit_data: firehose.send_events()
+        def callback(data=None, lost_seq=None):
+          if data:
+            firehose.send_events()
+          elif lost_seq:
+            firehose.mark_seq_lost(lost_seq)
+
+        server.repo.callback = callback
         server.server.register('com.atproto.sync.subscribeRepos', xrpc_sync.subscribe_repos)
 
     Args:

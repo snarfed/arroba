@@ -233,7 +233,7 @@ class StorageTest(TestCase):
         repo = Repo.create(self.storage, 'did:user', signing_key=self.key)
         self.assertEqual(4, self.storage.sequences.last(SUBSCRIBE_REPOS_NSID))
 
-        repo.callback = lambda event: seen.append(event)
+        repo.callback = lambda data=None, lost_seq=None: seen.append(data)
         self.storage.tombstone_repo(repo)
 
         self.assertEqual(TOMBSTONED, repo.status)
@@ -255,7 +255,7 @@ class StorageTest(TestCase):
         repo = Repo.create(self.storage, 'did:user', signing_key=self.key)
         self.assertEqual(4, self.storage.sequences.last(SUBSCRIBE_REPOS_NSID))
 
-        repo.callback = lambda event: seen.append(event)
+        repo.callback = lambda data=None, lost_seq=None: seen.append(data)
         self.storage.deactivate_repo(repo)
         self.assertEqual(DEACTIVATED, repo.status)
         self.assertEqual(DEACTIVATED, self.storage.load_repo('did:user').status)
@@ -278,7 +278,7 @@ class StorageTest(TestCase):
         self.storage.deactivate_repo(repo)
         self.assertEqual(5, self.storage.sequences.last(SUBSCRIBE_REPOS_NSID))
 
-        repo.callback = lambda event: seen.append(event)
+        repo.callback = lambda data=None, lost_seq=None: seen.append(data)
         self.storage.activate_repo(repo)
         self.assertIsNone(repo.status)
 
@@ -476,7 +476,7 @@ class StorageTest(TestCase):
         repo_test = RepoTest()
 
         # create new object with callback
-        repo.callback = lambda commit: seen.append(commit)
+        repo.callback = lambda data=None, lost_seq=None: seen.append(data)
         tid = next_tid()
         create = Write(Action.CREATE, 'co.ll', tid, {'foo': 'bar'})
         self.storage.commit(repo, [create])
@@ -522,3 +522,14 @@ class DatastoreStorageTest(StorageTest, DatastoreTest):
                     signing_key=self.key, head=head)
         with self.assertRaises(AssertionError):
             self.storage.commit(repo, [], repo_did='did:alice')
+
+    def test_commit_exception_calls_callback_with_lost_seq(self):
+        """Test that callback is called with lost_seq when commit fails."""
+        seen = []
+        repo = Repo.create(self.storage, 'did:user', signing_key=self.key)
+
+        repo.callback = lambda data=None, lost_seq=None: seen.append(lost_seq)
+        with self.assertRaises(ValueError):
+            self.storage.commit(repo, [Write(Action.DELETE, 'co.ll', 'nonexistent')])
+
+        self.assertEqual([self.storage.sequences.last(SUBSCRIBE_REPOS_NSID)], seen)

@@ -132,7 +132,14 @@ with ndb_client.context():
                                   rotation_key=privkey, signing_key=privkey,
                                   handle=os.environ['REPO_HANDLE'])
 
-server.repo.callback = lambda commit_data: firehose.send_events()
+def repo_callback(data=None, lost_seq=None):
+    if data:
+        firehose.send_events()
+    elif lost_seq:
+        firehose.mark_seq_lost(lost_seq)
+
+server.repo.callback = repo_callback
+
 if server.repo.handle != os.environ['REPO_HANDLE']:
     logger.warning(f"$REPO_HANDLE is {os.environ['REPO_HANDLE']} but loaded repo's handle is {server.repo.handle} !")
 

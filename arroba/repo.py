@@ -44,11 +44,12 @@ class Repo:
       handle (str)
       status (str): None (if active) or ``'deactivated'``, ``'deleted'``,
         or ``'tombstoned'`` (deprecated)
-      callback (callable: (CommitData | dict) => None): called on new commits
-        and other repo events. May be set directly by clients. None means no
-        callback. The parameter will be a :class:`CommitData` for commits, dict
-        record with ``$type`` for other ``com.atproto.sync.subscribeRepos``
-        messages.
+      callback (callable: (data=CommitData | dict, lost_seq=int) => None): called on
+        new commits and other repo events. May be set directly by clients. None means
+        no callback. Both kwargs are optional. ``data`` is a :class:`CommitData` for
+        commits, or a dict record with ``$type`` for other
+        ``com.atproto.sync.subscribeRepos`` messages. ``lost_seq`` is an integer
+        sequence number that we allocated but then didn't use, ie "lost."
     """
     storage = None
     mst = None
@@ -166,7 +167,7 @@ class Repo:
 
         storage.create_repo(repo)
         if repo.callback:
-            repo.callback(initial_commit)
+            repo.callback(data=initial_commit)
 
         return repo
 

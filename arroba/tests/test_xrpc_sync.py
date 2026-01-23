@@ -552,7 +552,7 @@ class XrpcSyncTest(testutil.XrpcTestCase):
 class SubscribeReposTest(testutil.XrpcTestCase):
     def setUp(self):
         super().setUp()
-        self.repo.callback = lambda _: firehose.send_events()
+        self.repo.callback = lambda data=None, lost_seq=None: firehose.send_events()
         firehose.reset()
 
     def tearDown(self):
@@ -1127,7 +1127,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         # second repo: bob
         bob_repo = Repo.create(server.storage, 'did:bob',
                                handle='bo.bb', signing_key=self.key)
-        bob_repo.callback = lambda _: firehose.send_events()
+        bob_repo.callback = lambda data=None, lost_seq=None: firehose.send_events()
 
         # tombstone user
         server.storage.tombstone_repo(self.repo)
@@ -1246,9 +1246,6 @@ class SubscribeReposTest(testutil.XrpcTestCase):
     @patch('arroba.firehose.SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW', 10)
     @patch('arroba.firehose.SUBSCRIBE_REPOS_BATCH_DELAY', timedelta(seconds=.01))
     def test_dont_wait_for_old_skipped_seq(self, *_):
-        # already mocked out, just changing its value
-        firehose.SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY = timedelta(seconds=60)
-
         firehose.start(limit=1)
 
         # skip seq 5, commit with seq 6
@@ -1341,6 +1338,36 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         del second.decoded['$type']
         self.assertEqual(({'op': 1, 't': '#identity'}, first.decoded), received[0])
         self.assertEqual(({'op': 1, 't': '#identity'}, second.decoded), received[1])
+
+    @patch('arroba.firehose.PRELOAD_WINDOW', 1)
+    @patch('arroba.firehose.SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY', timedelta(seconds=0))
+    def test_mark_seq_lost(self, *_):
+        """Test that lost seqs are skipped immediately without waiting."""
+        firehose.start(limit=1)
+
+        # skip seq 5 but mark it lost, commit with seq 6
+        server.storage.sequences.allocate(SUBSCRIBE_REPOS_NSID)
+        self.assertEqual(5, server.storage.sequences.last(SUBSCRIBE_REPOS_NSID))
+        firehose.mark_seq_lost(5)
+        prev = self.repo.head
+
+        write = Write(Action.CREATE, 'co.ll', next_tid(), {'x': 'y'})
+        self.storage.commit(self.repo, [write])
+
+        # should receive seq 6 immediately without waiting for seq 5
+        with self.assertLogs() as logs:
+            received = []
+            self.subscribe(received=received, limit=1, cursor=5)
+
+        logged = ' '.join(logs.output)
+        self.assertIn('Skipping lost seq 5', logged)
+        self.assertNotIn('Waiting for seq', logged)
+
+        # should receive seq 6 commit
+        self.assertEqual(1, len(received))
+        self.assertCommit(received[0], {'x': 'y'}, write=write,
+                          cur=self.repo.head.cid, prev=prev, seq=6,
+                          check_commit=False)
 
 
 class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
