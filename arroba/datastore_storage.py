@@ -759,12 +759,14 @@ class DatastoreStorage(Storage, NdbMixin):
         store()
 
     @ndb_context
+    @ndb.non_transactional()
     def read(self, cid):
         block = AtpBlock.get_by_id(cid.encode('base32'))
         if block:
             return block.to_block()
 
     @ndb_context
+    @ndb.non_transactional()
     def read_many(self, cids):
         keys = [ndb.Key(AtpBlock, cid.encode('base32')) for cid in cids]
         got = list(zip(cids, ndb.get_multi(keys)))
@@ -813,16 +815,19 @@ class DatastoreStorage(Storage, NdbMixin):
             context._state.context = None
 
     @ndb_context
+    @ndb.non_transactional()
     def has(self, cid):
         return self.read(cid) is not None
 
     @ndb_context
+    @ndb.non_transactional()
     def write(self, repo_did, obj, seq=None):
         if seq is None:
             seq = self.sequences.allocate(SUBSCRIBE_REPOS_NSID)
         return AtpBlock.create(repo_did=repo_did, data=obj, seq=seq).to_block()
 
     @ndb_context
+    @ndb.non_transactional()
     def write_blocks(self, blocks):
         keys = [AtpBlock(id=b.cid.encode('base32')).key for b in blocks]
         existing = AtpBlock.query(AtpBlock.key.IN(keys)).fetch(keys_only=True)
