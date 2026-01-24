@@ -832,8 +832,9 @@ class DatastoreStorage(Storage, NdbMixin):
         keys = [AtpBlock(id=b.cid.encode('base32')).key for b in blocks]
         existing = AtpBlock.query(AtpBlock.key.IN(keys)).fetch(keys_only=True)
         existing_cids = [key.id() for key in existing]
-        ndb.put_multi(AtpBlock.from_block(b) for b in blocks
-                      if b.cid.encode('base32') not in existing_cids)
+        new = [AtpBlock.from_block(b) for b in blocks
+               if b.cid.encode('base32') not in existing_cids]
+        ndb.transaction(lambda: ndb.put_multi(new), join=True)
 
     @ndb_context
     @ndb.transactional(retries=10)
