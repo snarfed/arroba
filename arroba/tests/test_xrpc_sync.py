@@ -1351,11 +1351,10 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         firehose.mark_seq_lost(5)
         prev = self.repo.head
 
-        write = Write(Action.CREATE, 'co.ll', next_tid(), {'x': 'y'})
-        self.storage.commit(self.repo, [write])
-
         # should receive seq 6 immediately without waiting for seq 5
         with self.assertLogs() as logs:
+            write = Write(Action.CREATE, 'co.ll', next_tid(), {'x': 'y'})
+            self.storage.commit(self.repo, [write])
             received = []
             self.subscribe(received=received, limit=1, cursor=5)
 
