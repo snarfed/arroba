@@ -549,7 +549,9 @@ class Storage:
                     raise ValueError(f"{path} doesn't exist in repo")
 
             if write.action == Action.DELETE:
+                logger.debug('deleting from MST')
                 repo.mst = repo.mst.delete(path)
+                logger.debug('  done')
                 ops.append(CommitOp(action=Action.DELETE, path=path,
                                     cid=None, prev_cid=prev_cid))
                 continue
@@ -567,19 +569,25 @@ class Storage:
                           cid=block.cid, prev_cid=prev_cid)
 
             if write.action == Action.CREATE:
+                logger.debug('adding to MST')
                 repo.mst = repo.mst.add(path, block.cid)
+                logger.debug('  done')
                 ops.append(op)
             else:
                 assert write.action == Action.UPDATE
                 orig_pointer = repo.mst.get_pointer()
+                logger.debug('updating MST')
                 repo.mst = repo.mst.update(path, block.cid)
+                logger.debug('  done')
                 if repo.mst.get_pointer() != orig_pointer:
                     # no-op updates are invalid in ATProto, so only include this
                     # update operation if it changes the the record and MST.
                     # https://github.com/snarfed/arroba/issues/52#issuecomment-2825755142
                     ops.append(op)
 
+        logger.debug('loading unstored MST blocks')
         root, unstored_blocks = repo.mst.get_unstored_blocks()
+        logger.debug('  done')
         for block in unstored_blocks.values():
             block.repo = repo_did
             block.seq = seq
@@ -601,13 +609,16 @@ class Storage:
 
         # only add new blocks so we don't wipe out any existing blocks' sequence
         # numbers. (occasionally we see existing blocks recur, eg MST nodes.)
+        logger.debug(f'writing {len(commit_data.blocks)} new blocks')
         self.write_blocks(commit_data.blocks.values())
+        logger.debug('  done')
 
         # update repo head
         if repo.did:
             repo.head = commit_data.commit
             logger.info(f'Updating {repo.did} head {repo.head.cid}')
             self.store_repo(repo)
+            logger.debug('  done')
 
         orig_repo.mst = repo.mst
         orig_repo.head = commit_block

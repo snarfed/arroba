@@ -834,6 +834,7 @@ class DatastoreStorage(Storage, NdbMixin):
         existing_cids = [key.id() for key in existing]
         new = [AtpBlock.from_block(b) for b in blocks
                if b.cid.encode('base32') not in existing_cids]
+        logger.debug(f'  {len(new)} new {len(existing)} existing')
         ndb.transaction(lambda: ndb.put_multi(new), join=True)
 
     @ndb_context
