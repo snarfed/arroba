@@ -106,7 +106,7 @@ def subscribe(cursor=None):
     started.wait()
 
     thread = threading.current_thread().name
-    def log(msg, level=INFO):
+    def log(msg, level=DEBUG):
         logger.log(level, f'subscriber {thread}: {msg}')
 
     log(f'starting with cursor {cursor}')
@@ -152,7 +152,7 @@ def subscribe(cursor=None):
 
                     break
 
-            logger.info(f'Emitting pre-rollback {payload["seq"]} {payload.get("did") or payload.get("repo")} {header.get("t")} to one subscriber')
+            log(f'Emitting pre-rollback {payload["seq"]} {payload.get("did") or payload.get("repo")} {header.get("t")}')
             pre_rollback.append((header, payload))
             yield (header, payload)
 
@@ -178,7 +178,7 @@ def subscribe(cursor=None):
                             continue
                         last_seq = payload['seq']
 
-                        log(f'Backfilled rollback {payload["seq"]}', DEBUG)
+                        log(f'Emitting rollback {payload["seq"]} {payload.get("did") or payload.get("repo")} {header.get("t")}')
                         subscriber.put_nowait((header, payload))
 
             log(f'streaming new events after {rollback[-1][1]["seq"] if rollback else 0}')
@@ -217,7 +217,7 @@ class Collector(threading.Thread):
         self.limit = limit
 
     def run(self):
-        logger.info(f'collect: preloading rollback window ({PRELOAD_WINDOW})')
+        logger.info(f'preloading rollback window ({PRELOAD_WINDOW})')
         self.last_seq = server.storage.sequences.last(SUBSCRIBE_REPOS_NSID)
         assert self.last_seq is not None
         query = server.storage.read_events_by_seq(
@@ -302,7 +302,7 @@ class Collector(threading.Thread):
                 did = payload.get('did') or payload.get('repo')
                 delay_s = int((util.now() - datetime.fromisoformat(payload['time']))\
                               .total_seconds())
-                logger.info(f'Emitting to {len(subscribers)} subscribers: {payload["seq"]} {did} {header.get("t")} ({delay_s} s behind)')
+                logger.debug(f'Emitting live to {len(subscribers)} subscribers: {payload["seq"]} {did} {header.get("t")} ({delay_s} s behind)')
 
                 # minor race condition, if we crash while enqueuing this event for
                 # subscribers, below, we'll end up skipping this event. I think
