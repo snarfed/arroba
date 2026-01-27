@@ -396,8 +396,9 @@ def process_event(event):
         'since': None,  # TODO: load event.commit['prev']'s CID
         'rebase': False,
         'blobs': [],
-        'prevData': prev_data,
     }
+    if prev_data is not None:
+        payload['prevData'] = prev_data
 
     # TODO: this is a sync v1.1 limit. ideally we should check it at commit write
     # time, way before here

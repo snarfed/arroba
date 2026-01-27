@@ -125,6 +125,8 @@ Add new feature to allocate sequence numbers from memcache, atomically, backed b
   * Switch image handling to pymediainfo, drop Pillow dependency.
 * `did`:
   * Add new `rollback_plc` function.
+* `firehose`:
+  * Omit `prevData` in initial commits instead of setting it to `null`. (It's not a nullable field in `subscribeRepos#commit`.)
 * `repo`:
   * Add `lost_seq` kwarg to repo callback for marking sequence numbers lost.
 * `storage`:

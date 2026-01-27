@@ -639,7 +639,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
                 assert prev_record
                 ops[0]['prev'] = prev_record
 
-        self.assertEqual({
+        expected = {
             'repo': repo.did,
             'commit': cur,
             'ops': ops,
@@ -650,8 +650,11 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             'since': None,
             'rebase': False,
             'blobs': [],
-            'prevData': prev.decoded['data'] if prev else None,
-        }, payload)
+        }
+        if prev:
+            expected['prevData'] = prev.decoded['data']
+
+        self.assertEqual(expected, payload)
 
         if record:
             record_cid = dag_cbor_cid(record)
@@ -1367,6 +1370,24 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         self.assertCommit(received[0], {'x': 'y'}, write=write,
                           cur=self.repo.head.cid, prev=prev, seq=6,
                           check_commit=False)
+
+    def test_initial_commit_no_prevData(self, *_):
+        received = []
+        started = Event()
+        subscriber = Thread(target=self.subscribe, args=[received, None , started, 1])
+        subscriber.start()
+
+        firehose.start(limit=1)
+
+        new_repo = Repo.create(server.storage, 'did:web:new.com',
+                               handle='ne.ww', signing_key=self.key)
+        started.wait()
+        subscriber.join()
+
+        self.assertEqual(1, len(received))
+        header, payload = received[0]
+        self.assertEqual({'op': 1, 't': '#commit'}, header)
+        self.assertNotIn('prevData', payload)
 
 
 class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
