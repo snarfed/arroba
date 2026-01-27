@@ -110,8 +110,6 @@ def subscribe(cursor=None):
         logger.log(level, f'subscriber {thread}: {msg}')
 
     log(f'starting with cursor {cursor}')
-    if cursor:
-        assert cursor >= rollback[-1][1]['seq'] - ROLLBACK_WINDOW, cursor
 
     # if this cursor behind our rollback window, load the window between the two
     # manually, for this subscriber
