@@ -812,7 +812,7 @@ class DatastoreStorage(Storage, NdbMixin):
             # Context.use() resets this to the previous context when it exits,
             # but that context is bad now, so make sure we get a new one at the
             # top of the loop
-            context._state.context = None
+            context._state.context = context._state.toplevel_context = None
 
     @ndb_context
     @ndb.non_transactional()
