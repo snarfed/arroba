@@ -90,11 +90,8 @@ def mark_seq_lost(seq):
       seq (int)
     """
     assert seq and isinstance(seq, int), repr(seq)
-    logger.debug('acq lost_seqs_lock')
     with lost_seqs_lock:
         lost_seqs.add(seq)
-        logger.debug('to rel lost_seqs_lock')
-    logger.debug('rel lost_seqs_lock')
 
 
 def subscribe(cursor=None):
@@ -133,7 +130,6 @@ def subscribe(cursor=None):
             # TODO: remove once https://github.com/snarfed/arroba/issues/57 is done
             if i % 10 == 0:
                 time.sleep(.01)
-            logger.debug('acq lock')
             with lock:
                 # rollback window may have changed, check it again, fresh, each time!
                 if payload['seq'] >= rollback[0][1]['seq']:
@@ -154,10 +150,7 @@ def subscribe(cursor=None):
                                 (pre_rollback[-1][1]['seq'], rollback[0][1]['seq'])
                             rollback.extendleft(reversed(pre_rollback))
 
-                    logger.debug('to rel lock (break)')
                     break
-                logger.debug('to rel lock')
-            logger.debug('rel lock')
 
             log(f'Emitting pre-rollback {payload["seq"]} {payload.get("did") or payload.get("repo")} {header.get("t")}')
             pre_rollback.append((header, payload))
@@ -166,7 +159,6 @@ def subscribe(cursor=None):
     # hand off to rollback window and new events
     subscriber = SimpleQueue()
     try:
-        logger.debug('acq lock')
         with lock:
             if cursor is not None:
                 if handoff and handoff[0][1]['seq'] < rollback[0][1]['seq']:
@@ -191,8 +183,6 @@ def subscribe(cursor=None):
 
             log(f'streaming new events after {rollback[-1][1]["seq"] if rollback else 0}')
             subscribers.append(subscriber)
-            logger.debug('to rel lock')
-        logger.debug('rel lock')
 
         # let these get garbage collected
         handoff = pre_rollback = None
@@ -201,12 +191,9 @@ def subscribe(cursor=None):
 
     finally:
         log('removing subscriber')
-        logger.debug('acq lock')
         with lock:
             if subscriber in subscribers:
                 subscribers.remove(subscriber)
-            logger.debug('to rel lock')
-        logger.debug('rel lock')
 
 
 class Collector(threading.Thread):
@@ -287,15 +274,12 @@ class Collector(threading.Thread):
 
                 # skip sequence numbers that we know are lost, ie we allocated but
                 # then didn't use in a commit or event
-                logger.debug('acq lost_seqs_lock')
                 with lost_seqs_lock:
                     for next_seq in range(self.last_seq + 1, cur_seq + 1):
                         if next_seq in lost_seqs:
                             logger.info(f'Skipping lost seq {next_seq}')
                         else:
                             break
-                    logger.debug('to rel lost_seqs_lock')
-                logger.debug('to rel lost_seqs_lock')
 
                 # if we don't see a sequence number, and it's not marked lost, and
                 # we're not too far behind, wait for it before giving up on it and
@@ -329,7 +313,6 @@ class Collector(threading.Thread):
                 # reconnect to fix that. :/ )
                 self.last_seq = cur_seq
 
-                logger.debug('acq lock')
                 with lock:
                     rollback.append((header, payload))
                     for subscriber in subscribers:
@@ -337,8 +320,6 @@ class Collector(threading.Thread):
                         # never block, but I want to be extra sure. (if put would
                         # block here, put_nowait will raise queue.Full instead.)
                         subscriber.put_nowait((header, payload))
-                    logger.debug('to rel lock')
-                logger.debug('rel lock')
 
                 seen += 1
 
