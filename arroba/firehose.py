@@ -39,8 +39,8 @@ SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY = timedelta(seconds=float(os.getenv('SUBSCRIBE
 
 new_events = threading.Condition()
 subscribers = []  # list of SimpleQueues
-collector = None  # Collector; initialized in start()
-rollback = None   # deque of (dict header, dict payload); initialized in collect()
+collector = None  # Collector; initialized in start
+rollback = None   # deque of (dict header, dict payload); initialized in Collector.run
 started = threading.Event()  # notified once the collecter has fully started
 lock = threading.Lock()  # for subscribers, rollback
 
@@ -106,10 +106,11 @@ def subscribe(cursor=None):
     started.wait()
 
     thread = threading.current_thread().name
-    def log(msg, level=DEBUG):
-        logger.log(level, f'subscriber {thread}: {msg}')
+    def log(msg, level=INFO):
+        logger.log(level, f'{thread}: {msg}')
 
-    log(f'starting with cursor {cursor}')
+    if cursor:
+        log(f'starting with cursor {cursor}')
 
     # if this cursor behind our rollback window, load the window between the two
     # manually, for this subscriber
@@ -127,13 +128,10 @@ def subscribe(cursor=None):
                 continue
             last_seq = payload['seq']
 
-            # TODO: remove once https://github.com/snarfed/arroba/issues/57 is done
-            if i % 10 == 0:
-                time.sleep(.01)
             with lock:
-                # rollback window may have changed, check it again, fresh, each time!
+                # have we reached the rollback window?
                 if payload['seq'] >= rollback[0][1]['seq']:
-                    cursor = rollback[0][1]['seq']
+                    rollback_start = rollback[0][1]['seq']
                     handoff = rollback.copy()
 
                     remaining_len = rollback.maxlen - len(rollback)
@@ -141,7 +139,7 @@ def subscribe(cursor=None):
                         # merge old events we've loaded onto the end of rollback
                         # extendleft reverses its argument; reverse again to undo that
                         pre_rollback = [e for e in pre_rollback
-                                        if e[1]['seq'] < cursor]
+                                        if e[1]['seq'] < rollback_start]
                         if pre_rollback := pre_rollback[-remaining_len:]:
                             log(f'merging {pre_rollback[0][1]["seq"]}-{pre_rollback[-1][1]["seq"]} into rollback')
                             assert len(rollback) + len(pre_rollback) <= rollback.maxlen, \
@@ -152,34 +150,33 @@ def subscribe(cursor=None):
 
                     break
 
-            log(f'Emitting pre-rollback {payload["seq"]} {payload.get("did") or payload.get("repo")} {header.get("t")}')
+            log(f'Emitting pre-rollback {payload["seq"]} {payload.get("did") or payload.get("repo")} {header.get("t")}', DEBUG)
             pre_rollback.append((header, payload))
             yield (header, payload)
 
     # hand off to rollback window and new events
+    if cursor is not None:
+        if not handoff:
+            handoff = rollback.copy()
+        log(f'serving rollback from {max(cursor, handoff[0][1]["seq"])}')
+        for header, payload in handoff:
+            if payload['seq'] >= cursor:
+                log(f'Emitting rollback {payload["seq"]} {payload.get("did") or payload.get("repo")} {header.get("t")}', DEBUG)
+                yield (header, payload)
+
+    # enqueue subscriber and serve live!
     subscriber = SimpleQueue()
     try:
         with lock:
             if cursor is not None:
-                if handoff and handoff[0][1]['seq'] < rollback[0][1]['seq']:
-                    log(f'backfilling from handoff from {handoff[0][1]["seq"]}')
-                    for header, payload in handoff:
-                        if payload['seq'] >= rollback[0][1]['seq']:
-                            break
-                        log(f'Backfilled handoff {payload["seq"]}', DEBUG)
-                        subscriber.put_nowait((header, payload))
+                last_seq = handoff[-1][1]['seq']
+                assert last_seq >= rollback[0][1]["seq"]
 
-                log(f'backfilling from rollback from {cursor}')
-                last_seq = None
                 for header, payload in rollback:
-                    if payload['seq'] >= cursor:
-                        if last_seq and payload['seq'] <= last_seq:
-                            non_monotonic(payload['seq'], last_seq, payload, header)
-                            continue
-                        last_seq = payload['seq']
-
-                        log(f'Emitting rollback {payload["seq"]} {payload.get("did") or payload.get("repo")} {header.get("t")}')
+                    if payload['seq'] > last_seq:
+                        log(f'Emitting rollback (catch-up) {payload["seq"]} {payload.get("did") or payload.get("repo")} {header.get("t")}', DEBUG)
                         subscriber.put_nowait((header, payload))
+                        last_seq = payload['seq']
 
             log(f'streaming new events after {rollback[-1][1]["seq"] if rollback else 0}')
             subscribers.append(subscriber)
@@ -302,7 +299,7 @@ class Collector(threading.Thread):
                 did = payload.get('did') or payload.get('repo')
                 delay_s = int((util.now() - datetime.fromisoformat(payload['time']))\
                               .total_seconds())
-                logger.debug(f'Emitting live to {len(subscribers)} subscribers: {payload["seq"]} {did} {header.get("t")} ({delay_s} s behind)')
+                logger.info(f'Emitting live to {len(subscribers)} subscribers: {payload["seq"]} {did} {header.get("t")} ({delay_s} s behind)')
 
                 # minor race condition, if we crash while enqueuing this event for
                 # subscribers, below, we'll end up skipping this event. I think

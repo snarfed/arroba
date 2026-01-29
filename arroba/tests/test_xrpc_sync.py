@@ -712,7 +712,8 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         self.storage.commit(self.repo, [create])
         delivered_a.acquire()
 
-        self.assertCommit(received_a[0], {'foo': 'bar'}, write=create, prev=prev, seq=5)
+        self.assertCommit(received_a[0], {'foo': 'bar'}, write=create, prev=prev,
+                          seq=5)
 
         # update, subscriber_a and subscriber_b
         received_b = []
