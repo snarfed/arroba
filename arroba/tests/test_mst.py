@@ -286,8 +286,6 @@ class MstTest(testutil.TestCase):
         self.assertEqual(2, mst.layer)
         self.assertEqual(l2root, mst.get_pointer().encode('base32'))
 
-        return mst
-
     def test_cids_for_path(self):
         # based on "two deep leafless split" in commit-proof-fixtures.json
         for key in ('A0/501344', 'B2/303249', 'C0/535043'):
