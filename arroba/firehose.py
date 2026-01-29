@@ -166,33 +166,62 @@ def subscribe(cursor=None):
     # hand off to rollback window and new events
     subscriber = SimpleQueue()
     try:
+        # copy events while holding lock, but don't emit yet
         logger.debug('acq lock')
         with lock:
             if cursor is not None:
-                if handoff and handoff[0][1]['seq'] < rollback[0][1]['seq']:
-                    log(f'backfilling from handoff from {handoff[0][1]["seq"]}')
-                    for header, payload in handoff:
-                        if payload['seq'] >= rollback[0][1]['seq']:
-                            break
-                        log(f'Backfilled handoff {payload["seq"]}', DEBUG)
-                        subscriber.put_nowait((header, payload))
-
-                log(f'backfilling from rollback from {cursor}')
-                last_seq = None
-                for header, payload in rollback:
-                    if payload['seq'] >= cursor:
-                        if last_seq and payload['seq'] <= last_seq:
-                            non_monotonic(payload['seq'], last_seq, payload, header)
-                            continue
-                        last_seq = payload['seq']
-
-                        log(f'Emitting rollback {payload["seq"]} {payload.get("did") or payload.get("repo")} {header.get("t")}')
-                        subscriber.put_nowait((header, payload))
-
-            log(f'streaming new events after {rollback[-1][1]["seq"] if rollback else 0}')
-            subscribers.append(subscriber)
+                logger.debug('copying handoff')
+                handoff_copy = list(handoff) if handoff and handoff[0][1]['seq'] < rollback[0][1]['seq'] else []
+                logger.debug('copying rollback')
+                rollback_copy = list(rollback)
+                logger.debug('copied rollback')
+                rollback_end_seq = rollback[-1][1]['seq'] if rollback else 0
+            else:
+                handoff_copy = []
+                rollback_copy = []
+                rollback_end_seq = None
             logger.debug('to rel lock')
         logger.debug('rel lock')
+
+        # emit handoff and rollback events outside the lock
+        if cursor is not None:
+            if handoff_copy:
+                log(f'backfilling from handoff from {handoff_copy[0][1]["seq"]}')
+                for header, payload in handoff_copy:
+                    if rollback_copy and payload['seq'] >= rollback_copy[0][1]['seq']:
+                        break
+                    log(f'Backfilled handoff {payload["seq"]}', DEBUG)
+                    subscriber.put_nowait((header, payload))
+
+            log(f'backfilling from rollback from {cursor}')
+            last_seq = None
+            for header, payload in rollback_copy:
+                if payload['seq'] >= cursor:
+                    if last_seq and payload['seq'] <= last_seq:
+                        non_monotonic(payload['seq'], last_seq, payload, header)
+                        continue
+                    last_seq = payload['seq']
+
+                    log(f'Emitting rollback {payload["seq"]} {payload.get("did") or payload.get("repo")} {header.get("t")}')
+                    subscriber.put_nowait((header, payload))
+
+        # add to subscribers and check for catchup events
+        logger.debug('acq lock')
+        with lock:
+            log(f'streaming new events after {rollback[-1][1]["seq"] if rollback else 0}')
+            subscribers.append(subscriber)
+
+            # catch up on any events added to rollback while we were emitting
+            if rollback_end_seq is not None and rollback and rollback_end_seq < rollback[-1][1]['seq']:
+                catchup = [e for e in rollback if e[1]['seq'] > rollback_end_seq]
+            else:
+                catchup = []
+            logger.debug('to rel lock')
+        logger.debug('rel lock')
+
+        # emit any catchup events
+        for header, payload in catchup:
+            subscriber.put_nowait((header, payload))
 
         # let these get garbage collected
         handoff = pre_rollback = None
