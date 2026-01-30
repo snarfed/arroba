@@ -188,6 +188,8 @@ _Non-breaking changes:_
 * `did`:
   * Add new `get_signing_key`, `get_handle` functions.
   * `create_plc`: remove trailing slash from `services.atproto_pds.endpoint`.
+* `firehose`:
+  * Minimize lock contention in subscriber threads, especially during merge and handoff from pre-rollback to rollback ([#75](https://github.com/snarfed/arroba/issues/75)).
 * `storage`:
   * `Storage`: add new `write_blocks` method, implement in `MemoryStorage` and `DatastoreStorage`.
 * `xrpc_repo`:
