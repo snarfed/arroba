@@ -484,11 +484,11 @@ def resolve_handle(handle, get_fn=requests_get):
       str or None: DID, or None if the handle can't be resolved
 
     Raises:
-      ValueError: if handle is not a domain
+      ValueError: if ``handle`` is not a valid handle
     """
     if (not handle or not isinstance(handle, str)
-            or not util.DOMAIN_RE.fullmatch(handle)):
-        raise ValueError(f"{handle} doesn't look like a domain")
+            or not HANDLE_RE.fullmatch(handle)):
+        raise ValueError(f"{handle} isn't a valid Bluesky handle")
 
     logger.info(f'Resolving handle {handle}')
 

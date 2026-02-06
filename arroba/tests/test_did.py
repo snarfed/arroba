@@ -27,7 +27,7 @@ class DidTest(TestCase):
 
     def test_resolve_plc_bad_input(self):
         for bad in None, 1, 'foo', 'did:web:x':
-            with self.assertRaises(ValueError):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
                 did.resolve_plc(bad)
 
     def test_resolve_web_no_path(self):
@@ -47,7 +47,7 @@ class DidTest(TestCase):
 
     def test_resolve_web_bad_input(self):
         for bad in None, 1, 'foo', 'did:plc:x':
-            with self.assertRaises(ValueError):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
                 did.resolve_web(bad)
 
     def test_resolve(self):
@@ -433,11 +433,8 @@ class DidTest(TestCase):
         mock_resolve.assert_called_once_with('_atproto.foo.com.', TXT)
         self.mock_get.assert_called_with('https://foo.com/.well-known/atproto-did')
 
-    @patch('dns.resolver.resolve', side_effect=dns.resolver.NXDOMAIN())
-    def test_resolve_handle_request_exception(self, mock_resolve):
-        self.mock_get.side_effect = requests.exceptions.InvalidURL('foo')
-
-        self.assertIsNone(did.resolve_handle('.foo.com', get_fn=self.mock_get))
-
-        mock_resolve.assert_called_once_with('_atproto..foo.com.', TXT)
-        self.mock_get.assert_called_with('https://.foo.com/.well-known/atproto-did')
+    def test_resolve_handle_bad_input(self):
+        # https://atproto.com/specs/handle#handle-identifier-syntax
+        for bad in None, 1, 'foo', 'did:plc:x', 'a b.com', 'c_d.org', '.x.net':
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                did.resolve_handle(bad)

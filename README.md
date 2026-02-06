@@ -125,6 +125,7 @@ Add new feature to allocate sequence numbers from memcache, atomically, backed b
   * Switch image handling to pymediainfo, drop Pillow dependency.
 * `did`:
   * Add new `rollback_plc` function.
+  * `resolve_handle`: raise `ValueError` if the handle has an `_` (underscore), since [Bluesky handles don't allow them](https://atproto.com/specs/handle#handle-identifier-syntax).
 * `firehose`:
   * Omit `prevData` in initial commits instead of setting it to `null`. (It's not a nullable field in `subscribeRepos#commit`.)
 * `repo`:
