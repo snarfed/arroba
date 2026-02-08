@@ -107,7 +107,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 
 ## Changelog
 
-### 2.0 - unreleased
+### 2.0 - 2026-02-07
 
 _Breaking changes:_
 

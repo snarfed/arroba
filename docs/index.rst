@@ -148,6 +148,27 @@ XRPC handlers:
 - ``SUBSCRIBE_REPOS_BATCH_DELAY``, minimum time to wait between
   datastore queries in ``com.atproto.sync.subscribeRepos``, in seconds,
   as a float. Defaults to 0 if unset.
+- ``SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW``, number of sequence numbers to
+  wait before skipping emitting a missing one over the firehose.
+  Defaults to 300, ie 5 minutes at 1qps emitted events.
+- ``SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY``, seconds to wait before skipping
+  emitting a missing sequence number over the firehose. Defaults to 120,
+  ie 2 minutes.
+- ``BLOB_MAX_BYTES``, maximum allowed size of blobs, in bytes. Defaults
+  to 100MB.
+- ``BLOB_REFETCH_DAYS``, how often in days to refetch remote URL-based
+  blobs datastore to check that they’re still serving. May be integer or
+  float. Defaults to 7. These re-fetches happen on demand, during
+  ``com.atproto.sync.getBlob`` requests.
+- ``BLOB_REFETCH_TYPES``, comma-separated list of MIME types (without
+  subtypes, ie the part after ``/``) to refetch blobs for. Defaults to
+  ``image``.
+- ``MEMCACHE_SEQUENCE_BATCH``, integer, size of batch of sequence
+  numbers to allocate from ``AtpSequence`` into memcache. Defaults to
+  1000.
+- ``MEMCACHE_SEQUENCE_BUFFER``, integer, how close we should let
+  memcache get to the current max allocated sequence number in
+  ``AtpSequence`` before we allocate a new batch. Defaults to 100.
 
 .. raw:: html
 
@@ -160,6 +181,79 @@ XRPC handlers:
 
 Changelog
 ---------
+
+2.0 - 2026-02-07
+~~~~~~~~~~~~~~~~
+
+*Breaking changes:*
+
+- When creating a new repo, the first commit is now always empty.
+  ``Repo.create_from_commit`` has been removed; all repos should now be
+  created with ``Repo.create``.
+- Removed ``Repo.apply_writes``, ``format_commit``, ``apply_commit``,
+  and ``writes_to_commit_ops``. Use the new ``Storage.commit`` method
+  instead.
+- If no sequence number has ever been allocated for a given NSID,
+  ``Storage.last_seq`` now returns ``None``, and *does not* initialize
+  the sequence.
+
+*Non-breaking changes:*
+
+Add new feature to allocate sequence numbers from memcache, atomically,
+backed by the datastore in batches. Reduces datastore contention when
+writing commits at 5-10qps and higher. Enable by passing a
+``MemcacheSequences`` to the ``DatastoreStorage`` constructor; configure
+with the ``MEMCACHE_SEQUENCE_BUFFER`` and ``MEMCACHE_SEQUENCE_BATCH``
+environment variables.
+
+- Add new ``SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW`` and
+  ``SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY`` environment variables for
+  ``subscribeRepos`` (firehose) serving.
+- ``AtpRemoteBlob``:
+
+  - Add ``repos`` property to track which repos have which blobs.
+  - Switch image handling to pymediainfo, drop Pillow dependency.
+
+- ``did``:
+
+  - Add new ``rollback_plc`` function.
+  - ``resolve_handle``: raise ``ValueError`` if the handle has an ``_``
+    (underscore), since `Bluesky handles don’t allow
+    them <https://atproto.com/specs/handle#handle-identifier-syntax>`__.
+
+- ``firehose``:
+
+  - Omit ``prevData`` in initial commits instead of setting it to
+    ``null``. (It’s not a nullable field in ``subscribeRepos#commit``.)
+
+- ``repo``:
+
+  - Add ``lost_seq`` kwarg to repo callback for marking sequence numbers
+    lost.
+
+- ``storage``:
+
+  - Add new abstract ``Sequences`` class and concrete subclasses
+    ``MemorySequences``, ``DatastoreSequences``, and
+    ``MemcacheSequences``.
+  - Add new optional ``sequences`` kwarg to ``Storage`` and subclasses’
+    constructors.
+
+- ``xrpc_repo``:
+
+  - ``describe_repo``: add ``app.bsky.graph.listblock``.
+
+- ``xrpc_sync``:
+
+  - ``get_blob``: periodically check remote blobs with HTTP GET requests
+    to see if they’re still serving.
+  - ``get_record``: include MST covering proof blocks for record.
+  - Implement ``listBlobs``.
+  - ``subscribeRepos``/``firehose``: handle uncaught exceptions and
+    continue serving
+    (`snarfed/bridgy-fed#2150 <https://github.com/snarfed/bridgy-fed/issues/2150>`__).
+
+.. _section-1:
 
 1.0 - 2025-09-13
 ~~~~~~~~~~~~~~~~
@@ -190,6 +284,7 @@ Changelog
 
   - ``AtpRemoteBlob.get_or_create``: truncate URLs to 1500 characters.
   - Extract out new ``AtpRemoteBlob.generate_private_key`` method.
+  - Optimize ``write_blocks`` to batch get and put.
 
 - ``did``:
 
@@ -204,7 +299,7 @@ Changelog
     additional overhead per subscriber
     (`#52 <https://github.com/snarfed/arroba/issues/52>`__).
 
-.. _section-1:
+.. _section-2:
 
 0.8 - 2025-03-13
 ~~~~~~~~~~~~~~~~
@@ -243,19 +338,23 @@ videos, to be used in image/video embed ``aspectRatio``
 minutes <https://bsky.app/profile/bsky.app/post/3lk26lxn6sk2u>`__. \*
 ``did``: \* Add new ``get_signing_key``, ``get_handle`` functions. \*
 ``create_plc``: remove trailing slash from
-``services.atproto_pds.endpoint``. \* ``storage``: \* ``Storage``: add
-new ``write_blocks`` method, implement in ``MemoryStorage`` and
-``DatastoreStorage``. \* ``xrpc_repo``: \* ``describe_server``: include
-all ``app.bsky`` collections and others like
-``chat.bsky.actor.declaration``; fetch and include DID doc. \* Implement
-``com.atproto.repo.importRepo``. \* ``xrpc_sync``: \* ``get_blob``: \*
-If we have more than one blob URL for the same CID, serve the latest one
+``services.atproto_pds.endpoint``. \* ``firehose``: \* Minimize lock
+contention in subscriber threads, especially during merge and handoff
+from pre-rollback to rollback
+(`#75 <https://github.com/snarfed/arroba/issues/75>`__). \* ``storage``:
+\* ``Storage``: add new ``write_blocks`` method, implement in
+``MemoryStorage`` and ``DatastoreStorage``. \* ``xrpc_repo``: \*
+``describe_server``: include all ``app.bsky`` collections and others
+like ``chat.bsky.actor.declaration``; fetch and include DID doc. \*
+Implement ``com.atproto.repo.importRepo``. \* ``xrpc_sync``: \*
+``get_blob``: \* If we have more than one blob URL for the same CID,
+serve the latest one
 (`bridgy-fed#1650 <https://github.com/snarfed/bridgy-fed/issues/1650>`__.
 \* Add HTTP ``Cache-Control`` to cache for 1h. \* ``list_repos``: \* Bug
 fix: Use string TID for ``rev``, not integer sequence number. \* Bug
 fix: don’t set status to ``null`` if the account is active.
 
-.. _section-2:
+.. _section-3:
 
 0.7 - 2024-11-08
 ~~~~~~~~~~~~~~~~
@@ -317,7 +416,7 @@ fix: don’t set status to ``null`` if the account is active.
     claims, eg
     `lxm <https://github.com/bluesky-social/atproto/discussions/2687>`__.
 
-.. _section-3:
+.. _section-4:
 
 0.6 - 2024-06-24
 ~~~~~~~~~~~~~~~~
@@ -405,7 +504,7 @@ fix: don’t set status to ``null`` if the account is active.
   when appropriate
   (`snarfed/bridgy-fed#1083 <https://github.com/snarfed/bridgy-fed/issues/1083>`__).
 
-.. _section-4:
+.. _section-5:
 
 0.5 - 2024-03-16
 ~~~~~~~~~~~~~~~~
@@ -445,7 +544,7 @@ fix: don’t set status to ``null`` if the account is active.
   - Implement ``getBlob``, right now only based on “remote” blobs stored
     in ``AtpRemoteBlob``\ s in datastore storage.
 
-.. _section-5:
+.. _section-6:
 
 0.4 - 2023-09-19
 ~~~~~~~~~~~~~~~~
@@ -486,7 +585,7 @@ fix: don’t set status to ``null`` if the account is active.
   - Drop bundled ``app.bsky``/``com.atproto`` lexicons, use
     `lexrpc <https://lexrpc.readthedocs.io/>`__\ ’s instead.
 
-.. _section-6:
+.. _section-7:
 
 0.3 - 2023-08-29
 ~~~~~~~~~~~~~~~~
@@ -504,7 +603,7 @@ minimal demo code needed to wrap arroba in a fully functional PDS.
 
 - …and much more.
 
-.. _section-7:
+.. _section-8:
 
 0.2 - 2023-05-18
 ~~~~~~~~~~~~~~~~
@@ -514,7 +613,7 @@ storage. This completes the first pass at all PDS data structures. Next
 release will include initial implementations of the
 ``com.atproto.sync.*`` XRPC methods.
 
-.. _section-8:
+.. _section-9:
 
 0.1 - 2023-04-30
 ~~~~~~~~~~~~~~~~
