@@ -107,6 +107,12 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 
 ## Changelog
 
+### 2.1 - unreleased
+
+* `did`:
+  * `write_plc` etc: add new optional `new_rotation_key` kwarg. Accept `EllipticCurvePublicKey` for `signing_key` as well as `EllipticCurvePrivateKey`.
+
+
 ### 2.0 - 2026-02-07
 
 _Breaking changes:_
@@ -117,8 +123,7 @@ _Breaking changes:_
 
 _Non-breaking changes:_
 
-Add new feature to allocate sequence numbers from memcache, atomically, backed by the datastore in batches. Reduces datastore contention when writing commits at 5-10qps and higher. Enable by passing a `MemcacheSequences` to the `DatastoreStorage` constructor; configure with the `MEMCACHE_SEQUENCE_BUFFER` and `MEMCACHE_SEQUENCE_BATCH` environment variables.
-
+* Add new feature to allocate sequence numbers from memcache, atomically, backed by the datastore in batches. Reduces datastore contention when writing commits at 5-10qps and higher. Enable by passing a `MemcacheSequences` to the `DatastoreStorage` constructor; configure with the `MEMCACHE_SEQUENCE_BUFFER` and `MEMCACHE_SEQUENCE_BATCH` environment variables.
 * Add new `SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW` and `SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY` environment variables for `subscribeRepos` (firehose) serving.
 * `AtpRemoteBlob`:
   * Add `repos` property to track which repos have which blobs.

@@ -143,8 +143,8 @@ def update_plc(did, **kwargs):
 
 
 def write_plc(did=None, handle=None, signing_key=None, rotation_key=None,
-              pds_url=None, also_known_as=None, prev=None,
-              get_fn=requests_get, post_fn=requests.post):
+              new_rotation_key=None, pds_url=None, also_known_as=None,
+              prev=None, get_fn=requests_get, post_fn=requests.post):
     """Writes a PLC operation to a PLC directory.
 
     Generally used to create a new ``did:plc`` or update an existing one.
@@ -165,10 +165,14 @@ def write_plc(did=None, handle=None, signing_key=None, rotation_key=None,
     Args:
       did (str): if provided, updates an existing DID, otherwise creates a new one.
       handle (str): domain handle to associate with this DID
-      signing_key (ec.EllipticCurvePrivateKey): The curve must be SECP256K1.
-        If omitted, a new keypair will be created.
+      signing_key (ec.EllipticCurvePrivateKey or ec.EllipticCurvePublicKey):
+        The curve must be SECP256K1. If omitted, a new keypair will be created.
       rotation_key (ec.EllipticCurvePrivateKey): The curve must be SECP256K1.
-        If omitted, a new keypair will be created.
+        Used for signing the operation. If omitted, a new keypair will be
+        created.
+      new_rotation_key (ec.EllipticCurvePrivateKey or ec.EllipticCurvePublicKey):
+        optional. If provided, populated into the ``rotationKeys`` field
+        instead of ``rotation_key``.
       pds_url (str): PDS base URL to associate with this DID. If omitted,
         defaults to ``https://[$PDS_HOST]``
       also_known_as (str or sequence of str): additional URI or URIs to add to
@@ -191,7 +195,7 @@ def write_plc(did=None, handle=None, signing_key=None, rotation_key=None,
         pds_url = f'https://{os.environ["PDS_HOST"]}'
     assert not pds_url.endswith('/')
 
-    for key in signing_key, rotation_key:
+    for key in signing_key, rotation_key, new_rotation_key:
         if key and not isinstance(key.curve, ec.SECP256K1):
             raise ValueError(f'Expected SECP256K1 key; got {key.curve}')
 
@@ -202,6 +206,18 @@ def write_plc(did=None, handle=None, signing_key=None, rotation_key=None,
     if not rotation_key:
         logger.info('Generating new k256 rotation key')
         rotation_key = util.new_key()
+
+    assert isinstance(rotation_key, ec.EllipticCurvePrivateKey), rotation_key
+
+    def _encode_key(key):
+        if isinstance(key, ec.EllipticCurvePrivateKey):
+            key = key.public_key()
+        else:
+            assert isinstance(key, ec.EllipticCurvePublicKey), key
+        return encode_did_key(key)
+
+    encoded_signing_key = _encode_key(signing_key)
+    encoded_rotation_key = _encode_key(new_rotation_key or rotation_key)
 
     if not also_known_as:
         also_known_as = []
@@ -214,9 +230,9 @@ def write_plc(did=None, handle=None, signing_key=None, rotation_key=None,
     # https://github.com/bluesky-social/did-method-plc#presentation-as-did-document
     op = {
         'type': 'plc_operation',
-        'rotationKeys': [encode_did_key(rotation_key.public_key())],
+        'rotationKeys': [encoded_rotation_key],
         'verificationMethods': {
-            'atproto': encode_did_key(signing_key.public_key()),
+            'atproto': encoded_signing_key,
         },
         'alsoKnownAs': [f'at://{handle}'] + list(also_known_as),
         'services': {

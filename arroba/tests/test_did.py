@@ -235,6 +235,57 @@ class DidTest(TestCase):
             'verificationMethods': {'atproto': did_key}
         }, update_op)
 
+    def test_update_plc_public_signing_key_and_new_rotation_key(self):
+        signing_key = self.key
+        rotation_key = util.new_key(seed=9999999999)
+        new_rotation_key = util.new_key(seed=8888888888)
+
+        did_key = did.encode_did_key(rotation_key.public_key())
+        op = {
+            'type': 'plc_operation',
+            'services': {
+                'atproto_pds': {
+                    'type': 'AtprotoPersonalDataServer',
+                    'endpoint': 'https://pds',
+                },
+            },
+            'alsoKnownAs': ['at://han.dull'],
+            'rotationKeys': [did_key],
+            'verificationMethods': {'atproto': did_key},
+        }
+        mock_get = MagicMock(return_value=requests_response([{
+            'did': 'did:plc:xyz',
+            'operation': {**op, 'prev': None},
+            'cid': 'orig',
+            'nullified': False,
+        }]))
+        mock_post = MagicMock(return_value=requests_response('OK'))
+
+        did_plc = did.update_plc('did:plc:xyz', get_fn=mock_get, post_fn=mock_post,
+                                 signing_key=signing_key.public_key(),
+                                 rotation_key=rotation_key,
+                                 new_rotation_key=new_rotation_key)
+        self.assertEqual('did:plc:xyz', did_plc.did)
+        self.assertEqual(signing_key.public_key(), did_plc.signing_key)
+        self.assertEqual(rotation_key, did_plc.rotation_key)
+
+        mock_post.assert_called_once()
+        update_op = mock_post.call_args.kwargs['json']
+        self.assertEqual('did:plc:xyz', update_op.pop('did'))
+
+        # signing key in verificationMethods should be from the public key
+        self.assertEqual(did.encode_did_key(signing_key.public_key()),
+                         update_op['verificationMethods']['atproto'])
+
+        # rotationKeys should use new_rotation_key, not rotation_key
+        self.assertEqual([did.encode_did_key(new_rotation_key.public_key())],
+                         update_op['rotationKeys'])
+
+        # signature should be from rotation_key (not new_rotation_key)
+        update_op['sig'] = base64.urlsafe_b64decode(
+            update_op['sig'] + '=' * (4 - len(update_op['sig']) % 4))
+        assert util.verify_sig(update_op, rotation_key.public_key())
+
     def test_rollback_plc(self):
         did_key = did.encode_did_key(self.key.public_key())
         op = {
