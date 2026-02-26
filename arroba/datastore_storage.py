@@ -45,6 +45,8 @@ BLOB_MAX_BYTES = int(os.environ.get('BLOB_MAX_BYTES', 100_000_000))
 VIDEO_MAX_DURATION = timedelta(minutes=3)
 MEMCACHE_SEQUENCE_BATCH = int(os.environ.get('MEMCACHE_SEQUENCE_BATCH', 1000))
 MEMCACHE_SEQUENCE_BUFFER = int(os.environ.get('MEMCACHE_SEQUENCE_BUFFER', 100))
+# https://github.com/snarfed/bridgy-fed/issues/2367#issuecomment-3969792063
+QUERY_TIMEOUT = timedelta(seconds=30)
 
 
 class WriteOnce:
@@ -791,10 +793,17 @@ class DatastoreStorage(Storage, NdbMixin):
                     query = AtpBlock.query(AtpBlock.seq >= cur_seq).order(AtpBlock.seq)
                     if repo:
                         query = query.filter(AtpBlock.repo == AtpRepo(id=repo).key)
+
                     # unproven hypothesis: need strong consistency to make sure we
                     # get all blocks for a given seq, including commit
                     # https://console.cloud.google.com/errors/detail/CO2g4eLG_tOkZg;service=atproto-hub;time=P1D;refresh=true;locations=global?project=bridgy-federated
-                    for atp_block in query.iter(read_consistency=ndb.STRONG):
+                    #
+                    # also: ndb queries (via gRPC) seem to have no default timeout,
+                    # so in rare cases, it's maybe possible that this query can hang
+                    # indefinitely? so we set an explicit timeout. background:
+                    # https://github.com/snarfed/bridgy-fed/issues/2327
+                    for atp_block in query.iter(read_consistency=ndb.STRONG,
+                                                timeout=QUERY_TIMEOUT.total_seconds()):
                         if atp_block.seq != cur_seq:
                             cur_seq = atp_block.seq
                             cur_seq_cids = []
