@@ -115,7 +115,7 @@ def create_plc(handle, **kwargs):
     return write_plc(handle=handle, **kwargs)
 
 
-def update_plc(did, **kwargs):
+def update_plc(did, handle=None, get_fn=requests_get, **kwargs):
     """Updates an existing ``did:plc`` in a PLC directory.
 
     Args are documented in :func:`write_plc`.
@@ -126,20 +126,20 @@ def update_plc(did, **kwargs):
     # get CID of previous head operation for this DID from the directory
     # response is a JSON list with operations from earliest to latest
     # https://github.com/did-method-plc/did-method-plc#audit-logs
-    get_fn = kwargs.get('get_fn') or requests_get
     resp = get_fn(f'https://{os.environ["PLC_HOST"]}/{did}/log/audit')
     last_op = resp.json()[-1]
 
     # merge new data into existing data
-    handle = last_op['operation']['alsoKnownAs'].pop(0)
-    assert handle.startswith('at://')
-    handle = handle.removeprefix('at://')
-    kwargs.setdefault('handle', handle)
+    old_handle = last_op['operation']['alsoKnownAs'].pop(0)
+    if not handle:
+        assert old_handle.startswith('at://')
+        handle = old_handle.removeprefix('at://')
 
     kwargs.setdefault('also_known_as', last_op['operation']['alsoKnownAs'])
 
     # write update operation
-    return write_plc(did=did, prev=last_op['cid'], **kwargs)
+    return write_plc(did=did, prev=last_op['cid'], handle=handle, get_fn=get_fn,
+                     **kwargs)
 
 
 def write_plc(did=None, handle=None, signing_key=None, rotation_key=None,
