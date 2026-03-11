@@ -7,6 +7,7 @@ import random
 import os
 import unittest
 from unittest.mock import ANY, call
+import warnings
 
 from arroba import did
 import dag_cbor.random
@@ -96,6 +97,7 @@ class TestCase(unittest.TestCase):
     key = None
 
     def setUp(self):
+        suppress_warnings()
         super().setUp()
 
         util.now = lambda tz=timezone.utc: NOW.replace(tzinfo=tz)
@@ -222,3 +224,15 @@ class XrpcTestCase(TestCase):
     def tearDown(self):
         self.request_context.pop()
         super().tearDown()
+
+
+def suppress_warnings():
+    # local/lib/python3.12/site-packages/google/cloud/ndb/model.py:3900: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    warnings.filterwarnings('ignore', category=DeprecationWarning,
+                            message=r'datetime\.datetime\.utcnow\(\) is deprecated')
+    # local/lib/python3.12/site-packages/google/cloud/ndb/tasklets.py:319: DeprecationWarning: the (type, exc, tb) signature of throw() is deprecated, use the single-arg signature instead.
+    warnings.filterwarnings('ignore', category=DeprecationWarning,
+                            message=r'the \(type, exc, tb\) signature of throw\(\) is deprecated')
+
+    # https://stackoverflow.com/a/78803598/186123
+    os.environ['GRPC_VERBOSITY'] = 'ERROR'
