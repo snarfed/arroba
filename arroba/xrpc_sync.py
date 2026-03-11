@@ -76,7 +76,7 @@ def list_repos(input, limit=500, cursor=None):
     STATUSES = {'tombstoned': 'deactivated'}
 
     repos = []
-    for repo in server.storage.load_repos(limit=limit, after=cursor):
+    for repo in server.storage.load_repos(limit=limit, after=cursor, minimal=True):
         repo_obj = {
             'did': repo.did,
             'head': repo.head.cid.encode('base32'),

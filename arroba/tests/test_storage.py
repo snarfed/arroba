@@ -228,6 +228,19 @@ class StorageTest(TestCase):
         self.assertEqual(1, len(got))
         self.assertEqual('did:plc:bob', got[0].did)
 
+    def test_load_repos_minimal(self):
+        alice = Repo.create(self.storage, 'did:web:alice', signing_key=self.key)
+        bob = Repo.create(self.storage, 'did:plc:bob', signing_key=self.key)
+        self.storage.tombstone_repo(bob)
+
+        got_bob, got_alice = self.storage.load_repos(minimal=True)
+
+        self.assertEqual(alice.head, got_alice.head)
+        self.assertIsNone(got_alice.status)
+
+        self.assertEqual(bob.head, got_bob.head)
+        self.assertEqual('tombstoned', got_bob.status)
+
     def test_tombstone_repo(self):
         seen = []
         repo = Repo.create(self.storage, 'did:user', signing_key=self.key)
@@ -500,6 +513,15 @@ class StorageTest(TestCase):
 
 class DatastoreStorageTest(StorageTest, DatastoreTest):
     """Run all of StorageTest's tests with DatastoreStorage."""
+    def test_load_repos_minimal_skips_keys_and_mst(self):
+        Repo.create(self.storage, 'did:web:alice', signing_key=self.key)
+
+        got = self.storage.load_repos(minimal=True)
+        self.assertEqual(1, len(got))
+        self.assertIsNone(got[0].signing_key)
+        self.assertIsNone(got[0].rotation_key)
+        self.assertIsNone(got[0].mst)
+
     def test_create_commit_datastore_transaction_retry(self):
         # fake what a Repo.create => Storage.commit retry due to datastore transaction
         # contention  would look like.

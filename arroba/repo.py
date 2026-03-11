@@ -76,7 +76,6 @@ class Repo:
           rotation_key (ec.EllipticCurvePrivateKey)
         """
         assert storage
-        assert signing_key
 
         self.storage = storage
         self.mst = mst

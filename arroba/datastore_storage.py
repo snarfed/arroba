@@ -715,7 +715,7 @@ class DatastoreStorage(Storage, NdbMixin):
                          rotation_key=atp_repo.rotation_key)
 
     @ndb_context
-    def load_repos(self, after=None, limit=500):
+    def load_repos(self, after=None, limit=500, minimal=False):
         query = AtpRepo.query()
         if after:
             query = query.filter(AtpRepo.key > AtpRepo(id=after).key)
@@ -726,6 +726,10 @@ class DatastoreStorage(Storage, NdbMixin):
         cids = [CID.decode(r.head) for r in atp_repos]
         blocks = self.read_many(cids)  # dict mapping CID to block
         heads = [blocks[cid] for cid in cids]
+
+        if minimal:
+            return [Repo(storage=self, head=head, status=atp_repo.status)
+                    for atp_repo, head in zip(atp_repos, heads)]
 
         # MST.load doesn't read from storage
         msts = [MST.load(storage=self, cid=block.decoded['data']) for block in heads]

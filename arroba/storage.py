@@ -232,7 +232,7 @@ class Storage:
         """
         raise NotImplementedError()
 
-    def load_repos(self, after=None, limit=500):
+    def load_repos(self, after=None, limit=500, minimal=False):
         """Loads multiple repos from storage.
 
         Repos are returned in lexicographic order of their DIDs, ascending.
@@ -241,6 +241,10 @@ class Storage:
         Args:
           after (str): optional DID to start at, *exclusive*
           limit (int): maximum number of repos to return
+          minimal (bool): if True, returned :class:`Repo` s will only include
+            ``head`` and ``status``; other attributes like ``signing_key``,
+            ``rotation_key``, ``mst``, and ``handle`` may be None. Intended
+            for ``com.atproto.sync.listRepos``.
 
         Returns:
           sequence of Repo:
@@ -679,7 +683,7 @@ class MemoryStorage(Storage):
     def store_repo(self, repo):
         self.repos[repo.did] = repo
 
-    def load_repos(self, after=None, limit=500):
+    def load_repos(self, after=None, limit=500, minimal=False):
         it = iter(sorted(self.repos.values(), key=lambda repo: repo.did))
 
         if after:
