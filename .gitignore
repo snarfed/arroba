@@ -3,6 +3,7 @@ did:plc:*
 pds_host
 private_notes
 privkey.pem
+pyrightconfig.json
 relay.json
 repo_did
 repo_handle
