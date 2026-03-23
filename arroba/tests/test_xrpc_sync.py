@@ -238,6 +238,37 @@ class XrpcSyncTest(testutil.XrpcTestCase):
 
         self.assertEqual('RepoDeactivated', cm.exception.name)
 
+    def test_get_blocks_head_commit(self):
+        cid = self.repo.head.cid.encode('base32')
+        resp = xrpc_sync.get_blocks({}, did='did:web:user.com', cids=[cid])
+        roots, blocks = read_car(resp)
+        self.assertEqual([self.repo.head.decoded], [b.decoded for b in blocks])
+
+    def test_get_blocks_deleted_record_not_returned(self):
+        record = {'foo': 'deleted'}
+        rkey = next_tid()
+        self.storage.commit(self.repo,
+                            [Write(Action.CREATE, 'co.ll', rkey, record)])
+        old_cid = dag_cbor_cid(record).encode('base32')
+
+        self.storage.commit(self.repo, [Write(Action.DELETE, 'co.ll', rkey)])
+
+        with self.assertRaises(XrpcError) as cm:
+            xrpc_sync.get_blocks({}, did='did:web:user.com', cids=[old_cid])
+
+        self.assertEqual('BlockNotFound', cm.exception.name)
+
+    def test_get_blocks_old_commit_not_returned(self):
+        old_head_cid = self.repo.head.cid.encode('base32')
+        # make a new commit so old head is no longer current
+        self.storage.commit(self.repo,
+                            [Write(Action.CREATE, 'co.ll', next_tid(), {'x': 1})])
+
+        with self.assertRaises(XrpcError) as cm:
+            xrpc_sync.get_blocks({}, did='did:web:user.com', cids=[old_head_cid])
+
+        self.assertEqual('BlockNotFound', cm.exception.name)
+
     # based on atproto/packages/pds/tests/sync/sync.test.ts
     # def test_get_repo_creates_and_deletes(self):
     #     ADD_COUNT = 10

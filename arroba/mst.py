@@ -813,6 +813,31 @@ class MST:
 #         cids.add(self.get_pointer())
 #         return cids
 
+    def has_cid(self, target):
+        """Returns True if a CID is reachable from this MST node.
+
+        Traverses the tree level by level using :meth:`get_entries`, stopping
+        as soon as ``target`` is found.
+
+        Args:
+          target (CID)
+
+        Returns:
+          bool:
+        """
+        queue = [self]
+        while queue:
+            node = queue.pop(0)
+            if node.get_pointer() == target:
+                return True
+            for entry in node.get_entries():
+                if isinstance(entry, Leaf):
+                    if entry.value == target:
+                        return True
+                else:
+                    queue.append(entry)
+        return False
+
     def leaves(self):
         """Walks tree and returns all leaves.
 

@@ -157,10 +157,16 @@ def get_blocks(input, did=None, cids=()):
         raise XrpcError('Invalid CID', name='BlockNotFound')
 
     car_blocks = []
-    blocks = server.storage.read_many(cids)
+    blocks = server.storage.read_many(cids, require_all=False)
 
     for cid in cids:
-        block = blocks[cid]
+        # Only return blocks currently in the repo's tree: the head commit, MST
+        # nodes, and records. Don't return blocks from old commits, deleted
+        # records, or MST nodes no longer in the current tree.
+        if cid != repo.head.cid and not repo.mst.has_cid(cid):
+            raise XrpcError(f'No block found for CID {cid.encode("base32")}',
+                            name='BlockNotFound')
+        block = blocks.get(cid)
         if block is None:
             raise XrpcError(f'No block found for CID {cid.encode("base32")}',
                             name='BlockNotFound')
