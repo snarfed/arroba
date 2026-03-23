@@ -816,8 +816,14 @@ class MST:
     def has_cid(self, target):
         """Returns True if a CID is reachable from this MST node.
 
-        Traverses the tree level by level using :meth:`get_entries`, stopping
-        as soon as ``target`` is found.
+        For MST node CIDs, uses the tree's sorted structure to navigate in
+        O(tree depth) by reading the target block, extracting its first key
+        (always uncompressed since ``p=0`` for first entries), then walking
+        the single path from root toward that key. The target node must lie
+        on that path.
+
+        For leaf (record) value CIDs, falls back to an O(n) leaf scan, since
+        there is no key available to navigate with.
 
         Args:
           target (CID)
@@ -825,17 +831,43 @@ class MST:
         Returns:
           bool:
         """
-        queue = [self]
-        while queue:
-            node = queue.pop(0)
-            if node.get_pointer() == target:
+        if self.get_pointer() == target:
+            return True
+
+        # Try to read and decode target as an MST node.
+        # First entries are always stored with p=0 (no prefix compression),
+        # so e[0]['k'] is the full, uncompressed first key of the node.
+        try:
+            data = Data(**self.storage.read(target).decoded)
+            if data.e:
+                return self._has_node_on_path(data.e[0]['k'].decode(), target)
+        except Exception:
+            pass
+
+        # target is a leaf (record) value CID; scan all leaves
+        for leaf in self.walk_leaves_from(''):
+            if leaf.value == target:
                 return True
-            for entry in node.get_entries():
-                if isinstance(entry, Leaf):
-                    if entry.value == target:
-                        return True
-                else:
-                    queue.append(entry)
+        return False
+
+    def _has_node_on_path(self, key, target):
+        """Navigate toward key, returning True if a child MST node pointer equals target.
+
+        Follows exactly one path per level, so O(tree depth).
+
+        Args:
+          key (str): key to navigate toward
+          target (CID): MST node pointer to find
+
+        Returns:
+          bool:
+        """
+        index = self.find_gt_or_equal_leaf_index(key)
+        prev = self.at_index(index - 1)
+        if isinstance(prev, MST):
+            if prev.get_pointer() == target:
+                return True
+            return prev._has_node_on_path(key, target)
         return False
 
     def leaves(self):
