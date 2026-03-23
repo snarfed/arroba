@@ -157,7 +157,7 @@ def get_blocks(input, did=None, cids=()):
         raise XrpcError('Invalid CID', name='BlockNotFound')
 
     car_blocks = []
-    blocks = server.storage.read_many(cids, require_all=False)
+    blocks = server.storage.read_many(cids)
 
     for cid in cids:
         # Only return blocks currently in the repo's tree: the head commit, MST
