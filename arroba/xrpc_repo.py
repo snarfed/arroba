@@ -119,18 +119,22 @@ def list_records(input, repo=None, collection=None, limit=50, cursor=None,
 
     if rkeyStart or rkeyEnd:
         raise ValueError(f'rkeyStart/rkeyEnd not supported')
-    elif reverse:
-        raise ValueError(f'reverse not supported yet')
     elif not collection:
         raise ValueError(f'collection is required')
 
     repo = server.load_repo(input['repo'])
 
-    start = cursor or f'{collection}/'
-    entries = list(itertools.islice(
-        itertools.takewhile(lambda entry: entry.key.startswith(f'{collection}/'),
-                            repo.mst.walk_leaves_from(key=start)),
-        limit))
+    if reverse:
+        all_entries = list(reversed(repo.mst.list_with_prefix(f'{collection}/')))
+        if cursor:
+            all_entries = [e for e in all_entries if e.key <= cursor]
+        entries = all_entries[:limit]
+    else:
+        start = cursor or f'{collection}/'
+        entries = list(itertools.islice(
+            itertools.takewhile(lambda entry: entry.key.startswith(f'{collection}/'),
+                                repo.mst.walk_leaves_from(key=start)),
+            limit))
     blocks = server.storage.read_many([e.value for e in entries])
     records = [blocks[e.value].decoded for e in entries]
 

@@ -142,6 +142,51 @@ class XrpcRepoTest(testutil.XrpcTestCase):
             }],
         }, resp)
 
+    def test_list_records_reverse(self):
+        repo = server.load_repo('did:web:user.com')
+
+        server.storage.commit(repo, [
+            Write(action=Action.CREATE,
+                  collection='test.coll',
+                  rkey=str(i),
+                  record={'val': i})
+            for i in range(3)])
+
+        resp = xrpc_repo.list_records({}, repo='did:web:user.com',
+                                      collection='test.coll', reverse=True)
+        self.assertEqual(['at://did:web:user.com/test.coll/2',
+                          'at://did:web:user.com/test.coll/1',
+                          'at://did:web:user.com/test.coll/0'],
+                         [r['uri'] for r in resp['records']])
+
+    def test_list_records_reverse_cursor(self):
+        repo = server.load_repo('did:web:user.com')
+
+        server.storage.commit(repo, [
+            Write(action=Action.CREATE,
+                  collection='test.coll',
+                  rkey=str(i),
+                  record={'val': i})
+            for i in range(4)])
+
+        # First page
+        resp = xrpc_repo.list_records({}, repo='did:web:user.com',
+                                      collection='test.coll', reverse=True,
+                                      limit=2)
+        self.assertEqual(['at://did:web:user.com/test.coll/3',
+                          'at://did:web:user.com/test.coll/2'],
+                         [r['uri'] for r in resp['records']])
+        cursor = resp['cursor']
+        self.assertEqual('test.coll/2', cursor)
+
+        # Second page
+        resp = xrpc_repo.list_records({}, repo='did:web:user.com',
+                                      collection='test.coll', reverse=True,
+                                      limit=2, cursor=cursor)
+        self.assertEqual(['at://did:web:user.com/test.coll/2',
+                          'at://did:web:user.com/test.coll/1'],
+                         [r['uri'] for r in resp['records']])
+
     def test_get_record(self):
         self.test_create_record()
 
