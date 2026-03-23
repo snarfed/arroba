@@ -314,6 +314,8 @@ class MST:
             index = self.find_gt_or_equal_leaf_index(key)
             found = self.at_index(index)
             if isinstance(found, Leaf) and found.key == key:
+                # Bridgy Fed depends on this error message! If you change it,
+                # update it in atproto.ATProto.send too
                 raise ValueError(f'There is already a value at key: {key}')
             prev_node = self.at_index(index - 1)
             if not prev_node or isinstance(prev_node, Leaf):
