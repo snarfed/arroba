@@ -40,6 +40,7 @@ logger = logging.getLogger(__name__)
 
 BLOB_REFETCH_AGE = timedelta(days=float(os.environ.get('BLOB_REFETCH_DAYS', 7)))
 BLOB_REFETCH_TYPES = tuple(os.environ.get('BLOB_REFETCH_TYPES', 'image').split(','))
+# https://github.com/bluesky-social/social-app/blob/8ac63d780d38c14f0963859dec5d123836adb913/src/lib/constants.ts#L191
 BLOB_MAX_BYTES = int(os.environ.get('BLOB_MAX_BYTES', 100_000_000))
 # https://bsky.app/profile/bsky.app/post/3lk26lxn6sk2u
 VIDEO_MAX_DURATION = timedelta(minutes=3)
