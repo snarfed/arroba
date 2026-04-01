@@ -197,6 +197,8 @@ def describe_repo(input, repo=None):
             'app.bsky.graph.follow',
             'app.bsky.graph.listblock',
             'chat.bsky.actor.declaration',
+            'site.standard.document',
+            'site.standard.publication',
         ],
         'handleIsCorrect': True,
     }

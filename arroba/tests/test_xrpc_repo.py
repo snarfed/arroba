@@ -75,6 +75,8 @@ class XrpcRepoTest(testutil.XrpcTestCase):
                 'app.bsky.graph.follow',
                 'app.bsky.graph.listblock',
                 'chat.bsky.actor.declaration',
+                'site.standard.document',
+                'site.standard.publication',
             ],
             'handleIsCorrect': True,
         }, resp)
