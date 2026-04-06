@@ -193,7 +193,7 @@ class XrpcSyncTest(testutil.XrpcTestCase):
                            handle='han.dull', signing_key=self.key)
         record = {'x': 'y'}
         create = Write(Action.CREATE, 'a.b.c', 'foo', record)
-        self.storage.commit(repo, [create])
+        commit_data = self.storage.commit(repo, [create])
 
         resp = xrpc_sync.get_record({}, did='did:web:foo.com', collection='a.b.c',
                                     rkey='foo')
@@ -201,6 +201,7 @@ class XrpcSyncTest(testutil.XrpcTestCase):
         cid = dag_cbor_cid(record)
         expected = [Block(decoded=decoded) for decoded in (
             record,
+            commit_data.commit.decoded,
             {'e': [{'k': b'a.b.c/foo', 'p': 0, 't': None, 'v': cid}], 'l': None},
         )]
         self.assertEqual(([cid], expected), read_car(resp))

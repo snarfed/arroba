@@ -207,7 +207,10 @@ def get_record(input, did=None, collection=None, rkey=None):
     proofs = repo.mst.add_covering_proofs(CommitData(commit=create, blocks={}))
     proof_blocks = [car.Block(data=val.encoded) for val in proofs.values()]
 
-    return car.write_car([block.cid], [block] + proof_blocks)
+    head = car.Block(decoded=repo.head.decoded, data=repo.head.encoded,
+                     cid=repo.head.cid)
+
+    return car.write_car([block.cid], [block, head] + proof_blocks)
 
 
 
