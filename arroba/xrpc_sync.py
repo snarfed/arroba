@@ -210,7 +210,7 @@ def get_record(input, did=None, collection=None, rkey=None):
     head = car.Block(decoded=repo.head.decoded, data=repo.head.encoded,
                      cid=repo.head.cid)
 
-    return car.write_car([block.cid], [block, head] + proof_blocks)
+    return car.write_car([head.cid], [block, head] + proof_blocks)
 
 
 

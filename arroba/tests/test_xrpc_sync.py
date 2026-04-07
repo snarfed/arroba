@@ -204,7 +204,7 @@ class XrpcSyncTest(testutil.XrpcTestCase):
             commit_data.commit.decoded,
             {'e': [{'k': b'a.b.c/foo', 'p': 0, 't': None, 'v': cid}], 'l': None},
         )]
-        self.assertEqual(([cid], expected), read_car(resp))
+        self.assertEqual(([commit_data.commit.cid], expected), read_car(resp))
 
     def test_get_record_not_found(self):
         with self.assertRaises(ValueError):
