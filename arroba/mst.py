@@ -886,6 +886,7 @@ class MST:
         to_fetch.add(pointer)
 
         while to_fetch:
+            logger.debug(f'fetching {len(to_fetch)} blocks')
             blocks = self.storage.read_many(to_fetch)
             to_fetch.clear()
 

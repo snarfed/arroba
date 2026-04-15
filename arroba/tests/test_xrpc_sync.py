@@ -17,6 +17,7 @@ from lexrpc.base import XrpcError
 from lexrpc.server import Redirect
 from multiformats import CID
 import os
+from werkzeug.exceptions import TooManyRequests
 
 from .. import datastore_storage
 from ..datastore_storage import (
@@ -1527,6 +1528,24 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
 
         resp = xrpc_sync.list_blobs({}, did='did:web:user.com')
         self.assertEqual({'cids': [cid]}, resp)
+
+    def test_get_repo_over_12h_old(self):
+        atp_repo = AtpRepo.get_by_id('did:web:user.com')
+        atp_repo.created = (NOW - timedelta(hours=13)).replace(tzinfo=None)
+        atp_repo.put()
+
+        with self.assertRaises(TooManyRequests) as cm:
+            xrpc_sync.get_repo({}, did='did:web:user.com')
+
+        self.assertIn('temporarily disabled', cm.exception.description)
+
+    def test_get_repo_under_12h_old(self):
+        atp_repo = AtpRepo.get_by_id('did:web:user.com')
+        atp_repo.created = (NOW - timedelta(hours=11)).replace(tzinfo=None)
+        atp_repo.put()
+
+        resp = xrpc_sync.get_repo({}, did='did:web:user.com')
+        self.assertIsNotNone(resp)
 
     def test_list_blobs_since_not_implemented(self):
         with self.assertRaises(ValueError) as e:

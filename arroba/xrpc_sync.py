@@ -41,6 +41,13 @@ def get_checkout(input, did=None):
 def get_repo(input, did=None, since=None):
     """Handler for ``com.atproto.sync.getRepo`` XRPC method."""
     repo = server.load_repo(did)
+
+    # temporary, cutting costs because getRepo is currently too expensive
+    # https://github.com/snarfed/arroba/issues/88
+    # https://github.com/snarfed/bridgy-fed/issues/2424
+    if repo.created and util.now() - repo.created > timedelta(hours=12):
+        raise TooManyRequests('temporarily disabled 12 hrs after repo creation')
+
     start = util.tid_to_int(since) if since else 0
 
     blocks_and_head = itertools.chain(

@@ -44,6 +44,7 @@ class Repo:
       handle (str)
       status (str): None (if active) or ``'deactivated'``, ``'deleted'``,
         or ``'tombstoned'`` (deprecated)
+      created (datetime)
       callback (callable: (data=CommitData | dict, lost_seq=int) => None): called on
         new commits and other repo events. May be set directly by clients. None means
         no callback. Both kwargs are optional. ``data`` is a :class:`CommitData` for
@@ -59,9 +60,11 @@ class Repo:
     signing_key = None
     rotation_key = None
     status = None
+    created = None
 
     def __init__(self, *, storage=None, mst=None, head=None, handle=None,
-                 status=None, callback=None, signing_key=None, rotation_key=None):
+                 status=None, callback=None, signing_key=None, rotation_key=None,
+                 created=None):
         """Constructor.
 
         Args:
@@ -74,6 +77,7 @@ class Repo:
           callback (callable, (CommitData | dict) => None)
           signing_key (ec.EllipticCurvePrivateKey): required
           rotation_key (ec.EllipticCurvePrivateKey)
+          created (datetime): when the repo was created
         """
         assert storage
 
@@ -85,6 +89,7 @@ class Repo:
         self.callback = callback
         self.signing_key = signing_key
         self.rotation_key = rotation_key
+        self.created = created
 
     def __eq__(self, other):
         return (self.head and other.head

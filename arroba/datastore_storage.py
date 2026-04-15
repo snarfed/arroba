@@ -711,9 +711,10 @@ class DatastoreStorage(Storage, NdbMixin):
         logger.info(f'Loading repo {atp_repo.key}')
         handle = atp_repo.handles[0] if atp_repo.handles else None
 
+        created = atp_repo.created.replace(tzinfo=timezone.utc) if atp_repo.created else None
         return Repo.load(self, cid=CID.decode(atp_repo.head), handle=handle,
                          status=atp_repo.status, signing_key=atp_repo.signing_key,
-                         rotation_key=atp_repo.rotation_key)
+                         rotation_key=atp_repo.rotation_key, created=created)
 
     @ndb_context
     def load_repos(self, after=None, limit=500, minimal=False):
