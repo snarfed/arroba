@@ -1298,14 +1298,17 @@ class SubscribeReposTest(testutil.XrpcTestCase):
     def test_collect_uncaught_exception(self, *_):
         firehose.start(limit=1)
 
+        # start subscriber first so it's registered before the event is emitted
+        received = []
+        started = Event()
+        subscriber = Thread(target=self.subscribe, args=[received, None, started, 1])
+        subscriber.start()
+        started.wait()
+
         # store create
         create = Write(Action.CREATE, 'co.ll', next_tid(), {'foo': 'bar'})
         self.storage.commit(self.repo, [create])
 
-        # start subscriber
-        received = []
-        subscriber = Thread(target=self.subscribe, args=[received, None, None, 1])
-        subscriber.start()
         subscriber.join()
 
         self.assertEqual({'op': 1, 't': '#sync'}, received[0][0])
