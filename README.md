@@ -113,6 +113,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
   * `read_blocks_by_seq`: set explicit 30s timeout on datastore query. Evidently, maybe, in rare cases, datastore queries can hang indefinitely if they don't have an explicit timeout ([snarfed/bridgy-fed#2367](https://github.com/snarfed/bridgy-fed/issues/2367)).
 * `did`:
   * `write_plc` etc: add new optional `new_rotation_key` kwarg. Accept `EllipticCurvePublicKey` for `signing_key` as well as `EllipticCurvePrivateKey`.
+  * `resolve_*`: thread safety bug fix for caches.
 * `com.atproto.sync.getRecord`: add the repo's head commit block, use its CID as the CAR root.
 
 

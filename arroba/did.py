@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import re
+import threading
 import urllib.parse
 
 from cachetools import cached, TTLCache
@@ -74,7 +75,8 @@ def resolve(did, **kwargs):
     raise ValueError(f'{did} is not a did:plc or did:web')
 
 
-@cached(TTLCache(maxsize=CACHE_SIZE, ttl=CACHE_TTL.total_seconds()))
+@cached(TTLCache(maxsize=CACHE_SIZE, ttl=CACHE_TTL.total_seconds()),
+        lock=threading.Lock())
 def resolve_plc(did, get_fn=requests_get):
     """Resolves a ``did:plc`` by fetching its DID document from a PLC directory.
 
@@ -453,7 +455,8 @@ def plc_operation_to_did_doc(op):
     }
 
 
-@cached(TTLCache(maxsize=CACHE_SIZE, ttl=CACHE_TTL.total_seconds()))
+@cached(TTLCache(maxsize=CACHE_SIZE, ttl=CACHE_TTL.total_seconds()),
+        lock=threading.Lock())
 def resolve_web(did, get_fn=requests_get):
     """Resolves a ``did:web`` by fetching its DID document.
 
@@ -484,7 +487,8 @@ def resolve_web(did, get_fn=requests_get):
     return resp.json()
 
 
-@cached(TTLCache(maxsize=CACHE_SIZE, ttl=CACHE_TTL.total_seconds()))
+@cached(TTLCache(maxsize=CACHE_SIZE, ttl=CACHE_TTL.total_seconds()),
+        lock=threading.Lock())
 def resolve_handle(handle, get_fn=requests_get):
     """Resolves an ATProto handle to a DID.
 
