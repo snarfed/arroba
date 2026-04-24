@@ -50,6 +50,7 @@ from hashlib import sha256
 import logging
 from os.path import commonprefix
 import re
+import time
 
 import dag_cbor
 from multiformats import CID
@@ -885,11 +886,21 @@ class MST:
         assert pointer
         to_fetch.add(pointer)
 
+        load_all_start = time.perf_counter()
+        level = 0
+        total_node_io = 0.0
+        total_node_decode = 0.0
+        total_nodes = 0
+
         while to_fetch:
-            logger.debug(f'fetching {len(to_fetch)} blocks')
+            logger.info(f'load_all level {level}: fetching {len(to_fetch)} node blocks')
+            t0 = time.perf_counter()
             blocks = self.storage.read_many(to_fetch)
+            node_io = time.perf_counter() - t0
+            total_node_io += node_io
             to_fetch.clear()
 
+            t1 = time.perf_counter()
             for cid, block in blocks.items():
                 if block.seq < start:
                     continue
@@ -904,7 +915,22 @@ class MST:
                     else:
                         to_fetch.add(entry.get_pointer())
 
+            node_decode = time.perf_counter() - t1
+            total_node_decode += node_decode
+            total_nodes += len(blocks)
+            logger.info(f'load_all level {level}: {len(blocks)} node blocks, '
+                        f'io={node_io:.3f}s decode={node_decode:.3f}s, '
+                        f'{len(leaves)} leaves so far')
+            level += 1
+
+        logger.info(f'load_all: fetching {len(leaves)} leaf blocks')
+        t2 = time.perf_counter()
         leaf_blocks = self.storage.read_many(leaves)
+        leaf_io = time.perf_counter() - t2
+        logger.info(f'load_all: {len(leaf_blocks)} leaf blocks in {leaf_io:.3f}s; '
+                    f'totals: {total_nodes} node blocks across {level} levels, '
+                    f'node_io={total_node_io:.3f}s node_decode={total_node_decode:.3f}s '
+                    f'elapsed={time.perf_counter() - load_all_start:.3f}s')
         for cid, block in leaf_blocks.items():
             yield cid, block.encoded
 

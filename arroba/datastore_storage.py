@@ -8,6 +8,7 @@ import mimetypes
 import os
 import requests
 import threading
+import time
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -777,9 +778,16 @@ class DatastoreStorage(Storage, NdbMixin):
     @ndb.non_transactional()
     def read_many(self, cids):
         keys = [ndb.Key(AtpBlock, cid.encode('base32')) for cid in cids]
-        got = list(zip(cids, ndb.get_multi(keys)))
-        return {cid: block.to_block() if block else None
-                for cid, block in got}
+        t0 = time.perf_counter()
+        raw = ndb.get_multi(keys)
+        io_time = time.perf_counter() - t0
+        t1 = time.perf_counter()
+        got = list(zip(cids, raw))
+        result = {cid: block.to_block() if block else None for cid, block in got}
+        deserialize_time = time.perf_counter() - t1
+        logger.info(f'read_many: {len(keys)} keys, '
+                    f'ndb.get_multi={io_time:.3f}s to_block={deserialize_time:.3f}s')
+        return result
 
     # can't use @ndb_context because this is a generator, not a normal function
     def read_blocks_by_seq(self, start=0, repo=None):

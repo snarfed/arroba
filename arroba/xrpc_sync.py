@@ -3,9 +3,11 @@ from datetime import timedelta, timezone
 import itertools
 import logging
 import os
+import time
 
 from carbox import car
 import dag_cbor
+from flask import request
 from lexrpc.base import XrpcError
 from lexrpc.server import Redirect
 from multiformats import CID
@@ -40,12 +42,16 @@ def get_checkout(input, did=None):
 @server.server.method('com.atproto.sync.getRepo')
 def get_repo(input, did=None, since=None):
     """Handler for ``com.atproto.sync.getRepo`` XRPC method."""
+    t_start = time.perf_counter()
     repo = server.load_repo(did)
+    t_load = time.perf_counter()
+    logger.info(f'get_repo {did}: load_repo={t_load - t_start:.3f}s')
 
     # temporary, cutting costs because getRepo is currently too expensive
     # https://github.com/snarfed/arroba/issues/88
     # https://github.com/snarfed/bridgy-fed/issues/2424
-    if repo.created and util.now() - repo.created > timedelta(hours=12):
+    if (repo.created and util.now() - repo.created > timedelta(hours=12)
+            and not request.headers.get('Authorization')):
         raise TooManyRequests('temporarily disabled 12 hrs after repo creation')
 
     start = util.tid_to_int(since) if since else 0
@@ -54,7 +60,10 @@ def get_repo(input, did=None, since=None):
         [car.Block(repo.head.cid, repo.head.encoded)],
         (car.Block(cid, data) for cid, data in repo.mst.load_all(start=start)))
 
-    return car.write_car([repo.head.cid], blocks_and_head)
+    result = car.write_car([repo.head.cid], blocks_and_head)
+    logger.info(f'get_repo {did}: write_car done, total={time.perf_counter() - t_start:.3f}s '
+                f'car_size={len(result) if isinstance(result, (bytes, bytearray)) else "stream"}')
+    return result
 
 
 @server.server.method('com.atproto.sync.getRepoStatus')
