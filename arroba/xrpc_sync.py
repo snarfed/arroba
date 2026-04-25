@@ -243,7 +243,7 @@ def get_blob(input, did=None, cid=None):
             continue
 
         try:
-            blob.maybe_fetch(get_fn=requests.get)
+            blob.maybe_fetch(get_fn=util.session.get)
         except requests.RequestException:
             continue
 

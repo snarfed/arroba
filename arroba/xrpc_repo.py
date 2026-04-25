@@ -17,6 +17,7 @@ from .repo import Repo, Write
 from . import server
 from .storage import Action, Block
 from . import server
+from . import util
 from .util import at_uri, dag_cbor_cid, new_key, next_tid, USER_AGENT, verify_sig
 
 logger = logging.getLogger(__name__)
@@ -74,7 +75,8 @@ def get_record(input, repo=None, collection=None, rkey=None, cid=None):
 
     logger.info(f'Falling back to AppView at {av_host}')
     appview = Client(f'https://{av_host}', access_token=jwt,
-                     headers={'User-Agent': USER_AGENT})
+                     headers={'User-Agent': USER_AGENT},
+                     requests_session=util.session)
 
     try:
         return appview.com.atproto.repo.getRecord(

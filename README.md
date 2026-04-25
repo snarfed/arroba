@@ -109,6 +109,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 
 ### 2.1 - unreleased
 
+* Add SSRF protection to all outgoing HTTP requests via [`requests-hardened`](https://github.com/saleor/requests-hardened).
 * `datastore_storage`:
   * `read_blocks_by_seq`: set explicit 30s timeout on datastore query. Evidently, maybe, in rare cases, datastore queries can hang indefinitely if they don't have an explicit timeout ([snarfed/bridgy-fed#2367](https://github.com/snarfed/bridgy-fed/issues/2367)).
 * `did`:

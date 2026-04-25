@@ -16,6 +16,7 @@ from pymediainfo import MediaInfo
 import requests
 
 from .. import datastore_storage
+from .. import util
 from ..datastore_storage import (
     AtpBlock,
     AtpRemoteBlob,
@@ -617,7 +618,7 @@ class DatastoreStorageTest(DatastoreTest):
         got = AtpRemoteBlob.get_or_create(url='http://my/long/blob.png', repo=repo)
         self.assertEqual(blob, got)
 
-    @patch('requests.get', return_value=requests_response('blob contents'))
+    @patch.object(util.session, 'get', return_value=requests_response('blob contents'))
     def test_get_or_create_blob_old_last_fetched_refetches(self, mock_get):
         blob = AtpRemoteBlob(id='http://blob', cid='123', size=10,
                              mime_type='image/foo',
@@ -692,7 +693,7 @@ class DatastoreStorageTest(DatastoreTest):
         with self.assertRaises(requests.HTTPError):
             AtpRemoteBlob.get_or_create(url='http://blob')
 
-    @patch('requests.get', return_value=requests_response('', status=404))
+    @patch.object(util.session, 'get', return_value=requests_response('', status=404))
     def test_get_or_create_fetch_404_marks_inactive(self, mock_get):
         blob = AtpRemoteBlob(id='http://blob', cid='123', size=10,
                              mime_type='image/foo')
@@ -707,7 +708,7 @@ class DatastoreStorageTest(DatastoreTest):
         self.assertEqual('inactive', blob.status)
         self.assertEqual(NOW, blob.last_fetched)
 
-    @patch('requests.get', return_value=requests_response('', status=500))
+    @patch.object(util.session, 'get', return_value=requests_response('', status=500))
     def test_get_or_create_fetch_500_doesnt_set_status(self, mock_get):
         blob = AtpRemoteBlob(id='http://blob', cid='123', size=10,
                              mime_type='image/foo')
@@ -722,7 +723,7 @@ class DatastoreStorageTest(DatastoreTest):
         self.assertIsNone(blob.status)
         self.assertEqual(NOW, blob.last_fetched)
 
-    @patch('requests.get', side_effect=requests.exceptions.ConnectionError('nope'))
+    @patch.object(util.session, 'get', side_effect=requests.exceptions.ConnectionError('nope'))
     def test_get_or_create_fetch_conn_error_doesnt_set_status(self, mock_get):
         blob = AtpRemoteBlob(id='http://blob', cid='123', size=10,
                              mime_type='image/foo')

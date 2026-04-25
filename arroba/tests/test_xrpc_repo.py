@@ -54,7 +54,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         tid = util.int_to_tid(util._tid_ts_last)
         return f'at://did:web:user.com/app.bsky.feed.post/{tid}'
 
-    @patch('requests.get', return_value=testutil.requests_response({'foo': 'bar'}))
+    @patch.object(util.session, 'get', return_value=testutil.requests_response({'foo': 'bar'}))
     def test_describe_repo(self, _):
         with self.assertRaises(ValueError):
             xrpc_repo.describe_repo({}, repo='unknown')
@@ -81,7 +81,8 @@ class XrpcRepoTest(testutil.XrpcTestCase):
             'handleIsCorrect': True,
         }, resp)
 
-    @patch('requests.get', return_value=testutil.requests_response('', status=500))
+    @patch.object(util.session, 'get',
+                  return_value=testutil.requests_response('', status=500))
     def test_describe_repo_did_doc_fetch_error(self, _):
         with self.assertRaises(ValueError) as e:
             resp = xrpc_repo.describe_repo({}, repo='did:web:user.com')
@@ -205,7 +206,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
                 rkey='99999',
             )
 
-    @patch('requests.get')
+    @patch.object(util.session, 'get')
     def test_get_record_not_found_fall_back_to_app_view(self, mock_get):
         resp = {
             'uri': 'at://did:web:other/app.bsky.feed.post/99999',
@@ -235,7 +236,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
 
     # TODO: what does getRecord return not found? uri and value in output are
     # required, and it doesn't declare any errors
-    # @patch('requests.get')
+    # @patch.object(util.session, 'get')
     # def test_get_record_not_found_locally_or_app_view(self):
     #     with self.assertRaises(ValueError):
     #         xrpc_repo.get_record({},
@@ -244,7 +245,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
     #             rkey='99999',
     #         )
 
-    @patch('requests.get')
+    @patch.object(util.session, 'get')
     def test_get_record_not_found_locally_or_app_view(self, mock_get):
         mock_get.return_value = testutil.requests_response({'my': 'err'}, status=400)
 
@@ -386,7 +387,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         with self.assertRaises(ValueError):
             xrpc_repo.import_repo(SNARFED2_CAR)
 
-    @patch('requests.get', return_value=testutil.requests_response(SNARFED2_DID_DOC))
+    @patch.object(util.session, 'get', return_value=testutil.requests_response(SNARFED2_DID_DOC))
     def test_import_repo(self, _):
         self.prepare_auth()
 
@@ -399,7 +400,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         self.assertEqual('did:plc:5zspv27pk4iqtrl2ql2nykjh', repo.did)
         self.assertEqual('snarfed2.bsky.social', repo.handle)
 
-    @patch('requests.get')
+    @patch.object(util.session, 'get')
     def test_import_repo_bad_signature(self, mock_get):
         self.prepare_auth()
         mock_get.return_value = testutil.requests_response({

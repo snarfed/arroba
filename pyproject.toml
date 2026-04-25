@@ -34,6 +34,8 @@ dependencies = [
     'pyjwt>=2.0.0',
     'pymediainfo',
     'pymemcache',
+    'requests>=2.0',
+    'requests-hardened',
     'simple-websocket',
 ]
 classifiers = [

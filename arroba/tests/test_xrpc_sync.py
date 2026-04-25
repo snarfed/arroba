@@ -1430,7 +1430,7 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
         self.assertEqual(301, r.exception.status)
         self.assertEqual('http://blob/b', r.exception.to)
 
-    @patch('requests.get', side_effect=[
+    @patch.object(util.session, 'get', side_effect=[
         testutil.requests_response(b'', status=404),  # blob/b
         testutil.requests_response(b'asdf'),     # blob/a
     ])
@@ -1457,7 +1457,7 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
             call('http://blob/a', stream=True),
         ], mock_get.call_args_list)
 
-    @patch('requests.get', return_value=testutil.requests_response(b'', status=404))
+    @patch.object(util.session, 'get', return_value=testutil.requests_response(b'', status=404))
     def test_get_blob_multiple_first_refetch_404s_second_inactive(self, mock_get):
         cid = 'bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq'
         now = NOW.replace(tzinfo=None)

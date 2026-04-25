@@ -10,6 +10,9 @@ import time
 from urllib.parse import urlparse
 
 from cryptography.exceptions import InvalidSignature
+import requests
+from requests_hardened import Config as RequestsHardenedConfig, HTTPSession
+
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import (
     decode_dss_signature,
@@ -36,6 +39,15 @@ S32_CHARS = '234567abcdefghijklmnopqrstuvwxyz'
 DEACTIVATED = 'deactivated'
 DELETED = 'deleted'
 TOMBSTONED = 'tombstoned'
+
+# prevent SSRF attacks
+# https://github.com/snarfed/webutil/issues/11
+session = HTTPSession(RequestsHardenedConfig(
+    ip_filter_enable=True,
+    ip_filter_allow_loopback_ips=False,
+    never_redirect=False,
+    default_timeout=None,
+))
 
 
 class InactiveRepo(ValueError):

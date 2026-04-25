@@ -473,7 +473,7 @@ class AtpRemoteBlob(ndb.Model):
 
 
     @classmethod
-    def get_or_create(cls, *, url=None, repo=None, get_fn=requests.get,
+    def get_or_create(cls, *, url=None, repo=None, get_fn=util.session.get,
                       max_size=None, accept_types=None, name=''):
         """Returns a new or existing :class:`AtpRemoteBlob` for a given URL.
 

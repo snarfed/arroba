@@ -49,7 +49,7 @@ HANDLE_RE = re.compile(
 def requests_get(*args, **kwargs):
     """Used as get_fn below. Wrapped so that we can mock requests.get in tests."""
     logger.info(f'requests.get {args} {kwargs}')
-    return requests.get(*args, **kwargs)
+    return util.session.get(*args, **kwargs)
 
 
 def resolve(did, **kwargs):
@@ -146,7 +146,7 @@ def update_plc(did, handle=None, get_fn=requests_get, **kwargs):
 
 def write_plc(did=None, handle=None, signing_key=None, rotation_key=None,
               new_rotation_key=None, pds_url=None, also_known_as=None,
-              prev=None, get_fn=requests_get, post_fn=requests.post):
+              prev=None, get_fn=requests_get, post_fn=util.session.post):
     """Writes a PLC operation to a PLC directory.
 
     Generally used to create a new ``did:plc`` or update an existing one.
@@ -251,7 +251,7 @@ def write_plc(did=None, handle=None, signing_key=None, rotation_key=None,
     return did_plc._replace(signing_key=signing_key, rotation_key=rotation_key)
 
 
-def write_plc_operation(op, rotation_key, did=None, post_fn=requests.post):
+def write_plc_operation(op, rotation_key, did=None, post_fn=util.session.post):
     """Signs and sends a PLC operation to the directory.
 
     Args:
@@ -288,7 +288,7 @@ def write_plc_operation(op, rotation_key, did=None, post_fn=requests.post):
 
 
 def rollback_plc(did, rotation_key, num_operations=1,
-                 get_fn=requests_get, post_fn=requests.post):
+                 get_fn=requests_get, post_fn=util.session.post):
     """Reverts a DID PLC document to its last version.
 
     Reads a did:plc's audit log from the directory, extracts its *previous*
