@@ -40,14 +40,29 @@ DEACTIVATED = 'deactivated'
 DELETED = 'deleted'
 TOMBSTONED = 'tombstoned'
 
+class NoCookieJar(requests.cookies.RequestsCookieJar):
+    """Cookie jar that discards all cookies, preventing cross-request leakage.
+
+    Duplicated in oauth_dropins.webutil.util.
+    """
+    def set(self, *args, **kwargs):
+        pass
+    def set_cookie(self, *args, **kwargs):
+        pass
+    def update(self, *args, **kwargs):
+        pass
+
+
 # prevent SSRF attacks
 # https://github.com/snarfed/webutil/issues/11
+# duplicated in oauth_dropins.webutil.util
 session = HTTPSession(RequestsHardenedConfig(
     ip_filter_enable=True,
     ip_filter_allow_loopback_ips=False,
     never_redirect=False,
     default_timeout=None,
 ))
+session.cookies = NoCookieJar()
 
 
 class InactiveRepo(ValueError):
