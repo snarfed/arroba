@@ -43,9 +43,12 @@ def get_checkout(input, did=None):
 def get_repo(input, did=None, since=None):
     """Handler for ``com.atproto.sync.getRepo`` XRPC method."""
     t_start = time.perf_counter()
+
     repo = server.load_repo(did)
-    t_load = time.perf_counter()
-    logger.info(f'get_repo {did}: load_repo={t_load - t_start:.3f}s')
+
+    if util.PROFILE_GETREPO:
+        if p := util.getrepo_profile.get():
+            p.load_repo = time.perf_counter() - t_start
 
     # temporary, cutting costs because getRepo is currently too expensive
     # https://github.com/snarfed/arroba/issues/88
@@ -61,8 +64,12 @@ def get_repo(input, did=None, since=None):
         (car.Block(cid, data) for cid, data in repo.mst.load_all(start=start)))
 
     result = car.write_car([repo.head.cid], blocks_and_head)
-    logger.info(f'get_repo {did}: write_car done, total={time.perf_counter() - t_start:.3f}s '
-                f'car_size={len(result) if isinstance(result, (bytes, bytearray)) else "stream"}')
+
+    if util.PROFILE_GETREPO:
+        if p := util.getrepo_profile.get():
+            p.total = time.perf_counter() - t_start
+            p.car_size = len(result)
+
     return result
 
 

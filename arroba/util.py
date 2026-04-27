@@ -1,9 +1,12 @@
 """Misc AT Protocol utils. TIDs, CIDs, etc."""
+from contextvars import ContextVar
 import copy
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 import json
 import logging
 from numbers import Integral
+import os
 import random
 import re
 import time
@@ -39,6 +42,32 @@ S32_CHARS = '234567abcdefghijklmnopqrstuvwxyz'
 DEACTIVATED = 'deactivated'
 DELETED = 'deleted'
 TOMBSTONED = 'tombstoned'
+
+PROFILE_GETREPO = bool(os.environ.get('PROFILE_GETREPO'))
+
+
+@dataclass
+class RepoProfile:
+    """Timing breakdown for one com.atproto.sync.getRepo call.
+
+    Populated when :data:`PROFILE_GETREPO` is set. Read via
+    :data:`getrepo_profile` after the call returns.
+    """
+    load_repo: float = 0.0       # time to load repo head from storage
+    node_io: float = 0.0         # total read_many time for all MST node levels
+    node_decode: float = 0.0     # total deserialize time for MST node blocks
+    leaf_io: float = 0.0         # read_many time for the final leaf block batch
+    ndb_total: float = 0.0       # total ndb.get_multi time across all read_many calls
+    to_block_total: float = 0.0  # total AtpBlock.to_block() time across all read_many
+    node_blocks: int = 0         # total MST node blocks read
+    leaf_blocks: int = 0         # leaf blocks read
+    levels: int = 0              # MST tree depth
+    car_size: int = 0            # CAR output size in bytes
+    total: float = 0.0           # total get_repo wall time
+
+getrepo_profile: ContextVar[RepoProfile | None] = ContextVar(
+    'getrepo_profile', default=None)
+
 
 class NoCookieJar(requests.cookies.RequestsCookieJar):
     """Cookie jar that discards all cookies, preventing cross-request leakage.
