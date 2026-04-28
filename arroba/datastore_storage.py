@@ -12,12 +12,15 @@ import time
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
+from google.api_core import gapic_v1
 import dag_cbor
 import dag_json
 from google.cloud import ndb
 from google.cloud.ndb import context
 from google.cloud.ndb.exceptions import ContextError
 from google.cloud.ndb.key import _MAX_KEYPART_BYTES
+from google.cloud.datastore_v1.types import datastore as ds_pb2
+from google.cloud.datastore_v1.types import entity as entity_pb2
 from lexrpc import ValidationError
 from multiformats import CID, multicodec, multihash
 from pymediainfo import MediaInfo
@@ -794,6 +797,69 @@ class DatastoreStorage(Storage, NdbMixin):
                 p.ndb_total += ndb_time
                 p.to_block_total += to_block_time
 
+        return result
+
+    @ndb_context
+    @ndb.non_transactional()
+    def read_many_raw(self, cids):
+        """Fetches blocks via raw Datastore gRPC, returning only encoded bytes and seq.
+
+        Bypasses ndb model instantiation to reduce CPU overhead. Returns the raw
+        DAG-CBOR bytes directly from the Datastore protobuf with no decode/re-encode.
+
+        Args:
+          cids (sequence of :class:`CID`)
+
+        Returns:
+          dict: {:class:`CID`: ``(encoded bytes, seq int)`` or None if not found}
+        """
+        cid_list = list(cids)
+        result = {cid: None for cid in cid_list}
+        cid_by_key = {cid.encode('base32'): cid for cid in cid_list}
+
+        ctx = context.get_context()
+        client = ctx.client
+        database = client.database or ''
+
+        header_params = {'project_id': client.project}
+        if database:
+            header_params['database_id'] = database
+        metadata = (gapic_v1.routing_header.to_grpc_metadata(header_params),)
+
+        t_io = t_parse = 0.0
+
+        for i in range(0, len(cid_list), 1000):
+            remaining = [
+                entity_pb2.Key(
+                    partition_id=entity_pb2.PartitionId(**header_params),
+                    path=[entity_pb2.Key.PathElement(
+                        kind='AtpBlock',
+                        name=cid.encode('base32'),
+                    )],
+                )
+                for cid in cid_list[i:i + 1000]
+            ]
+
+            while remaining:
+                request = ds_pb2.LookupRequest(keys=remaining, **header_params)
+                t0 = time.perf_counter()
+                response = client.stub.lookup(request, timeout=30, metadata=metadata)
+                t_io += time.perf_counter() - t0
+
+                t1 = time.perf_counter()
+                for entity_result in response.found:
+                    entity = entity_result.entity
+                    name = entity.key.path[-1].name
+                    cid = cid_by_key[name]
+                    encoded = bytes(entity.properties['encoded'].blob_value)
+                    seq = entity.properties['seq'].integer_value
+                    result[cid] = (encoded, seq)
+                t_parse += time.perf_counter() - t1
+
+                remaining = list(response.deferred)
+
+        logger.info(f'read_many_raw: {len(cid_list)} keys, '
+                    f'stub.lookup={t_io:.3f}s parse={t_parse:.3f}s')
         return result
 
     # can't use @ndb_context because this is a generator, not a normal function

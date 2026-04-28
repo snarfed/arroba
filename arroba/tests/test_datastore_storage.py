@@ -213,6 +213,21 @@ class DatastoreStorageTest(DatastoreTest):
             {dag_cbor_cid(d): Block(decoded=d) for d in data} | {CIDS[0]: None},
             self.storage.read_many(cids))
 
+    def test_read_many_raw(self):
+        self.assertEqual({cid: None for cid in CIDS},
+                         self.storage.read_many_raw(CIDS))
+
+        data = [{'foo': 'bar'}, {'baz': 'biff'}]
+        stored = [self.storage.write(repo_did='did:web:user.com', obj=d)
+                  for d in data]
+
+        cids = [stored[0].cid, CIDS[0], stored[1].cid]
+        self.assertEqual({
+            stored[0].cid: (stored[0].encoded, stored[0].seq),
+            CIDS[0]: None,
+            stored[1].cid: (stored[1].encoded, stored[1].seq),
+        }, self.storage.read_many_raw(cids))
+
     def test_read_blocks_by_seq(self):
         self.storage.sequences.allocate(SUBSCRIBE_REPOS_NSID)
         foo = self.storage.write(repo_did='did:plc:123', obj={'foo': 2})  # seq 2

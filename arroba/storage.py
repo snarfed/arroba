@@ -336,6 +336,21 @@ class Storage:
         """
         raise NotImplementedError()
 
+    def read_many_raw(self, cids):
+        """Like :meth:`read_many` but returns only ``(encoded, seq)`` tuples.
+
+        Skips constructing full :class:`Block` objects. Subclasses may override
+        with a faster implementation.
+
+        Args:
+          cids (sequence of :class:`CID`)
+
+        Returns:
+          dict: {:class:`CID`: ``(encoded bytes, seq int)`` or None if not found}
+        """
+        return {cid: (block.encoded, block.seq) if block else None
+                for cid, block in self.read_many(cids).items()}
+
     def read_blocks_by_seq(self, start=0, repo=None):
         """Batch read blocks from storage by ``subscribeRepos`` sequence number.
 

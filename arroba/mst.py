@@ -895,17 +895,18 @@ class MST:
         while to_fetch:
             logger.debug(f'fetching {len(to_fetch)} blocks')
             t0 = time.perf_counter() if util.PROFILE_GETREPO else 0.0
-            blocks = self.storage.read_many(to_fetch)
+            blocks = self.storage.read_many_raw(to_fetch)
             t1 = time.perf_counter() if util.PROFILE_GETREPO else 0.0
             to_fetch.clear()
 
-            for cid, block in blocks.items():
-                if block.seq < start:
+            for cid, encoded_seq in blocks.items():
+                encoded, seq = encoded_seq
+                if seq < start:
                     continue
 
-                yield cid, block.encoded
+                yield cid, encoded
                 entries = deserialize_node_data(storage=self.storage,
-                                                data=Data(**block.decoded))
+                                                data=Data(**dag_cbor.decode(encoded)))
 
                 for entry in entries:
                     if isinstance(entry, Leaf):
@@ -925,7 +926,7 @@ class MST:
                 level += 1
 
         t2 = time.perf_counter()
-        leaf_blocks = self.storage.read_many(leaves)
+        leaf_blocks = self.storage.read_many_raw(leaves)
 
         if util.PROFILE_GETREPO:
             leaf_io = time.perf_counter() - t2
@@ -938,8 +939,8 @@ class MST:
                 p.leaf_blocks = len(leaf_blocks)
                 p.levels = level
 
-        for cid, block in leaf_blocks.items():
-            yield cid, block.encoded
+        for cid, encoded_seq in leaf_blocks.items():
+            yield cid, encoded_seq[0]
 
     def cids_for_path(self, key):
         """Returns the CIDs in a given key path.
