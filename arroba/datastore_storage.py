@@ -826,27 +826,32 @@ class DatastoreStorage(Storage, NdbMixin):
             header_params['database_id'] = database
         metadata = (gapic_v1.routing_header.to_grpc_metadata(header_params),)
 
-        t_io = t_parse = 0.0
+        pending = [
+            entity_pb2.Key(
+                partition_id=entity_pb2.PartitionId(**header_params),
+                path=[entity_pb2.Key.PathElement(
+                    kind='AtpBlock',
+                    name=cid.encode('base32'),
+                )],
+            )
+            for cid in cid_list
+        ]
 
-        for i in range(0, len(cid_list), 1000):
-            remaining = [
-                entity_pb2.Key(
-                    partition_id=entity_pb2.PartitionId(**header_params),
-                    path=[entity_pb2.Key.PathElement(
-                        kind='AtpBlock',
-                        name=cid.encode('base32'),
-                    )],
+        t0 = time.perf_counter()
+        while pending:
+            futures = [
+                client.stub.lookup.future(
+                    # 1000 is the Datastore API limit per request
+                    ds_pb2.LookupRequest(keys=pending[i:i + 1000], **header_params),
+                    timeout=30,
+                    metadata=metadata,
                 )
-                for cid in cid_list[i:i + 1000]
+                for i in range(0, len(pending), 1000)
             ]
-
-            while remaining:
-                request = ds_pb2.LookupRequest(keys=remaining, **header_params)
-                t0 = time.perf_counter()
-                response = client.stub.lookup(request, timeout=30, metadata=metadata)
-                t_io += time.perf_counter() - t0
-
-                t1 = time.perf_counter()
+            pending = []
+            t1 = time.perf_counter()
+            for future in futures:
+                response = future.result()
                 for entity_result in response.found:
                     entity = entity_result.entity
                     name = entity.key.path[-1].name
@@ -854,12 +859,11 @@ class DatastoreStorage(Storage, NdbMixin):
                     encoded = bytes(entity.properties['encoded'].blob_value)
                     seq = entity.properties['seq'].integer_value
                     result[cid] = (encoded, seq)
-                t_parse += time.perf_counter() - t1
-
-                remaining = list(response.deferred)
+                pending.extend(response.deferred)
 
         logger.info(f'read_many_raw: {len(cid_list)} keys, '
-                    f'stub.lookup={t_io:.3f}s parse={t_parse:.3f}s')
+                    f'stub.lookup={time.perf_counter() - t0:.3f}s '
+                    f'parse={time.perf_counter() - t1:.3f}s')
         return result
 
     # can't use @ndb_context because this is a generator, not a normal function
