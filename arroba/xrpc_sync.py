@@ -50,11 +50,11 @@ def get_repo(input, did=None, since=None, internal=False):
         if p := util.getrepo_profile.get():
             p.load_repo = time.perf_counter() - t_start
 
-    # temporary, cutting costs because getRepo is currently too expensive
     # https://github.com/snarfed/arroba/issues/88
     # https://github.com/snarfed/bridgy-fed/issues/2424
-    if (repo.created and util.now() - repo.created > timedelta(hours=12)
-            and not internal and not request.headers.get('Authorization')):
+    if (util.DISABLE_GETREPO and not internal
+            and not request.headers.get('Authorization')
+            and repo.created and util.now() - repo.created > timedelta(hours=12)):
         raise TooManyRequests('temporarily disabled 12 hrs after repo creation')
 
     start = util.tid_to_int(since) if since else 0

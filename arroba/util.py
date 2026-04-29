@@ -44,6 +44,7 @@ DELETED = 'deleted'
 TOMBSTONED = 'tombstoned'
 
 PROFILE_GETREPO = bool(os.environ.get('PROFILE_GETREPO'))
+DISABLE_GETREPO = bool(os.environ.get('DISABLE_GETREPO'))
 
 
 @dataclass

@@ -1532,7 +1532,8 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
         resp = xrpc_sync.list_blobs({}, did='did:web:user.com')
         self.assertEqual({'cids': [cid]}, resp)
 
-    def test_get_repo_over_12h_old(self):
+    @patch('arroba.util.DISABLE_GETREPO', True)
+    def test_disable_get_repo(self):
         atp_repo = AtpRepo.get_by_id('did:web:user.com')
         atp_repo.created = (NOW - timedelta(hours=13)).replace(tzinfo=None)
         atp_repo.put()
@@ -1542,7 +1543,8 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
 
         self.assertIn('temporarily disabled', cm.exception.description)
 
-    def test_get_repo_under_12h_old(self):
+    @patch('arroba.util.DISABLE_GETREPO', True)
+    def test_disable_get_repo_under_12h_old(self):
         atp_repo = AtpRepo.get_by_id('did:web:user.com')
         atp_repo.created = (NOW - timedelta(hours=11)).replace(tzinfo=None)
         atp_repo.put()
