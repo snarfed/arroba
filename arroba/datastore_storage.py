@@ -2,6 +2,7 @@
 from datetime import timedelta, timezone
 from functools import wraps
 from io import BytesIO
+import itertools
 import json
 import logging
 import mimetypes
@@ -15,6 +16,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from google.api_core import gapic_v1
 import dag_cbor
 import dag_json
+import libipld
 from google.cloud import ndb
 from google.cloud.ndb import context
 from google.cloud.ndb.exceptions import ContextError
@@ -808,14 +810,13 @@ class DatastoreStorage(Storage, NdbMixin):
         DAG-CBOR bytes directly from the Datastore protobuf with no decode/re-encode.
 
         Args:
-          cids (sequence of :class:`CID`)
+          cids (sequence of bytes CIDs): raw binary CID bytes
 
         Returns:
-          dict: {:class:`CID`: ``(encoded bytes, seq int)`` or None if not found}
+          dict: {bytes CID: ``(encoded bytes, seq int)`` or None if not found}
         """
         cid_list = list(cids)
-        result = {cid: None for cid in cid_list}
-        cid_by_key = {cid.encode('base32'): cid for cid in cid_list}
+        result = {}
 
         ctx = context.get_context()
         client = ctx.client
@@ -826,27 +827,31 @@ class DatastoreStorage(Storage, NdbMixin):
             header_params['database_id'] = database
         metadata = (gapic_v1.routing_header.to_grpc_metadata(header_params),)
 
-        pending = [
-            entity_pb2.Key(
+        # Datastore key.name is a string, so encode binary CIDs to base32 once.
+        # build a reverse map so we can look up the original bytes from the
+        # base32 name in the response. (response order isn't guaranteed.)
+        #
+        # can't easily use libipld.decode_cid when processing results below because
+        # that only returns raw SHA-256 digest bytes, not full binary CIDs.
+        key_to_cid = {}
+        pending = []
+        for cid in cid_list:
+            name = libipld.encode_cid(cid)
+            key_to_cid[name] = cid
+            pending.append(entity_pb2.Key(
                 partition_id=entity_pb2.PartitionId(**header_params),
-                path=[entity_pb2.Key.PathElement(
-                    kind='AtpBlock',
-                    name=cid.encode('base32'),
-                )],
-            )
-            for cid in cid_list
-        ]
+                path=[entity_pb2.Key.PathElement(kind='AtpBlock', name=name)]))
 
-        t0 = time.perf_counter()
+        t0 = t1 = time.perf_counter()
         while pending:
             futures = [
                 client.stub.lookup.future(
-                    # 1000 is the Datastore API limit per request
-                    ds_pb2.LookupRequest(keys=pending[i:i + 1000], **header_params),
+                    ds_pb2.LookupRequest(keys=keys, **header_params),
                     timeout=30,
                     metadata=metadata,
                 )
-                for i in range(0, len(pending), 1000)
+                # 1000 is the Datastore API limit per request
+                for keys in itertools.batched(pending, 1000)
             ]
             pending = []
             t1 = time.perf_counter()
@@ -855,10 +860,9 @@ class DatastoreStorage(Storage, NdbMixin):
                 for entity_result in response.found:
                     entity = entity_result.entity
                     name = entity.key.path[-1].name
-                    cid = cid_by_key[name]
                     encoded = bytes(entity.properties['encoded'].blob_value)
                     seq = entity.properties['seq'].integer_value
-                    result[cid] = (encoded, seq)
+                    result[key_to_cid[name]] = (encoded, seq)
                 pending.extend(response.deferred)
 
         logger.info(f'read_many_raw: {len(cid_list)} keys, '

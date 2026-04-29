@@ -30,6 +30,7 @@ dependencies = [
     'dag-json>=0.2',
     'dnspython>=2.0.0',
     'lexrpc>=0.8',
+    'libipld>=3.0.0',
     'multiformats>=0.3.1',
     'pyjwt>=2.0.0',
     'pymediainfo',

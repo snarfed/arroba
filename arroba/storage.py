@@ -348,8 +348,7 @@ class Storage:
         Returns:
           dict: {:class:`CID`: ``(encoded bytes, seq int)`` or None if not found}
         """
-        return {cid: (block.encoded, block.seq) if block else None
-                for cid, block in self.read_many(cids).items()}
+        raise NotImplementedError()
 
     def read_blocks_by_seq(self, start=0, repo=None):
         """Batch read blocks from storage by ``subscribeRepos`` sequence number.
@@ -718,6 +717,10 @@ class MemoryStorage(Storage):
         if require_all:
             assert len(found) == len(cids), (len(found), len(cids))
         return found
+
+    def read_many_raw(self, cids):
+        blocks = [self.blocks.get(CID.decode(cid)) for cid in cids]
+        return {cid: (block.encoded, block.seq) for cid, block in zip(cids, blocks)}
 
     def read_blocks_by_seq(self, start=0, repo=None):
         assert start >= 0

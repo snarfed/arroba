@@ -214,19 +214,22 @@ class DatastoreStorageTest(DatastoreTest):
             self.storage.read_many(cids))
 
     def test_read_many_raw(self):
-        self.assertEqual({cid: None for cid in CIDS},
-                         self.storage.read_many_raw(CIDS))
+        cids = [
+            bytes(CID.decode(cid)) for cid in
+            ('bafyreie5cvv4h45feadgeuwhbcutmh6t2ceseocckahdoe6uat64zmz454',
+             'bafyreie5737gdxlw5i64vzichcalba3z2v5n6icifvx5xytvske7mr3hpm',
+             'bafyreibj4lsc3aqnrvphp5xmrnfoorvru4wynt6lwidqbm2623a6tatzdu')
+        ]
+        self.assertEqual({}, self.storage.read_many_raw(cids))
 
-        data = [{'foo': 'bar'}, {'baz': 'biff'}]
-        stored = [self.storage.write(repo_did='did:web:user.com', obj=d)
-                  for d in data]
+        foo = self.storage.write(repo_did='did:web:user.com', obj={'foo': 'bar'})
+        baz = self.storage.write(repo_did='did:web:user.com', obj={'baz': 'biff'})
 
-        cids = [stored[0].cid, CIDS[0], stored[1].cid]
+        result = self.storage.read_many_raw([bytes(foo.cid), cids[1], bytes(baz.cid)])
         self.assertEqual({
-            stored[0].cid: (stored[0].encoded, stored[0].seq),
-            CIDS[0]: None,
-            stored[1].cid: (stored[1].encoded, stored[1].seq),
-        }, self.storage.read_many_raw(cids))
+            bytes(foo.cid): (foo.encoded, foo.seq),
+            bytes(baz.cid): (baz.encoded, baz.seq),
+        }, result)
 
     def test_read_blocks_by_seq(self):
         self.storage.sequences.allocate(SUBSCRIBE_REPOS_NSID)

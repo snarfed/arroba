@@ -53,6 +53,7 @@ import re
 import time
 
 import dag_cbor
+import libipld
 from multiformats import CID
 
 from . import storage
@@ -873,21 +874,23 @@ class MST:
     def load_all(self, start=0):
         """Generator. Used in :func:`xrpc_sync.get_repo`.
 
-        (The bluesky-social/atproto TS code calls this ``writeToCarStream``.)
+        This is heavyweight, so it includes some unusual optimizations: CIDs
+        and MST pointers are handled as raw bytes instead of :class:`CID`
+        instances. Complements :meth:`Storage.read_many_raw`, which does the same.
 
         Args:
           start (int): optional ``subscribeRepos`` sequence number to start from,
             inclusive. Defaults to 0.
 
         Returns:
-          generator of (CID, bytes) tuples
+          generator of (CID or bytes CID, bytes) tuples
         """
-        leaves = set()   # CIDs
-        to_fetch = set() # CIDs
-
-        pointer = self.get_pointer()
-        assert pointer
-        to_fetch.add(pointer)
+        # these both have raw binary CID bytes (36-byte version+codec+multihash
+        # form). matches what libipld outputs and what car.write_car consumes, so no
+        # conversion needed for the read or write paths. only converted to base32
+        # string inside read_many_raw, for the Datastore key.
+        leaves = []
+        to_fetch = [bytes(self.get_pointer())]
 
         # getRepo profiling
         level = 0
@@ -907,14 +910,16 @@ class MST:
                     continue
 
                 yield cid, encoded
-                entries = deserialize_node_data(storage=self.storage,
-                                                data=Data(**dag_cbor.decode(encoded)))
+                data = Data(**libipld.decode_dag_cbor(encoded))
+                entries = deserialize_node_data(storage=self.storage, data=data)
 
                 for entry in entries:
                     if isinstance(entry, Leaf):
-                        leaves.add(entry.value)
+                        leaves.append(entry.value)
                     else:
-                        to_fetch.add(entry.get_pointer())
+                        # entry.pointer is bytes (not CID) since deserialize_node_data
+                        # received raw bytes from libipld above
+                        to_fetch.append(entry.get_pointer())
 
             if util.PROFILE_GETREPO:
                 node_io = t1 - t0
