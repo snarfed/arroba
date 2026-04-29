@@ -40,7 +40,7 @@ def get_checkout(input, did=None):
 
 
 @server.server.method('com.atproto.sync.getRepo')
-def get_repo(input, did=None, since=None):
+def get_repo(input, did=None, since=None, internal=False):
     """Handler for ``com.atproto.sync.getRepo`` XRPC method."""
     t_start = time.perf_counter()
 
@@ -54,7 +54,7 @@ def get_repo(input, did=None, since=None):
     # https://github.com/snarfed/arroba/issues/88
     # https://github.com/snarfed/bridgy-fed/issues/2424
     if (repo.created and util.now() - repo.created > timedelta(hours=12)
-            and not request.headers.get('Authorization')):
+            and not internal and not request.headers.get('Authorization')):
         raise TooManyRequests('temporarily disabled 12 hrs after repo creation')
 
     start = util.tid_to_int(since) if since else 0
