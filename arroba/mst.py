@@ -61,6 +61,8 @@ from .util import dag_cbor_cid
 
 logger = logging.getLogger(__name__)
 
+_VALID_KEY_RE = re.compile(r'[a-zA-Z0-9_\-:.]+')
+
 Entry = namedtuple('Entry', [
     'p',  # int, length of prefix that this data key shares with the prev data key
     'k',  # bytes, the rest of the data key outside the shared prefix
@@ -1109,7 +1111,6 @@ def deserialize_node_data(*, storage=None, data=None, layer=None):
         entry = Entry(**entry_data)
         key_str = entry.k.decode()
         key = last_key[:entry.p] + key_str
-        ensure_valid_key(key)
         entries.append(Leaf(key, entry.v))
         last_key = key
         if entry.t is not None:
@@ -1193,14 +1194,13 @@ def ensure_valid_key(key):
     Raises:
       ValueError: if key is not a valid MST key
     """
-    valid = re.compile(r'[a-zA-Z0-9_\-:.]+')
     split = key.split('/')
     if not (len(key) <= 256 and
             len(split) == 2 and
             split[0] and
             split[1] and
-            valid.fullmatch(split[0]) and
-            valid.fullmatch(split[1])
+            _VALID_KEY_RE.fullmatch(split[0]) and
+            _VALID_KEY_RE.fullmatch(split[1])
             ):
         raise ValueError(f'Invalid MST key: {key}')
 

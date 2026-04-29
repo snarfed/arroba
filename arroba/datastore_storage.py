@@ -172,8 +172,8 @@ class AtpBlock(ndb.Model):
     Properties:
     * repo (google.cloud.ndb.Key): DID of the first repo that included this block
     * encoded (bytes): DAG-CBOR encoded value
-    * data (dict): DAG-JSON value, only used for human debugging
     * seq (int): sequence number for the subscribeRepos event stream
+    * ops (CommitOps): operations if this is a commit
     """
     repo = ndb.KeyProperty(AtpRepo, required=True)
     encoded = WriteOnceBlobProperty(required=True)
@@ -184,7 +184,7 @@ class AtpBlock(ndb.Model):
 
     @property
     def decoded(self):
-        return json.loads(dag_json.encode(dag_cbor.decode(self.encoded)))
+        return dag_cbor.decode(self.encoded)
 
     @property
     def cid(self):
