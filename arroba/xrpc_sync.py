@@ -53,7 +53,7 @@ def get_repo(input, did=None, since=None, internal=False):
     # https://github.com/snarfed/arroba/issues/88
     # https://github.com/snarfed/bridgy-fed/issues/2424
     if (util.DISABLE_GETREPO and not internal
-            and not request.headers.get('Authorization')
+            # and not request.headers.get('Authorization')
             and repo.created and util.now() - repo.created > timedelta(hours=12)):
         raise TooManyRequests('temporarily disabled 12 hrs after repo creation')
 
