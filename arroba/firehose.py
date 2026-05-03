@@ -13,7 +13,6 @@ import time
 from carbox import car
 import dag_cbor
 from google.auth.credentials import AnonymousCredentials
-from google.cloud import ndb
 from multiformats import CID
 
 from .mst import MST
