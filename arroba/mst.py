@@ -892,16 +892,9 @@ class MST:
         leaves = []
         to_fetch = [bytes(self.get_pointer())]
 
-        # getRepo profiling
-        level = 0
-        total_node_io = total_node_decode = 0.0
-        total_nodes = 0
-
         while to_fetch:
             logger.debug(f'fetching {len(to_fetch)} blocks')
-            t0 = time.perf_counter() if util.PROFILE_GETREPO else 0.0
             blocks = self.storage.read_many_raw(to_fetch)
-            t1 = time.perf_counter() if util.PROFILE_GETREPO else 0.0
             to_fetch.clear()
 
             for cid, encoded_seq in blocks.items():
@@ -921,31 +914,7 @@ class MST:
                         # received raw bytes from libipld above
                         to_fetch.append(entry.get_pointer())
 
-            if util.PROFILE_GETREPO:
-                node_io = t1 - t0
-                node_decode = time.perf_counter() - t1
-                total_node_io += node_io
-                total_node_decode += node_decode
-                total_nodes += len(blocks)
-                logger.debug(f'load_all level {level}: {len(blocks)} node blocks, '
-                             f'io={node_io:.3f}s decode={node_decode:.3f}s, '
-                             f'{len(leaves)} leaves so far')
-                level += 1
-
-        t2 = time.perf_counter()
         leaf_blocks = self.storage.read_many_raw(leaves)
-
-        if util.PROFILE_GETREPO:
-            leaf_io = time.perf_counter() - t2
-            logger.debug(f'load_all: {total_nodes} node blocks across {level} levels, node_io={total_node_io:.3f}s node_decode={total_node_decode:.3f}s {len(leaf_blocks)} leaf blocks leaf_io={leaf_io:.3f}s')
-            if p := util.getrepo_profile.get():
-                p.node_io = total_node_io
-                p.node_decode = total_node_decode
-                p.node_blocks = total_nodes
-                p.leaf_io = leaf_io
-                p.leaf_blocks = len(leaf_blocks)
-                p.levels = level
-
         for cid, encoded_seq in leaf_blocks.items():
             yield cid, encoded_seq[0]
 

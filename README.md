@@ -97,7 +97,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 * `MEMCACHE_SEQUENCE_BATCH`, integer, size of batch of sequence numbers to allocate from `AtpSequence` into memcache. Defaults to 1000.
 * `MEMCACHE_SEQUENCE_BUFFER`, integer, how close we should let memcache get to the current max allocated sequence number in `AtpSequence` before we allocate a new batch. Defaults to 100.
 * `DISABLE_GETREPO`, boolean (true if set to any value), whether to disable the `getRepo` XRPC call entirely for repos older than 12h.
-* `PROFILE_GETREPO`, boolean (true if set to any value), whether to record and log detailed timing for all parts of `getRepo` calls.
+* `PROFILE_FIREHOSE`, boolean (true if set to any value), whether to record and log detailed timing for firehose serving.
 
 <!-- Only used in app.py:
 * `REPO_DID`, repo user's DID, defaults to contents of `repo_did` file
@@ -121,6 +121,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
   * `write_plc` etc: add new optional `new_rotation_key` kwarg. Accept `EllipticCurvePublicKey` for `signing_key` as well as `EllipticCurvePrivateKey`.
   * `resolve_*`: thread safety bug fix for caches.
 * `com.atproto.sync.getRecord`: add the repo's head commit block, use its CID as the CAR root.
+* `com.atproto.sync.getRepo`: drastically optimize, it's 15-20x faster or more for large repos, and uses much less memory.
 
 
 ### 2.0 - 2026-02-07

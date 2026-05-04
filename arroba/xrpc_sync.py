@@ -3,7 +3,6 @@ from datetime import timedelta, timezone
 import itertools
 import logging
 import os
-import time
 
 from carbox import car
 import dag_cbor
@@ -42,13 +41,7 @@ def get_checkout(input, did=None):
 @server.server.method('com.atproto.sync.getRepo')
 def get_repo(input, did=None, since=None, internal=False):
     """Handler for ``com.atproto.sync.getRepo`` XRPC method."""
-    t_start = time.perf_counter()
-
     repo = server.load_repo(did)
-
-    if util.PROFILE_GETREPO:
-        if p := util.getrepo_profile.get():
-            p.load_repo = time.perf_counter() - t_start
 
     # https://github.com/snarfed/arroba/issues/88
     # https://github.com/snarfed/bridgy-fed/issues/2424
@@ -63,14 +56,7 @@ def get_repo(input, did=None, since=None, internal=False):
         [car.Block(repo.head.cid, repo.head.encoded)],
         (car.Block(cid, data) for cid, data in repo.mst.load_all(start=start)))
 
-    result = car.write_car([repo.head.cid], blocks_and_head)
-
-    if util.PROFILE_GETREPO:
-        if p := util.getrepo_profile.get():
-            p.total = time.perf_counter() - t_start
-            p.car_size = len(result)
-
-    return result
+    return car.write_car([repo.head.cid], blocks_and_head)
 
 
 @server.server.method('com.atproto.sync.getRepoStatus')

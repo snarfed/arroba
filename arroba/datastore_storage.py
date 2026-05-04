@@ -785,23 +785,9 @@ class DatastoreStorage(Storage, NdbMixin):
         # defensive copy in case cids is a generator
         cids = list(cids)
         keys = [ndb.Key(AtpBlock, cid.encode('base32')) for cid in cids]
-        t0 = time.perf_counter()
         raw = ndb.get_multi(keys)
-
-        t1 = time.perf_counter()
         got = list(zip(cids, raw))
-        result = {cid: block.to_block() if block else None for cid, block in got}
-
-        if util.PROFILE_GETREPO:
-            ndb_time = t1 - t0
-            to_block_time = time.perf_counter() - t1
-            logger.debug(f'read_many: {len(keys)} keys, '
-                         f'ndb.get_multi={ndb_time:.3f}s to_block={to_block_time:.3f}s')
-            if p := util.getrepo_profile.get():
-                p.ndb_total += ndb_time
-                p.to_block_total += to_block_time
-
-        return result
+        return {cid: block.to_block() if block else None for cid, block in got}
 
     @ndb_context
     @ndb.non_transactional()
