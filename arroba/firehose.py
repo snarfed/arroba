@@ -239,8 +239,19 @@ class Collector(threading.Thread):
         preload_t0 = time.perf_counter() if profile else 0.0
 
         with lock:
+            def _prev(event):
+                if isinstance(event, CommitData):
+                    return event.commit.decoded.get('prev')
+
+            events = list(query)
+            prev_cids = [_prev(e) for e in events]
+            prev_commits = server.storage.read_many(cid for cid in prev_cids if cid)
+
             global rollback
-            rollback = deque((process_event(e) for e in query), maxlen=ROLLBACK_WINDOW)
+            rollback = deque(
+                (process_event(event, prev_commit=prev_commits.get(prev_cid))
+                 for event, prev_cid in zip(events, prev_cids)),
+                maxlen=ROLLBACK_WINDOW)
 
         if rollback:
             self.last_seq = rollback[-1][1]['seq']
@@ -346,12 +357,13 @@ class Collector(threading.Thread):
             time.sleep(SUBSCRIBE_REPOS_BATCH_DELAY.total_seconds())
 
 
-def process_event(event):
+def process_event(event, prev_commit=None):
     """Process an event for the ``subscribeRepos`` stream.
 
     Args:
         event (dict or CommitData)
-
+        prev_commit (Block): optional pre-fetched prev commit block. If provided,
+          used instead of reading from storage.
     Returns:
         (dict, dict) tuple: (header, payload) to emit
     """
@@ -383,13 +395,14 @@ def process_event(event):
 
     # previous commit's data CID goes into prevData field
     prev_data = None
-    if prev_commit_cid := commit['prev']:
-        if profile:
-            t0 = time.perf_counter()
-        prev_commit = server.storage.read(prev_commit_cid)
-        if profile:
-            profile.prev_commit_io += time.perf_counter() - t0
-            profile.prev_commit_reads += 1
+    if prev_cid := commit['prev']:
+        if not prev_commit:
+            if profile:
+                t0 = time.perf_counter()
+            prev_commit = server.storage.read(prev_cid)
+            if profile:
+                profile.prev_commit_io += time.perf_counter() - t0
+                profile.prev_commit_reads += 1
         if prev_commit:
             prev_data = prev_commit.decoded.get('data')
 
