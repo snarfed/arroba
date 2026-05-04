@@ -117,6 +117,13 @@ def subscribe(cursor=None):
     rollback_start = rollback[0][1]['seq'] if rollback else 0
     if cursor is not None and cursor < rollback_start:
         log(f'cursor {cursor} is behind rollback start {rollback_start}; loading rest manually')
+
+        profile = profile_token = None
+        if util.PROFILE_FIREHOSE:
+            profile = util.FirehoseProfile(name=f'subscribe pre-rollback {thread}')
+            profile_token = util.firehose_profile.set(profile)
+        pre_rollback_t0 = time.perf_counter() if profile else 0.0
+
         pre_rollback = []  # events prior to rollback window that we load here
         last_seq = None
         for i, event in enumerate(server.storage.read_events_by_seq(start=cursor)):
@@ -152,6 +159,11 @@ def subscribe(cursor=None):
             log(f'Emitting pre-rollback {payload["seq"]} {payload.get("did") or payload.get("repo")} {header.get("t")}', DEBUG)
             pre_rollback.append((header, payload))
             yield (header, payload)
+
+        if profile:
+            profile.total = time.perf_counter() - pre_rollback_t0
+            _log_firehose_profile(profile)
+            util.firehose_profile.reset(profile_token)
 
     # hand off to rollback window and new events
     if cursor is not None:
@@ -219,6 +231,13 @@ class Collector(threading.Thread):
         query = server.storage.read_events_by_seq(
             start=max(self.last_seq - PRELOAD_WINDOW + 1, 0))
 
+        profile = token = None
+        if util.PROFILE_FIREHOSE:
+            profile = util.FirehoseProfile(name='preload')
+            token = util.firehose_profile.set(profile)
+
+        preload_t0 = time.perf_counter() if profile else 0.0
+
         with lock:
             global rollback
             rollback = deque((process_event(e) for e in query), maxlen=ROLLBACK_WINDOW)
@@ -226,6 +245,11 @@ class Collector(threading.Thread):
         if rollback:
             self.last_seq = rollback[-1][1]['seq']
             logger.info(f'  preloaded seqs {rollback[0][1]["seq"]}-{self.last_seq}')
+
+        if profile:
+            profile.total = time.perf_counter() - preload_t0
+            _log_firehose_profile(profile)
+            util.firehose_profile.reset(token)
 
         started.set()
 
@@ -331,11 +355,17 @@ def process_event(event):
     Returns:
         (dict, dict) tuple: (header, payload) to emit
     """
+    profile = util.firehose_profile.get() if util.PROFILE_FIREHOSE else None
+    pe_t0 = time.perf_counter() if profile else 0.0
+
     if isinstance(event, dict):  # non-commit event
         payload = copy.copy(event)
         type = payload.pop('$type')
         type_fragment = type.removeprefix('com.atproto.sync.subscribeRepos')
         assert type_fragment != type, type
+        if profile:
+            profile.events += 1
+            profile.process_event_total += time.perf_counter() - pe_t0
         return ({'op': 1, 't': type_fragment}, payload)
 
     assert isinstance(event, CommitData), \
@@ -354,7 +384,13 @@ def process_event(event):
     # previous commit's data CID goes into prevData field
     prev_data = None
     if prev_commit_cid := commit['prev']:
-        if prev_commit := server.storage.read(prev_commit_cid):
+        if profile:
+            t0 = time.perf_counter()
+        prev_commit = server.storage.read(prev_commit_cid)
+        if profile:
+            profile.prev_commit_io += time.perf_counter() - t0
+            profile.prev_commit_reads += 1
+        if prev_commit:
             prev_data = prev_commit.decoded.get('data')
 
     # records' previous CIDs go into operations' prev fields
@@ -405,7 +441,28 @@ def process_event(event):
     # if event_size > MAX_EVENT_SIZE_BYTES:
     #     raise ValueError(f'Event size {event_size} bytes exceeds max {MAX_EVENT_SIZE_BYTES}')
 
+    if profile:
+        profile.events += 1
+        profile.commits += 1
+        profile.process_event_total += time.perf_counter() - pe_t0
+
     return (header, payload)
+
+
+def _log_firehose_profile(profile):
+    """Logs a summary of a :class:`util.FirehoseProfile`."""
+    p = profile
+    logger.info(
+        f'firehose profile [{p.name}]: total={p.total:.3f}s '
+        f'events={p.events} commits={p.commits} ops={p.ops_processed}\n'
+        f'  read_blocks_by_seq: blocks_yielded={p.blocks_yielded} '
+        f'iter={p.read_blocks_iter:.3f}s to_block={p.read_blocks_to_block:.3f}s\n'
+        f'  make_commit reads: {p.make_commit_reads} io={p.make_commit_io:.3f}s\n'
+        f'  process_event: total={p.process_event_total:.3f}s\n'
+        f'  add_covering_proofs: total={p.covering_proofs_total:.3f}s '
+        f'reads={p.covering_proofs_reads} io={p.covering_proofs_io:.3f}s '
+        f'layers={p.covering_proofs_layers}\n'
+        f'  prev_commit reads: {p.prev_commit_reads} io={p.prev_commit_io:.3f}s')
 
 
 def non_monotonic(cur_seq, last_seq, event, header=None):

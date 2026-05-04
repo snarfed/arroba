@@ -897,14 +897,28 @@ class DatastoreStorage(Storage, NdbMixin):
                     # so in rare cases, it's maybe possible that this query can hang
                     # indefinitely? so we set an explicit timeout. background:
                     # https://github.com/snarfed/bridgy-fed/issues/2327
+                    iter_t0 = time.perf_counter() if util.PROFILE_FIREHOSE else 0.0
                     for atp_block in query.iter(read_consistency=ndb.STRONG,
                                                 timeout=QUERY_TIMEOUT.total_seconds()):
+                        if util.PROFILE_FIREHOSE:
+                            iter_elapsed = time.perf_counter() - iter_t0
                         if atp_block.seq != cur_seq:
                             cur_seq = atp_block.seq
                             cur_seq_cids = []
                         if atp_block.key.id() not in cur_seq_cids:
                             cur_seq_cids.append(atp_block.key.id())
-                            yield atp_block.to_block()
+                            if util.PROFILE_FIREHOSE:
+                                tb0 = time.perf_counter()
+                            block = atp_block.to_block()
+                            if util.PROFILE_FIREHOSE:
+                                to_block_elapsed = time.perf_counter() - tb0
+                                if p := util.firehose_profile.get():
+                                    p.read_blocks_iter += iter_elapsed
+                                    p.read_blocks_to_block += to_block_elapsed
+                                    p.blocks_yielded += 1
+                            yield block
+                        if util.PROFILE_FIREHOSE:
+                            iter_t0 = time.perf_counter()
 
                     # finished cleanly
                     break

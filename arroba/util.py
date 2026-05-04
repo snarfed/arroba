@@ -45,6 +45,7 @@ TOMBSTONED = 'tombstoned'
 
 PROFILE_GETREPO = bool(os.environ.get('PROFILE_GETREPO'))
 DISABLE_GETREPO = bool(os.environ.get('DISABLE_GETREPO'))
+PROFILE_FIREHOSE = bool(os.environ.get('PROFILE_FIREHOSE'))
 
 
 @dataclass
@@ -68,6 +69,45 @@ class RepoProfile:
 
 getrepo_profile: ContextVar[RepoProfile | None] = ContextVar(
     'getrepo_profile', default=None)
+
+
+@dataclass
+class FirehoseProfile:
+    """Timing breakdown for firehose preload and event processing.
+
+    Populated when :data:`PROFILE_FIREHOSE` is set. Read via
+    :data:`firehose_profile`. Values accumulate across all events processed
+    while the profile is installed.
+    """
+    # read_blocks_by_seq inner loop
+    read_blocks_iter: float = 0.0     # total time inside ndb query.iter() advancement
+    read_blocks_to_block: float = 0.0  # total AtpBlock.to_block() time
+    blocks_yielded: int = 0            # blocks yielded by read_blocks_by_seq
+
+    # read_events_by_seq.make_commit (per-op record reads + mst_root read)
+    make_commit_reads: int = 0     # individual storage.read calls
+    make_commit_io: float = 0.0    # time spent in those reads
+
+    # process_event
+    process_event_total: float = 0.0   # wall time across process_event calls
+    events: int = 0                    # total events
+    commits: int = 0                   # commit events
+    prev_commit_reads: int = 0         # storage.read calls for prev commit
+    prev_commit_io: float = 0.0        # time spent in those reads
+
+    # add_covering_proofs
+    covering_proofs_total: float = 0.0  # wall time inside add_covering_proofs
+    covering_proofs_reads: int = 0      # individual storage.read calls (cache misses)
+    covering_proofs_io: float = 0.0     # time spent in those reads
+    covering_proofs_layers: int = 0     # tree layers walked across all ops
+    ops_processed: int = 0              # total ops covered
+
+    # outermost timing (set by callers)
+    total: float = 0.0   # total wall time of the instrumented phase
+    name: str = ''       # eg 'preload', 'subscribe pre-rollback'
+
+firehose_profile: ContextVar[FirehoseProfile | None] = ContextVar(
+    'firehose_profile', default=None)
 
 
 class NoCookieJar(requests.cookies.RequestsCookieJar):

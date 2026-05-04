@@ -9,6 +9,8 @@ from enum import auto, Enum
 import itertools
 import logging
 
+import time
+
 import dag_cbor
 from multiformats import CID, multicodec, multihash
 
@@ -385,13 +387,25 @@ class Storage:
             for op in commit_block.ops:
                 if (op.action in (Action.CREATE, Action.UPDATE)
                         and op.cid not in blocks):
+                    if util.PROFILE_FIREHOSE:
+                        t0 = time.perf_counter()
                     record = self.read(op.cid)
+                    if util.PROFILE_FIREHOSE:
+                        if p := util.firehose_profile.get():
+                            p.make_commit_io += time.perf_counter() - t0
+                            p.make_commit_reads += 1
                     assert record
                     blocks[op.cid] = record
 
             mst_root = commit_block.decoded['data']
             if mst_root not in blocks:
+                if util.PROFILE_FIREHOSE:
+                    t0 = time.perf_counter()
                 blocks[mst_root] = self.read(mst_root)
+                if util.PROFILE_FIREHOSE:
+                    if p := util.firehose_profile.get():
+                        p.make_commit_io += time.perf_counter() - t0
+                        p.make_commit_reads += 1
 
             return CommitData(blocks=blocks, commit=commit_block,
                               prev=commit_block.decoded.get('prev'))
