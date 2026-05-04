@@ -326,12 +326,11 @@ class Storage:
         """
         raise NotImplementedError()
 
-    def read_many(self, cids, require_all=True):
+    def read_many(self, cids):
         """Batch read multiple nodes from storage.
 
         Args:
           cids (sequence of CID)
-          require_all (bool): whether to assert that all cids are found
 
         Returns:
           dict: {:class:`CID`: :class:`Block` or None if not found}
@@ -725,11 +724,9 @@ class MemoryStorage(Storage):
     def read(self, cid):
         return self.blocks.get(cid)
 
-    def read_many(self, cids, require_all=True):
+    def read_many(self, cids):
         cids = list(cids)
         found = {cid: self.blocks.get(cid) for cid in cids}
-        if require_all:
-            assert len(found) == len(cids), (len(found), len(cids))
         return found
 
     def read_many_raw(self, cids):
