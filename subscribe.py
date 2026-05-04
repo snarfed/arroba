@@ -16,16 +16,18 @@ import dag_json
 from lexrpc.client import Client
 from multiformats import CID
 
+import logging
+logging.basicConfig()
 
 if __name__ == '__main__':
     assert len(sys.argv) <= 4
     host = sys.argv[1] if len(sys.argv) >= 2 else 'bsky.network'
     scheme = 'http' if host.split(':')[0] == 'localhost' else 'https'
     client = Client(f'{scheme}://{host}')
-    kwargs = {'cursor': int(sys.argv[2])} if len(sys.argv) >= 3 else {}
-    stop_cursor = int(sys.argv[3]) if len(sys.argv) >= 4 else None
+    start = int(sys.argv[2]) if len(sys.argv) >= 3 else {}
+    stop = int(sys.argv[3]) if len(sys.argv) >= 4 else None
 
-    for header, payload in client.com.atproto.sync.subscribeRepos(**kwargs):
+    for header, payload in client.com.atproto.sync.subscribeRepos(cursor=start):
         output = json.loads(dag_json.encode(payload).decode())
         if blocks := output.get('blocks'):
             output['blocks'] = blocks['/']['bytes'][:32] + '…'
@@ -48,5 +50,5 @@ if __name__ == '__main__':
                       file=sys.stdout, flush=True)
 
         print()
-        if stop_cursor and seq > stop_cursor:
+        if stop and seq >= stop:
             sys.exit(0)
