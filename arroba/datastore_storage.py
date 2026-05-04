@@ -782,6 +782,8 @@ class DatastoreStorage(Storage, NdbMixin):
     @ndb_context
     @ndb.non_transactional()
     def read_many(self, cids):
+        # defensive copy in case cids is a generator
+        cids = list(cids)
         keys = [ndb.Key(AtpBlock, cid.encode('base32')) for cid in cids]
         t0 = time.perf_counter()
         raw = ndb.get_multi(keys)

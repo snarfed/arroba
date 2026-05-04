@@ -991,23 +991,27 @@ class MST:
         proof_t0 = time.perf_counter() if util.PROFILE_FIREHOSE else 0.0
         profile = util.firehose_profile.get() if util.PROFILE_FIREHOSE else None
 
-        def load(cid, name):
-            logger.debug((name, cid))
-            if cid not in blocks:
+        def load(*cids):
+            """Batch-loads any non-None, not-yet-cached CIDs into ``blocks``."""
+            to_read = [cid for cid in cids if cid and cid not in blocks]
+
+            if to_read:
                 if profile:
                     t0 = time.perf_counter()
-                blocks[cid] = self.storage.read(cid)
+                blocks.update(self.storage.read_many(to_read))
                 if profile:
                     profile.covering_proofs_io += time.perf_counter() - t0
-                    profile.covering_proofs_reads += 1
-            return blocks[cid]
+                    profile.covering_proofs_reads += len(to_read)
+
+            ret = [blocks.get(cid) for cid in cids]
+            return ret if len(cids) > 1 else ret[0]
 
         # find paths to each operation's key, collecting adjacent nodes
         for op in commit.commit.ops:
             logger.debug(op)
             if profile:
                 profile.ops_processed += 1
-            cur_block = load(self.get_pointer(), 'head')
+            cur_block = load(self.get_pointer())
 
             while True:  # tree layer
                 if profile:
@@ -1034,17 +1038,12 @@ class MST:
 
                     cur_cid = left_cid = right_cid
 
-                left_block = None
-                if left_cid:
-                    left_block = load(left_cid, 'L')
-
-                right_block = None
-                if right_cid:
-                    right_block = load(right_cid, 'R')
+                left_block, right_block, new_block = load(left_cid, right_cid, cur_cid)
 
                 if not cur_cid:
                     break
-                cur_block = load(cur_cid, 'C')
+
+                cur_block = new_block
                 logger.debug('next layer')
 
             # found key. collect remaining nodes on either side, down to the bottom
@@ -1057,12 +1056,12 @@ class MST:
                     next_cid = Entry(**data.e[-1]).t if data.e else data.l
                     if not next_cid:
                         break
-                    left_block = load(next_cid, 'L')
+                    left_block = load(next_cid)
 
             # left-most nodes of the left side
             if right_block:
                 while l := Data(**right_block.decoded).l:
-                    right_block = load(l, 'R')
+                    right_block = load(l)
 
         if profile:
             profile.covering_proofs_total += time.perf_counter() - proof_t0
