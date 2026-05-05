@@ -50,6 +50,7 @@ started = threading.Event()  # notified once the collecter has fully started
 # (its inner log() closure), so it survives until GC. GC runs on whichever thread
 # trips the alloc threshold — often the collector thread while it's preloading under
 # this lock. The orphan's finally then re-enters the lock on the same thread.
+lock = threading.RLock()
 lost_seqs = set()
 lost_seqs_lock = threading.Lock()
 
