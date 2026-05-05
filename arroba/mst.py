@@ -50,8 +50,6 @@ from hashlib import sha256
 import logging
 from os.path import commonprefix
 import re
-import time
-
 import dag_cbor
 import libipld
 from multiformats import CID
@@ -957,34 +955,20 @@ class MST:
         if blocks is None:
             blocks = {}
 
-        proof_t0 = time.perf_counter() if util.PROFILE_FIREHOSE else 0.0
-        profile = util.firehose_profile.get() if util.PROFILE_FIREHOSE else None
-
         def load(*cids):
             """Batch-loads any non-None, not-yet-cached CIDs into ``blocks``."""
             to_read = [cid for cid in cids if cid and cid not in blocks]
-
             if to_read:
-                if profile:
-                    t0 = time.perf_counter()
                 blocks.update(self.storage.read_many(to_read))
-                if profile:
-                    profile.covering_proofs_io += time.perf_counter() - t0
-                    profile.covering_proofs_reads += len(to_read)
-
             ret = [blocks.get(cid) for cid in cids]
             return ret if len(cids) > 1 else ret[0]
 
         # find paths to each operation's key, collecting adjacent nodes
         for op in commit.commit.ops:
             logger.debug(op)
-            if profile:
-                profile.ops_processed += 1
             cur_block = load(self.get_pointer())
 
             while True:  # tree layer
-                if profile:
-                    profile.covering_proofs_layers += 1
                 data = Data(**cur_block.decoded)
                 cur_cid = left_cid = right_cid = data.l
 
@@ -1031,9 +1015,6 @@ class MST:
             if right_block:
                 while l := Data(**right_block.decoded).l:
                     right_block = load(l)
-
-        if profile:
-            profile.covering_proofs_total += time.perf_counter() - proof_t0
 
         return blocks
 

@@ -97,7 +97,6 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 * `MEMCACHE_SEQUENCE_BATCH`, integer, size of batch of sequence numbers to allocate from `AtpSequence` into memcache. Defaults to 1000.
 * `MEMCACHE_SEQUENCE_BUFFER`, integer, how close we should let memcache get to the current max allocated sequence number in `AtpSequence` before we allocate a new batch. Defaults to 100.
 * `DISABLE_GETREPO`, boolean (true if set to any value), whether to disable the `getRepo` XRPC call entirely for repos older than 12h.
-* `PROFILE_FIREHOSE`, boolean (true if set to any value), whether to record and log detailed timing for firehose serving.
 
 <!-- Only used in app.py:
 * `REPO_DID`, repo user's DID, defaults to contents of `repo_did` file
