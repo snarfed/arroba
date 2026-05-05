@@ -830,7 +830,6 @@ class DatastoreStorage(Storage, NdbMixin):
                 partition_id=entity_pb2.PartitionId(**header_params),
                 path=[entity_pb2.Key.PathElement(kind='AtpBlock', name=name)]))
 
-        t0 = t1 = time.perf_counter()
         while pending:
             futures = [
                 client.stub.lookup.future(
@@ -842,7 +841,6 @@ class DatastoreStorage(Storage, NdbMixin):
                 for keys in itertools.batched(pending, 1000)
             ]
             pending = []
-            t1 = time.perf_counter()
             for future in futures:
                 response = future.result()
                 for entity_result in response.found:
@@ -853,9 +851,6 @@ class DatastoreStorage(Storage, NdbMixin):
                     result[key_to_cid[name]] = (encoded, seq)
                 pending.extend(response.deferred)
 
-        logger.info(f'read_many_raw: {len(cid_list)} keys, '
-                    f'stub.lookup={time.perf_counter() - t0:.3f}s '
-                    f'parse={time.perf_counter() - t1:.3f}s')
         return result
 
     # can't use @ndb_context because this is a generator, not a normal function
