@@ -41,8 +41,15 @@ subscribers = []  # list of SimpleQueues
 collector = None  # Collector; initialized in start
 rollback = None   # deque of (dict header, dict payload); initialized in Collector.run
 started = threading.Event()  # notified once the collecter has fully started
-lock = threading.Lock()  # for subscribers, rollback
 
+# for subscribers, rollback
+#
+# reentrant because of an interaction with GC: tests that iterate
+# firehose.subscribe() on the main thread (via SubscribeReposTest.subscribe with a
+# limit) leave a suspended generator behind. The generator is in a reference cycle
+# (its inner log() closure), so it survives until GC. GC runs on whichever thread
+# trips the alloc threshold — often the collector thread while it's preloading under
+# this lock. The orphan's finally then re-enters the lock on the same thread.
 lost_seqs = set()
 lost_seqs_lock = threading.Lock()
 
