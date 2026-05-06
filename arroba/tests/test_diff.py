@@ -44,11 +44,14 @@ class DiffTest(testutil.TestCase):
             expected_adds[key] = Change(key=key, cid=cid)
 
         # rand_cid returns duplicates, so we have to manually check that we've gotten
-        # enough unique CIDs :(
+        # enough unique CIDs that also aren't already in the repo
         # https://github.com/hashberg-io/dag-cbor/issues/15
+        # https://github.com/snarfed/arroba/issues/12
+        existing_cids = [cid for _, cid in data + to_add]
         new_cids = set()
-        for cid in dag_cbor.random.rand_cid(len(to_edit) * 2):
-            new_cids.add(cid)
+        for cid in dag_cbor.random.rand_cid():
+            if cid not in existing_cids:
+                new_cids.add(cid)
             if len(new_cids) >= len(to_edit):
                 break
 
@@ -63,7 +66,6 @@ class DiffTest(testutil.TestCase):
         diff = Diff.of(after, before)
 
         self.assertEqual(100, len(diff.adds))
-        # TODO: this is flaky, it's occasionally 99 instead of 100 :(
         self.assertEqual(100, len(diff.updates))
         self.assertEqual(100, len(diff.deletes))
 

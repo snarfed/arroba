@@ -41,6 +41,7 @@ def create_record(input):
     server.auth()
 
     repo = server.load_repo(input['repo'])
+    # TODO: check the lexicon's key field first
     input.setdefault('rkey', next_tid())
     return put_record(input)
 
