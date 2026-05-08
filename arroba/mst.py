@@ -134,15 +134,6 @@ class MST:
         pointer = cid_for_entries(entries)
         return MST(storage=storage, entries=entries, pointer=pointer, layer=layer)
 
-#     def from_data(storage, data, opts):
-#         """
-#         Returns:
-#           MST:
-#         """
-#         entries = deserialize_node_data(data)
-#         pointer = cid_for_cbor(data)
-#         return MST(entries=entries, pointer=pointer)
-
     def __eq__(self, other):
         if isinstance(other, MST):
             return self.get_pointer() == other.get_pointer()
@@ -170,8 +161,8 @@ class MST:
         return mst
 
 
-#     Getters (lazy load)
-#     -------------------
+    # Getters (lazy load)
+    # -------------------
 
     def get_entries(self):
         """
@@ -462,8 +453,8 @@ class MST:
         raise KeyError(f'Could not find a record with key: {key}')
 
 
-#     Simple Operations
-#     -------------------
+    # Simple Operations
+    # -------------------
 
     def update_entry(self, index, entry):
         """Updates an entry in place.
@@ -585,8 +576,8 @@ class MST:
             return self
 
 
-#     Subtree & Splits
-#     -------------------
+    # Subtree & Splits
+    # -------------------
 
     def split_around(self, key):
         """Recursively splits a subtree around a given key.
@@ -670,8 +661,8 @@ class MST:
         return parent
 
 
-#     Finding insertion points
-#     -------------------
+    # Finding insertion points
+    # -------------------
 
     def find_gt_or_equal_leaf_index(self, key):
         """Finds the index of the first leaf node greater than or equal to value.
@@ -691,8 +682,8 @@ class MST:
         return len(entries)
 
 
-#     List operations (partial tree traversal)
-#     -------------------
+    # List operations (partial tree traversal)
+    # -------------------
 
     def walk_leaves_from(self, key):
         """Walk tree starting at key.
@@ -760,8 +751,8 @@ class MST:
 
         return vals
 
-#     Full tree traversal
-#     -------------------
+    # Full tree traversal
+    # -------------------
 
     def walk(self):
         """Walk full tree, depth first, and emit nodes.
@@ -778,22 +769,6 @@ class MST:
             else:
                 yield entry
 
-#     Walk full tree & emit nodes, consumer can bail at any point by returning False
-#     def paths():
-#     """
-#     Returns:
-#       sequence of MST and Leaf
-#     """
-#         paths = []
-#         for entry in self.get_entries():
-#             if isinstance(entry, Leaf):
-#                 paths.append([entry])
-#             if isinstance(entry, MST):
-#                 sub_paths = entry.paths()
-#                 paths.extend([entry] + p for p in sub_paths)
-#
-#         return paths
-
     def all_nodes(self):
         """Walks the tree and returns all nodes.
 
@@ -801,22 +776,6 @@ class MST:
           sequence of MST and Leaf:
         """
         return list(self.walk())
-
-#     Walks tree & returns all cids
-#     def all_cids():
-#     """
-#     Returns:
-#       CidSet
-#     """
-#         cids = CidSet()
-#         for entry in self.get_entries():
-#             if isinstance(entry, Leaf):
-#                 cids.add(entry.value)
-#             else:
-#                 subtree_cids = entry.all_cids()
-#                 cids.add_set(subtree_cids)
-#         cids.add(self.get_pointer())
-#         return cids
 
     def leaves(self):
         """Walks tree and returns all leaves.
@@ -835,39 +794,8 @@ class MST:
         return len(self.leaves())
 
 
-#     Reachable tree traversal
-#     -------------------
-
-    # Walk reachable branches of tree & emit nodes, consumer can bail at any
-    # point by returning False
-
-#     def walk_reachable(): AsyncIterable<NodeEntry>:
-#         yield self
-#         for entry in self.get_entries():
-#             if isinstance(entry, MST):
-#                 try:
-#                     for e in entry.walk_reachable():
-#                         yield e
-#                 catch (err):
-#                     if err instanceof MissingBlockError:
-#                         continue
-#                     else:
-#                         raise err
-#             else:
-#                 yield entry
-
-#     def reachable_leaves():
-#     """
-#     Returns:
-#       Leaf[]
-#     """
-#         leaves: Leaf[] = []
-#         for entry in self.walk_reachable():
-#             if isinstance(entry, Leaf):
-#                 leaves.append(entry)
-#         return leaves
-
-#     Sync Protocol
+    # Reachable tree traversal, sync protocol
+    # -------------------
 
     def load_all(self, start=0):
         """Generator. Used in :func:`xrpc_sync.get_repo`.
