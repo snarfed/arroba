@@ -1,4 +1,4 @@
-"""```com.atproto.repo.*`` XRPC methods."""
+"""``com.atproto.repo.*`` XRPC methods."""
 import itertools
 import json
 import logging
