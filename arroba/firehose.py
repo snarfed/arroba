@@ -3,12 +3,16 @@ from collections import deque
 from contextlib import contextmanager
 import copy
 from datetime import datetime, timedelta, timezone
+import gc
 import logging
 from logging import DEBUG, INFO
 import os
 from queue import SimpleQueue
+import resource
+import sys
 import threading
 import time
+import traceback
 
 from carbox import car
 import dag_cbor
@@ -35,6 +39,10 @@ SUBSCRIBE_REPOS_BATCH_DELAY = timedelta(seconds=float(os.getenv('SUBSCRIBE_REPOS
 # at 1qps of emitted seqs, 300 is roughly 5m
 SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW = int(os.getenv('SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW', 300))
 SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY = timedelta(seconds=float(os.getenv('SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY', 120)))
+# if Collector._collect doesn't make progress for this long, log diagnostic
+# state to help diagnose hangs. https://github.com/snarfed/bridgy-fed/issues/2367
+COLLECT_WATCHDOG_TIMEOUT = timedelta(seconds=float(os.getenv('COLLECT_WATCHDOG_TIMEOUT', 300)))
+COLLECT_WATCHDOG_CHECK_INTERVAL = timedelta(seconds=float(os.getenv('COLLECT_WATCHDOG_CHECK_INTERVAL', 60)))
 
 new_events = threading.Condition()
 subscribers = []  # list of SimpleQueues
@@ -210,7 +218,9 @@ class Collector(threading.Thread):
         used in tests.
     """
     last_seq = None
+    last_progress = None  # time.monotonic() of last forward progress in _collect
     limit = None
+    stopped = None  # threading.Event, set when run() exits, used to wake watchdog
 
     def __init__(self, *args, limit=None, **kwargs):
         """Constructor.
@@ -222,6 +232,16 @@ class Collector(threading.Thread):
         self.limit = limit
 
     def run(self):
+        self.stopped = threading.Event()
+        self._watchdog_thread = None
+        try:
+            self._run()
+        finally:
+            self.stopped.set()
+            if self._watchdog_thread:
+                self._watchdog_thread.join()
+
+    def _run(self):
         logger.info(f'preloading rollback window ({PRELOAD_WINDOW})')
         self.last_seq = server.storage.sequences.last(SUBSCRIBE_REPOS_NSID)
         assert self.last_seq is not None
@@ -248,6 +268,14 @@ class Collector(threading.Thread):
             logger.info(f'  preloaded seqs {rollback[0][1]["seq"]}-{self.last_seq}')
 
         started.set()
+
+        # watchdog: if _collect's inner loop ever stops making progress, dump
+        # diagnostic state. https://github.com/snarfed/bridgy-fed/issues/2367
+        self.last_progress = time.monotonic()
+        self._watchdog_thread = threading.Thread(
+            target=_watchdog_loop, args=(self,), daemon=True,
+            name='firehose collector watchdog')
+        self._watchdog_thread.start()
 
         while True:
             last_seq_before = self.last_seq
@@ -282,7 +310,13 @@ class Collector(threading.Thread):
             with new_events:
                 new_events.wait(timeout_s)
 
+            # mark progress before the (potentially blocking) query, so the
+            # watchdog can distinguish "stuck in query" from "stuck in
+            # new_events.wait()"
+            self.last_progress = time.monotonic()
+
             for event in server.storage.read_events_by_seq(start=self.last_seq + 1):
+                self.last_progress = time.monotonic()
                 cur_seq = event['seq'] if isinstance(event, dict) else event.commit.seq
                 if cur_seq <= self.last_seq:
                     non_monotonic(cur_seq, self.last_seq, event)
@@ -429,6 +463,122 @@ def process_event(event, prev_commit=None):
     #     raise ValueError(f'Event size {event_size} bytes exceeds max {MAX_EVENT_SIZE_BYTES}')
 
     return (header, payload)
+
+
+def _watchdog_loop(collector):
+    """Background thread that periodically checks for ``_collect`` hangs.
+
+    Runs until ``collector`` is no longer alive. Calls :func:`_watchdog_check`
+    every :const:`COLLECT_WATCHDOG_CHECK_INTERVAL`. See
+    https://github.com/snarfed/bridgy-fed/issues/2367.
+    """
+    already_warned = False
+    interval = COLLECT_WATCHDOG_CHECK_INTERVAL.total_seconds()
+    # Event.wait returns True if set (collector stopped), False on timeout. We
+    # want to keep looping while the collector is still running.
+    while not collector.stopped.wait(interval):
+        try:
+            if _watchdog_check(collector):
+                already_warned = True
+            elif already_warned:
+                logger.warning(
+                    f'_collect watchdog: progress resumed, last_seq={collector.last_seq}')
+                already_warned = False
+        except BaseException:
+            logger.exception('_collect watchdog itself raised')
+
+
+def _watchdog_check(collector):
+    """One iteration of the watchdog. Logs stuck state if past the threshold.
+
+    Returns:
+      bool: True if we logged a stuck-state report, False otherwise.
+    """
+    last = collector.last_progress
+    if last is None:
+        return False
+    elapsed = time.monotonic() - last
+    if elapsed < COLLECT_WATCHDOG_TIMEOUT.total_seconds():
+        return False
+    _log_stuck_state(collector, elapsed)
+    return True
+
+
+def _log_stuck_state(collector, elapsed_s):
+    """Dump every bit of state we might want to diagnose a ``_collect`` hang.
+
+    This only happens rarely in prod (once per week or so), so we err on the
+    side of dumping too much rather than too little.
+    https://github.com/snarfed/bridgy-fed/issues/2367
+
+    Args:
+      collector (Collector)
+      elapsed_s (float): seconds since ``_collect`` last made progress
+    """
+    lines = [
+        f'WATCHDOG: _collect appears stuck for {elapsed_s:.1f}s',
+        f'  last_seq={collector.last_seq}',
+        f'  collector.is_alive={collector.is_alive()}',
+        f'  collector.ident={collector.ident}',
+    ]
+
+    # firehose globals (try not to block on locks; if we can't get them,
+    # record that fact)
+    got_lock = lock.acquire(blocking=False)
+    try:
+        lines.append(f'  firehose.lock acquired={got_lock}')
+        lines.append(f'  subscribers: {len(subscribers)}')
+        for i, sub in enumerate(subscribers):
+            lines.append(f'    [{i}] qsize={sub.qsize()}')
+        if rollback is not None:
+            extra = ''
+            if rollback:
+                extra = (f' first_seq={rollback[0][1]["seq"]} '
+                         f'last_seq={rollback[-1][1]["seq"]}')
+            lines.append(
+                f'  rollback: len={len(rollback)} maxlen={rollback.maxlen}{extra}')
+        else:
+            lines.append('  rollback: None')
+    finally:
+        if got_lock:
+            lock.release()
+
+    got_lost_lock = lost_seqs_lock.acquire(blocking=False)
+    try:
+        lines.append(f'  lost_seqs_lock acquired={got_lost_lock}')
+        lines.append(f'  lost_seqs: {len(lost_seqs)}')
+        if lost_seqs:
+            sample = sorted(lost_seqs)[:20]
+            lines.append(f'    sample (up to 20): {sample}')
+    finally:
+        if got_lost_lock:
+            lost_seqs_lock.release()
+
+    # threads + stack traces
+    threads = list(threading.enumerate())
+    lines.append(f'  threads: {len(threads)}')
+    frames = sys._current_frames()
+    for thread in threads:
+        frame = frames.get(thread.ident)
+        if frame is None:
+            lines.append(f'  thread {thread.name} ({thread.ident}): <no frame>')
+            continue
+        stack = ''.join(traceback.format_stack(frame))
+        lines.append(f'  thread {thread.name} ({thread.ident}):\n{stack}')
+
+    # gc + memory
+    lines.append(f'  gc.get_count={gc.get_count()}')
+    lines.append(f'  gc.get_stats={gc.get_stats()}')
+    usage = resource.getrusage(resource.RUSAGE_SELF)
+    # ru_maxrss is KB on Linux, bytes on macOS
+    lines.append(f'  rss(ru_maxrss)={usage.ru_maxrss} '
+                 f'utime={usage.ru_utime} stime={usage.ru_stime} '
+                 f'nvcsw={usage.ru_nvcsw} nivcsw={usage.ru_nivcsw}')
+
+    try:
+        raise RuntimeError('foo')
+    except:
+        logger.exception('\n'.join(lines))
 
 
 def non_monotonic(cur_seq, last_seq, event, header=None):

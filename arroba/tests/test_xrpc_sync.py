@@ -1348,6 +1348,81 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         self.assertEqual(({'op': 1, 't': '#identity'}, first.decoded), received[0])
         self.assertEqual(({'op': 1, 't': '#identity'}, second.decoded), received[1])
 
+    def test_log_stuck_state_dumps_diagnostics(self, *_):
+        """:func:`firehose._log_stuck_state` must log enough to diagnose a hang.
+
+        It's called by the watchdog when ``_collect`` hasn't made progress in
+        too long. We only see this once per week or so in prod, so it has to
+        dump as much state as we might possibly want.
+        """
+        collector = firehose.Collector()
+        collector.last_seq = 12345
+
+        # populate some state
+        sub1 = firehose.SimpleQueue()
+        sub1.put_nowait(('h', 'p'))
+        firehose.subscribers.append(sub1)
+        firehose.rollback = firehose.deque([
+            ({'op': 1, 't': '#commit'}, {'seq': 100}),
+            ({'op': 1, 't': '#commit'}, {'seq': 101}),
+        ], maxlen=50000)
+        firehose.mark_seq_lost(99)
+
+        try:
+            with self.assertLogs() as logs:
+                firehose._log_stuck_state(collector, elapsed_s=42.5)
+        finally:
+            firehose.subscribers.remove(sub1)
+            firehose.rollback = None
+
+        output = '\n'.join(logs.output)
+        self.assertIn('WATCHDOG', output)
+        self.assertIn('42', output)
+        self.assertIn('last_seq=12345', output)
+        # subscribers + per-subscriber qsize
+        self.assertIn('subscribers: 1', output)
+        self.assertIn('qsize=1', output)
+        # rollback bounds
+        self.assertIn('rollback:', output)
+        self.assertIn('first_seq=100', output)
+        self.assertIn('last_seq=101', output)
+        # lost seqs
+        self.assertIn('lost_seqs: 1', output)
+        # threading state and stacks
+        self.assertIn('threads:', output)
+        # current test thread's stack should appear
+        self.assertIn('test_log_stuck_state_dumps_diagnostics', output)
+        # gc + memory info
+        self.assertIn('gc', output)
+        self.assertIn('rss', output)
+
+    @patch('arroba.firehose.COLLECT_WATCHDOG_TIMEOUT', timedelta(seconds=0))
+    def test_watchdog_check_fires_when_stuck(self, *_):
+        """If ``last_progress`` is stale, the watchdog should log."""
+        collector = firehose.Collector()
+        collector.last_seq = 7
+        collector.last_progress = time.monotonic() - 600
+
+        with self.assertLogs() as logs:
+            fired = firehose._watchdog_check(collector)
+
+        self.assertTrue(fired)
+        self.assertIn('WATCHDOG', '\n'.join(logs.output))
+
+    @patch('arroba.firehose.COLLECT_WATCHDOG_TIMEOUT', timedelta(seconds=300))
+    def test_watchdog_check_quiet_when_progressing(self, *_):
+        """If ``last_progress`` is fresh, the watchdog should stay quiet."""
+        collector = firehose.Collector()
+        collector.last_seq = 7
+        collector.last_progress = time.monotonic()
+
+        logger = logging.getLogger('arroba.firehose')
+        with patch.object(logger, 'error') as mock_error:
+            fired = firehose._watchdog_check(collector)
+
+        self.assertFalse(fired)
+        mock_error.assert_not_called()
+
     @patch('arroba.firehose.PRELOAD_WINDOW', 1)
     @patch('arroba.firehose.SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY', timedelta(seconds=0))
     def test_mark_seq_lost(self, *_):
