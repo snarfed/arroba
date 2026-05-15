@@ -20,6 +20,10 @@ from . import server
 from . import util
 from .util import at_uri, dag_cbor_cid, new_key, next_tid, USER_AGENT, verify_sig
 
+SUPPORTED_COLLECTIONS = frozenset(
+    coll.strip() for coll in os.environ.get('SUPPORTED_COLLECTIONS', '').split(',')
+    if coll.strip())
+
 logger = logging.getLogger(__name__)
 
 
@@ -126,6 +130,8 @@ def list_records(input, repo=None, collection=None, limit=50, cursor=None,
         raise ValueError(f'reverse not supported yet')
     elif not collection:
         raise ValueError(f'collection is required')
+    elif SUPPORTED_COLLECTIONS and collection not in SUPPORTED_COLLECTIONS:
+        return {'records': []}
 
     repo = server.load_repo(input['repo'])
 
@@ -187,22 +193,15 @@ def describe_repo(input, repo=None):
     except (ConnectionError, OSError, RequestException, TimeoutError) as e:
         raise ValueError(f"Couldn't resolve {repo.did}")
 
+    # optimization since repo.get_contents() is slow
+    collections = (sorted(SUPPORTED_COLLECTIONS) if SUPPORTED_COLLECTIONS
+                   else list(repo.get_contents().keys()))
+
     return {
         'did': repo.did,
         'handle': repo.handle,
         'didDoc': did_doc,
-        'collections': [
-            'app.bsky.actor.profile',
-            'app.bsky.feed.like',
-            'app.bsky.feed.post',
-            'app.bsky.feed.repost',
-            'app.bsky.graph.block',
-            'app.bsky.graph.follow',
-            'app.bsky.graph.listblock',
-            'chat.bsky.actor.declaration',
-            'site.standard.document',
-            'site.standard.publication',
-        ],
+        'collections': sorted(SUPPORTED_COLLECTIONS),
         'handleIsCorrect': True,
     }
 

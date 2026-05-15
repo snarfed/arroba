@@ -96,6 +96,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 * `BLOB_REFETCH_TYPES`, comma-separated list of MIME types (without subtypes, ie the part after `/`) to refetch blobs for. Defaults to `image`.
 * `MEMCACHE_SEQUENCE_BATCH`, integer, size of batch of sequence numbers to allocate from `AtpSequence` into memcache. Defaults to 1000.
 * `MEMCACHE_SEQUENCE_BUFFER`, integer, how close we should let memcache get to the current max allocated sequence number in `AtpSequence` before we allocate a new batch. Defaults to 100.
+* `SUPPORTED_COLLECTIONS`, comma-separated list of AT Protocol collection NSIDs. If set, `com.atproto.repo.listRecords` returns an empty response for collections not in this list, and `com.atproto.repo.describeRepo` includes this list in its response. If unset, no filtering is applied.
 * `DISABLE_GETREPO`, boolean (true if set to any value), whether to disable the `getRepo` XRPC call entirely for repos older than 12h.
 
 <!-- Only used in app.py:
@@ -110,6 +111,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 
 ### 2.1 - unreleased
 
+* Add optional new `SUPPORTED_COLLECTIONS` environment variable, a comma-separated set of NSIDs.
 * Add SSRF protection to all outgoing HTTP requests via [`requests-hardened`](https://github.com/saleor/requests-hardened).
 * `datastore_storage`:
   * `read_blocks_by_seq`: set explicit 30s timeout on datastore query. Evidently, maybe, in rare cases, datastore queries can hang indefinitely if they don't have an explicit timeout ([snarfed/bridgy-fed#2367](https://github.com/snarfed/bridgy-fed/issues/2367)).

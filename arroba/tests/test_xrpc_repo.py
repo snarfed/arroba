@@ -23,6 +23,7 @@ from .. import server
 from ..storage import Action
 from .. import util
 from . import testutil
+from . testutil import requests_response
 from .. import xrpc_repo
 
 CID1 = CID.decode('bafyreiblaotetvwobe7cu2uqvnddr6ew2q3cu75qsoweulzku2egca4dxq')
@@ -54,7 +55,8 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         tid = util.int_to_tid(util._tid_ts_last)
         return f'at://did:web:user.com/app.bsky.feed.post/{tid}'
 
-    @patch.object(util.session, 'get', return_value=testutil.requests_response({'foo': 'bar'}))
+    @patch('arroba.xrpc_repo.SUPPORTED_COLLECTIONS', ['app.bsky.feed.post'])
+    @patch.object(util.session, 'get', return_value=requests_response({'foo': 'bar'}))
     def test_describe_repo(self, _):
         with self.assertRaises(ValueError):
             xrpc_repo.describe_repo({}, repo='unknown')
@@ -66,23 +68,16 @@ class XrpcRepoTest(testutil.XrpcTestCase):
             'didDoc': {
                 'foo': 'bar',
             },
-            'collections': [
-                'app.bsky.actor.profile',
-                'app.bsky.feed.like',
-                'app.bsky.feed.post',
-                'app.bsky.feed.repost',
-                'app.bsky.graph.block',
-                'app.bsky.graph.follow',
-                'app.bsky.graph.listblock',
-                'chat.bsky.actor.declaration',
-                'site.standard.document',
-                'site.standard.publication',
-            ],
+            'collections': ['app.bsky.feed.post'],
             'handleIsCorrect': True,
         }, resp)
 
-    @patch.object(util.session, 'get',
-                  return_value=testutil.requests_response('', status=500))
+    @patch.object(util.session, 'get', return_value=requests_response({'foo': 'bar'}))
+    def test_describe_repo_no_supported_collections(self, _):
+        resp = xrpc_repo.describe_repo({}, repo='did:web:user.com')
+        self.assertEqual([], resp['collections'])
+
+    @patch.object(util.session, 'get', return_value=requests_response('', status=500))
     def test_describe_repo_did_doc_fetch_error(self, _):
         with self.assertRaises(ValueError) as e:
             resp = xrpc_repo.describe_repo({}, repo='did:web:user.com')
@@ -117,6 +112,13 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         self.assertEqual(1, len(resp['records']))
         self.assertEqual('Hello, world!', resp['records'][0]['value']['text'])
 
+    @patch('arroba.xrpc_repo.SUPPORTED_COLLECTIONS', ['x.y'])
+    def test_list_records_unsupported_collection(self):
+        self.test_create_record()
+        resp = xrpc_repo.list_records({}, repo='did:web:user.com',
+                                      collection='app.bsky.feed.post')
+        self.assertEqual({'records': []}, resp)
+
     def test_list_records_encodes_cids_blobs(self):
         repo = server.load_repo('did:web:user.com')
 
@@ -126,20 +128,20 @@ class XrpcRepoTest(testutil.XrpcTestCase):
                   rkey=str(i),
                   record=record)
             for i, (coll, record) in enumerate([
-                ('test.coll', {'cid': CID1}),
-                ('test.coll', {'blob': {'$type': 'blob', 'ref': CID2}}),
-                ('test.other_coll', {'foo': 'bar'}),
+                ('app.bsky.feed.post', {'cid': CID1}),
+                ('app.bsky.feed.post', {'blob': {'$type': 'blob', 'ref': CID2}}),
+                ('app.bsky.feed.like', {'foo': 'bar'}),
             ])])
 
         resp = xrpc_repo.list_records({}, repo='did:web:user.com',
-                                      collection='test.coll')
+                                      collection='app.bsky.feed.post')
         self.assertEqual({
             'records': [{
-                'uri': 'at://did:web:user.com/test.coll/0',
+                'uri': 'at://did:web:user.com/app.bsky.feed.post/0',
                 'cid': 'bafyreiebpz6rwjafxxc3ed4r6ukq54ioctdrgj4r5ejr3eestqecypzeja',
                 'value': {'cid': {'$link': CID1_STR}},
             }, {
-                'uri': 'at://did:web:user.com/test.coll/1',
+                'uri': 'at://did:web:user.com/app.bsky.feed.post/1',
                 'cid': 'bafyreig6osigu5lx7oi7nlwx6oi6jjgnwwpjislog7dd34j2m6mt47wspm',
                 'value': {'blob': {'$type': 'blob', 'ref': {'$link': CID2_STR}}},
             }],
@@ -213,7 +215,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
             'cid': 'sydddddd',
             'value': {'foo': 'bar'},
         }
-        mock_get.return_value = testutil.requests_response(resp)
+        mock_get.return_value = requests_response(resp)
 
         params = {
             'repo': 'did:web:other',
@@ -247,7 +249,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
 
     @patch.object(util.session, 'get')
     def test_get_record_not_found_locally_or_app_view(self, mock_get):
-        mock_get.return_value = testutil.requests_response({'my': 'err'}, status=400)
+        mock_get.return_value = requests_response({'my': 'err'}, status=400)
 
         os.environ.update({
             'APPVIEW_HOST': 'app.vue',
@@ -387,7 +389,8 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         with self.assertRaises(ValueError):
             xrpc_repo.import_repo(SNARFED2_CAR)
 
-    @patch.object(util.session, 'get', return_value=testutil.requests_response(SNARFED2_DID_DOC))
+    @patch.object(util.session, 'get',
+                  return_value=requests_response(SNARFED2_DID_DOC))
     def test_import_repo(self, _):
         self.prepare_auth()
 
@@ -403,7 +406,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
     @patch.object(util.session, 'get')
     def test_import_repo_bad_signature(self, mock_get):
         self.prepare_auth()
-        mock_get.return_value = testutil.requests_response({
+        mock_get.return_value = requests_response({
             'id': 'did:plc:5zspv27pk4iqtrl2ql2nykjh',
             'alsoKnownAs': ['at://snarfed2.bsky.social'],
             'verificationMethod': [{
