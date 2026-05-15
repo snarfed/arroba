@@ -201,7 +201,7 @@ def describe_repo(input, repo=None):
         'did': repo.did,
         'handle': repo.handle,
         'didDoc': did_doc,
-        'collections': sorted(SUPPORTED_COLLECTIONS),
+        'collections': collections,
         'handleIsCorrect': True,
     }
 

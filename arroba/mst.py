@@ -798,7 +798,9 @@ class MST:
     # -------------------
 
     def load_all(self, start=0):
-        """Generator. Used in :func:`xrpc_sync.get_repo`.
+        """Generator that loads and returns all blocks.
+
+        Used in :func:`xrpc_sync.get_repo`.
 
         This is heavyweight, so it includes some unusual optimizations: CIDs
         and MST pointers are handled as raw bytes instead of :class:`CID`
