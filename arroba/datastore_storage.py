@@ -711,10 +711,10 @@ class DatastoreStorage(Storage, NdbMixin):
                     or AtpRepo.query(AtpRepo.handles == did_or_handle).get())
 
         if not atp_repo:
-            logger.info(f"Couldn't find repo for {did_or_handle}")
+            logger.debug(f"Couldn't find repo for {did_or_handle}")
             return None
 
-        logger.info(f'Loading repo {atp_repo.key}')
+        logger.debug(f'Loading repo {atp_repo.key}')
         handle = atp_repo.handles[0] if atp_repo.handles else None
 
         created = atp_repo.created.replace(tzinfo=timezone.utc) if atp_repo.created else None

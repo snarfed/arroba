@@ -191,5 +191,5 @@ class Repo:
 
         commit_block = storage.read(commit_cid)
         tree = mst.MST.load(storage=storage, cid=commit_block.decoded['data'])
-        logger.info(f'loaded repo for {commit_block.decoded["did"]} at commit {commit_cid}')
+        logger.debug(f'loaded repo for {commit_block.decoded["did"]} at commit {commit_cid}')
         return Repo(storage=storage, mst=tree, head=commit_block, **kwargs)
