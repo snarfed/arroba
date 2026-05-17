@@ -48,7 +48,7 @@ HANDLE_RE = re.compile(
 
 def requests_get(*args, **kwargs):
     """Used as get_fn below. Wrapped so that we can mock requests.get in tests."""
-    logger.info(f'requests.get {args} {kwargs}')
+    logger.info(f'requests.get {' '.join(args)} {kwargs}')
     return util.session.get(*args, **kwargs)
 
 
