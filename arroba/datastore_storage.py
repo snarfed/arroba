@@ -328,12 +328,11 @@ class DatastoreSequences(storage.Sequences, NdbMixin):
         Returns:
           integer, next sequence number for this NSID
         """
-        logger.info(f'allocating seq via datastore for {nsid}')
         seq = AtpSequence.get_or_insert(nsid, next=1)
         ret = seq.next
         seq.next += 1
         seq.put()
-        logger.info(f'  allocated seq {ret}')
+        logger.info(f'allocated seq {ret}')
         return ret
 
     @ndb_context
@@ -389,8 +388,6 @@ class MemcacheSequences(storage.Sequences, NdbMixin):
         assert MEMCACHE_SEQUENCE_BATCH > MEMCACHE_SEQUENCE_BUFFER > 1, \
             (MEMCACHE_SEQUENCE_BATCH, MEMCACHE_SEQUENCE_BUFFER)
 
-        logger.info(f'allocating seq via memcache for {nsid}')
-
         key = self._memcache_key(nsid)
         seq = self.memcache.incr(key, 1)
         if seq is None:  # not in memcache
@@ -399,7 +396,7 @@ class MemcacheSequences(storage.Sequences, NdbMixin):
                 self.max_seqs[nsid] = AtpSequence.get_or_insert(nsid, next=1).next - 1
                 # we'll allocate a new batch below
                 if self.memcache.add(key, self.max_seqs[nsid]):
-                    logger.info(f'  initialized memcache sequence counter {key} to {self.max_seqs[nsid]}')
+                    logger.info(f'initialized memcache sequence counter {key} to {self.max_seqs[nsid]}')
             seq = self.memcache.incr(key, 1)
 
         @ndb.transactional(propagation=context.TransactionOptions.INDEPENDENT,
@@ -408,7 +405,7 @@ class MemcacheSequences(storage.Sequences, NdbMixin):
             stored_seq = AtpSequence.get_or_insert(nsid, next=1)
             if stored_seq.next - seq < MEMCACHE_SEQUENCE_BUFFER:
                 stored_seq.next = seq + MEMCACHE_SEQUENCE_BATCH
-                logger.info(f'  allocating {MEMCACHE_SEQUENCE_BATCH} seqs batch for {nsid}, up to {stored_seq.next}')
+                logger.info(f'allocating {MEMCACHE_SEQUENCE_BATCH} seqs batch for {nsid}, up to {stored_seq.next}')
                 stored_seq.put()
             self.max_seqs[nsid] = stored_seq.next
 
@@ -417,7 +414,7 @@ class MemcacheSequences(storage.Sequences, NdbMixin):
                 alloc_batch()
 
         assert seq and seq <= self.max_seqs[nsid], (seq, self.max_seqs[nsid])
-        logger.info(f'  allocated seq {seq}')
+        logger.info(f'allocated seq {seq}')
         return seq
 
     @ndb_context
@@ -702,7 +699,7 @@ class DatastoreStorage(Storage, NdbMixin):
                            rotation_key_pem=rotation_key_pem,
                            status=repo.status)
         atp_repo.put()
-        logger.info(f'Stored repo {atp_repo}')
+        logger.debug(f'Stored repo {atp_repo}')
 
     @ndb_context
     def load_repo(self, did_or_handle):
@@ -768,7 +765,7 @@ class DatastoreStorage(Storage, NdbMixin):
             atp_repo.status = repo.status
             atp_repo.head = repo.head.cid.encode('base32')
             atp_repo.put()
-            logger.info(f'Stored repo {atp_repo}')
+            logger.debug(f'Stored repo {atp_repo}')
 
         store()
 
