@@ -830,12 +830,14 @@ class DatastoreStorage(Storage, NdbMixin):
         while pending:
             futures = [
                 client.stub.lookup.future(
-                    ds_pb2.LookupRequest(keys=keys, **header_params),
+                    # 1000 is the Datastore API limit per request
+                    ds_pb2.LookupRequest(keys=pending[i:i + 1000], **header_params),
                     timeout=30,
                     metadata=metadata,
                 )
-                # 1000 is the Datastore API limit per request
-                for keys in itertools.batched(pending, 1000)
+                # TODO: switch to itertools.batched once Cloud Profiler supports
+                # Python 3.12 and we don't have to maintain 3.11 compatibility
+                for i in range(0, len(pending), 1000)
             ]
             pending = []
             for future in futures:
