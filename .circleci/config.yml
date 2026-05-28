@@ -29,12 +29,10 @@ jobs:
       - run:
           name: Python dependencies
           command: |
-            pip install -U pip
             pip -V
-            # TODO: remove six
-            # https://github.com/googleapis/python-ndb/issues/913
-            pip uninstall -y carbox dag-json lexrpc
-            pip install -U .[datastore,flask,tests] six 'git+https://github.com/snarfed/carbox.git#egg=carbox' 'git+https://github.com/snarfed/dag-json.git#egg=dag-json' 'git+https://github.com/snarfed/lexrpc.git#egg=lexrpc'
+            # make sure we install these at head, below
+            pip uninstall -y carbox dag-json lexrpc pywebutil
+            pip install -U .[datastore,flask,tests] 'git+https://github.com/snarfed/carbox.git#egg=carbox' 'git+https://github.com/snarfed/dag-json.git#egg=dag-json' 'git+https://github.com/snarfed/lexrpc.git#egg=lexrpc' 'git+https://github.com/snarfed/webutil.git#egg=pywebutil'
             pip install coverage coveralls flake8
 
       - run:
