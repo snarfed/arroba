@@ -26,7 +26,7 @@ from google.cloud.datastore_v1.types import entity as entity_pb2
 from lexrpc import ValidationError
 from multiformats import CID, multicodec, multihash
 from pymediainfo import MediaInfo
-from webutil.models import WriteOnceBlobProperty
+from webutil.models import EncryptedProperty, WriteOnceBlobProperty
 
 from .mst import MST
 from .repo import Repo
@@ -90,9 +90,10 @@ class AtpRepo(ndb.Model):
 
     # these are both secp256k1 private keys, PEM-encoded bytes
     # https://atproto.com/specs/cryptography
-    signing_key_pem = ndb.BlobProperty(required=True)
-    # TODO: rename this recovery_key_pem?
-    # https://discord.com/channels/1097580399187738645/1098725036917002302/1153447354003894372
+    # TODO: make signing_key_bytes required
+    encrypted_signing_key = EncryptedProperty()
+    encrypted_rotation_key = EncryptedProperty()
+    signing_key_pem = ndb.BlobProperty()
     rotation_key_pem = ndb.BlobProperty()
     status = ndb.StringProperty(choices=(DEACTIVATED, DELETED, TOMBSTONED))
 
@@ -101,16 +102,21 @@ class AtpRepo(ndb.Model):
 
     @property
     def signing_key(self):
-        """(ec.EllipticCurvePrivateKey)"""
-        return serialization.load_pem_private_key(self.signing_key_pem,
-                                                  password=None)
+        """
+        Returns:
+          ec.EllipticCurvePrivateKey:
+        """
+        return serialization.load_pem_private_key(
+            self.encrypted_signing_key or self.signing_key_pem, password=None)
 
     @property
     def rotation_key(self):
-        """(ec.EllipticCurvePrivateKey` or None)"""
-        if self.rotation_key_pem:
-            return serialization.load_pem_private_key(self.rotation_key_pem,
-                                                      password=None)
+        """
+        Returns:
+          ec.EllipticCurvePrivateKey or None:
+        """
+        if key := self.encrypted_rotation_key or self.rotation_key_pem:
+            return serialization.load_pem_private_key(key, password=None)
 
 
 class AtpBlock(ndb.Model):
@@ -646,8 +652,8 @@ class DatastoreStorage(Storage, NdbMixin):
 
         atp_repo = AtpRepo(id=repo.did, handles=handles,
                            head=repo.head.cid.encode('base32'),
-                           signing_key_pem=signing_key_pem,
-                           rotation_key_pem=rotation_key_pem,
+                           encrypted_signing_key=signing_key_pem,
+                           encrypted_rotation_key=rotation_key_pem,
                            status=repo.status)
         atp_repo.put()
         logger.debug(f'Stored repo {atp_repo}')

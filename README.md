@@ -85,6 +85,14 @@ Configure arroba with these environment variables:
 
 Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_repo), [.server](https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_server), and [.sync](https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_sync) XRPC handlers:
 
+* `ENCRYPTED_PROPERTY_KEY`, base64-encoded AES-256-GCM key for encrypting signing and recovery keys in the datastore. Generate with:
+    ```py
+    import base64
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+    key_bytes = AESGCM.generate_key(bit_length=256)
+    print(base64.b64encode(key_bytes))
+    ```
 * `REPO_TOKEN`, static token to use as both `accessJwt` and `refreshJwt`, defaults to contents of `repo_token` file. Not required to be an actual JWT. If not set, XRPC methods that require auth will return HTTP 501 Not Implemented.
 * `ROLLBACK_WINDOW`, number of events to serve in the [`subscribeRepos` rollback window](https://atproto.com/specs/event-stream#sequence-numbers), as an integer. Defaults to 50k.
 * `PRELOAD_WINDOW`, number of events to preload into the [`subscribeRepos` rollback window](https://atproto.com/specs/event-stream#sequence-numbers) at startup, as an integer. Defaults to 4k.
@@ -117,6 +125,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
   * `read_blocks_by_seq`: set explicit 30s timeout on datastore query. Evidently, maybe, in rare cases, datastore queries can hang indefinitely if they don't have an explicit timeout ([snarfed/bridgy-fed#2367](https://github.com/snarfed/bridgy-fed/issues/2367)).
   * New `read_many_raw` method: bypasses ndb model instantiation and uses the raw Datastore gRPC stub directly for significantly faster bulk block reads in `com.atproto.sync.getRepo`.
   * Change `AtpBlock.decoded` from DAG-JSON to decoded CBOR object.
+  * Encrypt signing and rotation keys in the datastore.
 * `storage`: new `read_many_raw` base method with default fallback implementation.
 * `did`:
   * `write_plc` etc: add new optional `new_rotation_key` kwarg. Accept `EllipticCurvePublicKey` for `signing_key` as well as `EllipticCurvePrivateKey`.

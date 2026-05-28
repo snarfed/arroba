@@ -1,4 +1,5 @@
 """Common test utility code."""
+import base64
 import contextlib
 from datetime import datetime, timezone
 import json
@@ -10,6 +11,7 @@ from unittest.mock import ANY, call
 import warnings
 
 from arroba import did
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 import dag_cbor.random
 import dns.message
 import dns.name
@@ -23,6 +25,7 @@ from google.cloud import ndb
 from multiformats import CID
 from pymemcache.test.utils import MockMemcacheClient
 import requests
+from webutil import models
 
 from .. import datastore_storage
 from ..repo import Repo
@@ -94,7 +97,9 @@ def dns_answer(name, value):
 
 class TestCase(unittest.TestCase):
     maxDiff = None
-    key = None
+    # reuse these because they're expensive to generate
+    key = util.new_key(seed=2349872879569)
+    encrypted_property_key = AESGCM(AESGCM.generate_key(bit_length=256))
 
     def setUp(self):
         suppress_warnings()
@@ -109,9 +114,7 @@ class TestCase(unittest.TestCase):
         random.seed(1234567890)
         dag_cbor.random.set_options(seed=1234567890)
 
-        # reuse this because it's expensive to generate
-        if not TestCase.key:
-            TestCase.key = util.new_key(seed=2349872879569)
+        models.ENCRYPTED_PROPERTY_KEYS = (self.encrypted_property_key,)
 
         self.memcache = MockMemcacheClient(default_noreply=False)
 

@@ -89,22 +89,43 @@ class DatastoreStorageTest(DatastoreTest):
         self.assertEqual('han.dull', self.storage.load_repo('han.dull').handle)
 
         atp_repo = AtpRepo.get_by_id('did:web:user.com')
-        self.assertEqual(rotation_key.private_bytes(
+
+        expected_rotation_key = rotation_key.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
             encryption_algorithm=serialization.NoEncryption(),
-        ), atp_repo.rotation_key_pem)
-        self.assertEqual(self.key.private_bytes(
+        )
+        self.assertEqual(expected_rotation_key, atp_repo.encrypted_rotation_key)
+
+        expected_signing_key = self.key.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption(),
-        ), atp_repo.signing_key_pem)
+            encryption_algorithm=serialization.NoEncryption())
+        self.assertEqual(expected_signing_key, atp_repo.encrypted_signing_key)
 
     def test_create_load_repo_no_handle(self):
         repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key,
                            rotation_key=self.key)
         self.assertEqual([], AtpRepo.get_by_id('did:web:user.com').handles)
         self.assertIsNone(self.storage.load_repo('han.dull'))
+
+    def test_key_legacy_fallbacks(self):
+        key_bytes = self.key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        repo = AtpRepo(id='did:legacy', head='...',
+                       signing_key_pem=key_bytes, rotation_key_pem=key_bytes)
+        repo.put()
+
+        repo = AtpRepo.get_by_id('did:legacy')
+        for key in repo.signing_key, repo.rotation_key:
+            self.assertEqual(key_bytes, key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption(),
+            ))
 
     def test_deactivate_repo(self):
         repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key,
