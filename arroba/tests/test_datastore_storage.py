@@ -27,7 +27,6 @@ from ..datastore_storage import (
     DatastoreSequences,
     DatastoreStorage,
     MemcacheSequences,
-    WriteOnceBlobProperty,
 )
 from ..repo import Repo, Write
 from ..storage import Action, Block, CommitData, MemoryStorage, Storage, SUBSCRIBE_REPOS_NSID
@@ -170,26 +169,6 @@ class DatastoreStorageTest(DatastoreTest):
         self.assertEqual('did:web:user.com', stored.repo.id())
         self.assertEqual(data, stored.decoded)
         self.assertGreater(stored.seq, 0)
-
-    def test_write_once(self):
-        class Foo(ndb.Model):
-            prop = WriteOnceBlobProperty()
-
-        foo = Foo(prop=b'x')
-        with self.assertRaises(ndb.ReadonlyPropertyError):
-            foo.prop = b'y'
-        with self.assertRaises(ndb.ReadonlyPropertyError):
-            foo.prop = None
-
-        foo = Foo()
-        foo.prop = b'x'
-        with self.assertRaises(ndb.ReadonlyPropertyError):
-            foo.prop = b'y'
-
-        foo.put()
-        foo = foo.key.get()
-        with self.assertRaises(ndb.ReadonlyPropertyError):
-            foo.prop = b'y'
 
     def test_read_write_has(self):
         self.assertIsNone(self.storage.read(CIDS[0]))

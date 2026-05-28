@@ -189,7 +189,7 @@ def describe_repo(input, repo=None):
     repo = server.load_repo(input['repo'])
 
     try:
-        did_doc = did.resolve(repo.did)
+        did_doc = did.resolve(repo.did, get_fn=util.session.get)
     except (ConnectionError, OSError, RequestException, TimeoutError) as e:
         raise ValueError(f"Couldn't resolve {repo.did}")
 
@@ -237,7 +237,7 @@ def import_repo(input):
             if server.storage.load_repo(repo_did):
                 raise ValueError(f'repo already exists for DID {repo_did}')
 
-            did_doc = did.resolve(repo_did)
+            did_doc = did.resolve(repo_did, get_fn=util.session.get)
             signing_key = did.get_signing_key(did_doc)
             if not signing_key or not verify_sig(car_block.decoded, signing_key):
                 raise ValueError(f"Couldn't verify signature on head commit {head_cid.encode('base32')}")

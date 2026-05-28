@@ -46,12 +46,6 @@ HANDLE_RE = re.compile(
     r'^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$')
 
 
-def requests_get(*args, **kwargs):
-    """Used as get_fn below. Wrapped so that we can mock requests.get in tests."""
-    logger.info(f'requests.get {" ".join(args)} {kwargs}')
-    return util.session.get(*args, **kwargs)
-
-
 def resolve(did, **kwargs):
     """Resolves a ``did:plc`` or ``did:web``.
 
@@ -77,7 +71,7 @@ def resolve(did, **kwargs):
 
 @cached(TTLCache(maxsize=CACHE_SIZE, ttl=CACHE_TTL.total_seconds()),
         lock=threading.Lock())
-def resolve_plc(did, get_fn=requests_get):
+def resolve_plc(did, get_fn=util.session.get):
     """Resolves a ``did:plc`` by fetching its DID document from a PLC directory.
 
     The PLC directory hostname is specified in the ``PLC_HOST`` environment
@@ -117,7 +111,7 @@ def create_plc(handle, **kwargs):
     return write_plc(handle=handle, **kwargs)
 
 
-def update_plc(did, handle=None, get_fn=requests_get, **kwargs):
+def update_plc(did, handle=None, get_fn=util.session.get, **kwargs):
     """Updates an existing ``did:plc`` in a PLC directory.
 
     Args are documented in :func:`write_plc`.
@@ -146,7 +140,7 @@ def update_plc(did, handle=None, get_fn=requests_get, **kwargs):
 
 def write_plc(did=None, handle=None, signing_key=None, rotation_key=None,
               new_rotation_key=None, pds_url=None, also_known_as=None,
-              prev=None, get_fn=requests_get, post_fn=util.session.post):
+              prev=None, get_fn=util.session.get, post_fn=util.session.post):
     """Writes a PLC operation to a PLC directory.
 
     Generally used to create a new ``did:plc`` or update an existing one.
@@ -288,7 +282,7 @@ def write_plc_operation(op, rotation_key, did=None, post_fn=util.session.post):
 
 
 def rollback_plc(did, rotation_key, num_operations=1,
-                 get_fn=requests_get, post_fn=util.session.post):
+                 get_fn=util.session.get, post_fn=util.session.post):
     """Reverts a DID PLC document to its last version.
 
     Reads a did:plc's audit log from the directory, extracts its *previous*
@@ -457,7 +451,7 @@ def plc_operation_to_did_doc(op):
 
 @cached(TTLCache(maxsize=CACHE_SIZE, ttl=CACHE_TTL.total_seconds()),
         lock=threading.Lock())
-def resolve_web(did, get_fn=requests_get):
+def resolve_web(did, get_fn=util.session.get):
     """Resolves a ``did:web`` by fetching its DID document.
 
     ``did:web`` spec: https://w3c-ccg.github.io/did-method-web/
@@ -489,7 +483,7 @@ def resolve_web(did, get_fn=requests_get):
 
 @cached(TTLCache(maxsize=CACHE_SIZE, ttl=CACHE_TTL.total_seconds()),
         lock=threading.Lock())
-def resolve_handle(handle, get_fn=requests_get):
+def resolve_handle(handle, get_fn=util.session.get):
     """Resolves an ATProto handle to a DID.
 
     Supports the DNS TXT record and HTTPS well-known methods.

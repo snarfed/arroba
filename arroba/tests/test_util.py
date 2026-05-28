@@ -112,25 +112,3 @@ class UtilTest(TestCase):
             'exp': 1641093245,
             'iss': 'did:web:user.com',
         }, decoded)
-
-    @patch.object(util.session, 'send')
-    def test_session_no_cookie_jar(self, mock_send):
-        resp = requests.Response()
-        resp.status_code = 200
-        resp._content = b''
-        mock_send.return_value = resp
-
-        util.session.get('https://example.com/')
-
-        headers = Message()
-        headers['Set-Cookie'] = 'foo=bar'
-        raw = MagicMock()
-        raw._original_response.msg = headers
-        extract_cookies_to_jar(
-            util.session.cookies, mock_send.call_args_list[0][0][0], raw)
-
-        util.session.get('https://example.com/page2')
-
-        second_prepared = mock_send.call_args_list[1][0][0]
-        self.assertNotIn('Cookie', second_prepared.headers)
-

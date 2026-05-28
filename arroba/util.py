@@ -11,9 +11,6 @@ import time
 from urllib.parse import urlparse
 
 from cryptography.exceptions import InvalidSignature
-import requests
-from requests_hardened import Config as RequestsHardenedConfig, HTTPSession
-
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import (
     decode_dss_signature,
@@ -23,6 +20,9 @@ from cryptography.hazmat.primitives import hashes
 import dag_cbor
 import jwt
 from multiformats import CID, multicodec, multihash
+import requests
+from requests_hardened import Config as RequestsHardenedConfig, HTTPSession
+from webutil.util import session
 
 logger = logging.getLogger(__name__)
 
@@ -42,31 +42,6 @@ DELETED = 'deleted'
 TOMBSTONED = 'tombstoned'
 
 DISABLE_GETREPO = bool(os.environ.get('DISABLE_GETREPO'))
-
-
-class NoCookieJar(requests.cookies.RequestsCookieJar):
-    """Cookie jar that discards all cookies, preventing cross-request leakage.
-
-    Duplicated in oauth_dropins.webutil.util.
-    """
-    def set(self, *args, **kwargs):
-        pass
-    def set_cookie(self, *args, **kwargs):
-        pass
-    def update(self, *args, **kwargs):
-        pass
-
-
-# prevent SSRF attacks
-# https://github.com/snarfed/webutil/issues/11
-# duplicated in oauth_dropins.webutil.util
-session = HTTPSession(RequestsHardenedConfig(
-    ip_filter_enable=True,
-    ip_filter_allow_loopback_ips=False,
-    never_redirect=False,
-    default_timeout=None,
-))
-session.cookies = NoCookieJar()
 
 
 class InactiveRepo(ValueError):

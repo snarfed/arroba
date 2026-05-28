@@ -26,6 +26,7 @@ from google.cloud.datastore_v1.types import entity as entity_pb2
 from lexrpc import ValidationError
 from multiformats import CID, multicodec, multihash
 from pymediainfo import MediaInfo
+from webutil.models import WriteOnceBlobProperty
 
 from .mst import MST
 from .repo import Repo
@@ -54,56 +55,6 @@ MEMCACHE_SEQUENCE_BATCH = int(os.environ.get('MEMCACHE_SEQUENCE_BATCH', 1000))
 MEMCACHE_SEQUENCE_BUFFER = int(os.environ.get('MEMCACHE_SEQUENCE_BUFFER', 100))
 # https://github.com/snarfed/bridgy-fed/issues/2367#issuecomment-3969792063
 QUERY_TIMEOUT = timedelta(seconds=30)
-
-
-class WriteOnce:
-    """:class:`ndb.Property` mix-in, prevents changing it once it's set."""
-    def _set_value(self, entity, value):
-        existing = self._get_value(entity)
-        if existing is not None and value != existing:
-            raise ndb.ReadonlyPropertyError(f"{self._name} can't be changed")
-
-        return super()._set_value(entity, value)
-
-
-class JsonProperty(ndb.TextProperty):
-    """Fork of ndb's that subclasses :class:`ndb.TextProperty` instead of :class:`ndb.BlobProperty`.
-
-    This makes values show up as normal, human-readable, serialized JSON in the
-    web console.
-    https://github.com/googleapis/python-ndb/issues/874#issuecomment-1442753255
-
-    Duplicated in oauth-dropins/webutil:
-    https://github.com/snarfed/webutil/blob/main/models.py
-    """
-    def _validate(self, value):
-        if not isinstance(value, dict):
-            raise TypeError('JSON property must be a dict')
-
-    def _to_base_type(self, value):
-        as_str = json.dumps(value, separators=(',', ':'), ensure_ascii=True)
-        return as_str.encode('ascii')
-
-    def _from_base_type(self, value):
-        if not isinstance(value, str):
-            value = value.decode('ascii')
-        return json.loads(value)
-
-
-class ComputedJsonProperty(JsonProperty, ndb.ComputedProperty):
-    """Custom :class:`ndb.ComputedProperty` for JSON values that stores them as
-    strings.
-
-    ...instead of like :class:`ndb.StructuredProperty`, with "entity" type, which
-    bloats them unnecessarily in the datastore.
-    """
-    def __init__(self, *args, **kwargs):
-        kwargs['indexed'] = False
-        super().__init__(*args, **kwargs)
-
-
-class WriteOnceBlobProperty(WriteOnce, ndb.BlobProperty):
-    pass
 
 
 class CommitOp(ndb.Model):
