@@ -364,6 +364,7 @@ Here's how to package, test, and ship a new release.
     python -m unittest arroba.tests.mst_test_suite # more extensive, slower tests (deliberately excluded from autodiscovery)
     ```
 1. Bump the version number in `pyproject.toml` and `docs/conf.py`. `git grep` the old version number to make sure it only appears in the changelog. Change the current changelog entry in `README.md` for this new version from _unreleased_ to the current date.
+1. Bump the version specifiers in `pyproject.toml` for `pywebutil`, `lexrpc`, and any other relevant dependencies to their most recent versions.
 1. Build the docs. If you added any new modules, add them to the appropriate file(s) in `docs/source/`. Then run `./docs/build.sh`. Check that the generated HTML looks fine by opening `docs/_build/html/index.html` and looking around.
 1. ```sh
    setenv ver X.Y

@@ -1,6 +1,7 @@
 git+https://github.com/snarfed/dag-json.git#egg=dag_json
 git+https://github.com/snarfed/carbox.git#egg=carbox
 git+https://github.com/snarfed/lexrpc.git#egg=lexrpc
+git+https://github.com/snarfed/webutil.git#egg=pywebutil
 
 async-timeout==4.0.2
 attrs==26.1.0
