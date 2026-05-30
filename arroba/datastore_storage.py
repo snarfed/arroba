@@ -86,19 +86,19 @@ class AtpRepo(ndb.Model):
     """
     handles = ndb.StringProperty(repeated=True)
     head = ndb.StringProperty(required=True)
-    # TODO: add password hash?
 
     # these are both secp256k1 private keys, PEM-encoded bytes
     # https://atproto.com/specs/cryptography
-    # TODO: make signing_key_bytes required
-    encrypted_signing_key = EncryptedProperty()
+    encrypted_signing_key = EncryptedProperty(required=True)
     encrypted_rotation_key = EncryptedProperty()
-    signing_key_pem = ndb.BlobProperty()
-    rotation_key_pem = ndb.BlobProperty()
     status = ndb.StringProperty(choices=(DEACTIVATED, DELETED, TOMBSTONED))
 
     created = ndb.DateTimeProperty(auto_now_add=True)
     updated = ndb.DateTimeProperty(auto_now=True)
+
+    # OLD. Do not reuse.
+    # signing_key_pem = ndb.BlobProperty()
+    # rotation_key_pem = ndb.BlobProperty()
 
     @property
     def signing_key(self):
@@ -106,8 +106,8 @@ class AtpRepo(ndb.Model):
         Returns:
           ec.EllipticCurvePrivateKey:
         """
-        return serialization.load_pem_private_key(
-            self.encrypted_signing_key or self.signing_key_pem, password=None)
+        return serialization.load_pem_private_key(self.encrypted_signing_key,
+                                                  password=None)
 
     @property
     def rotation_key(self):
@@ -115,8 +115,9 @@ class AtpRepo(ndb.Model):
         Returns:
           ec.EllipticCurvePrivateKey or None:
         """
-        if key := self.encrypted_rotation_key or self.rotation_key_pem:
-            return serialization.load_pem_private_key(key, password=None)
+        if self.encrypted_rotation_key:
+            return serialization.load_pem_private_key(self.encrypted_rotation_key,
+                                                      password=None)
 
 
 class AtpBlock(ndb.Model):

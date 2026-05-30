@@ -109,24 +109,6 @@ class DatastoreStorageTest(DatastoreTest):
         self.assertEqual([], AtpRepo.get_by_id('did:web:user.com').handles)
         self.assertIsNone(self.storage.load_repo('han.dull'))
 
-    def test_key_legacy_fallbacks(self):
-        key_bytes = self.key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption(),
-        )
-        repo = AtpRepo(id='did:legacy', head='...',
-                       signing_key_pem=key_bytes, rotation_key_pem=key_bytes)
-        repo.put()
-
-        repo = AtpRepo.get_by_id('did:legacy')
-        for key in repo.signing_key, repo.rotation_key:
-            self.assertEqual(key_bytes, key.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.NoEncryption(),
-            ))
-
     def test_deactivate_repo(self):
         repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key,
                            rotation_key=self.key)
