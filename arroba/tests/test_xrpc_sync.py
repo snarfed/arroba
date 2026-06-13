@@ -17,7 +17,6 @@ from lexrpc.base import XrpcError
 from lexrpc.server import Redirect
 from multiformats import CID
 import os
-from werkzeug.exceptions import TooManyRequests
 
 from .. import datastore_storage
 from ..datastore_storage import (
@@ -1613,10 +1612,10 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
         atp_repo.created = (NOW - timedelta(hours=13)).replace(tzinfo=None)
         atp_repo.put()
 
-        with self.assertRaises(TooManyRequests) as cm:
+        with self.assertRaises(NotImplementedError) as cm:
             xrpc_sync.get_repo({}, did='did:web:user.com')
 
-        self.assertIn('temporarily disabled', cm.exception.description)
+        self.assertIn('temporarily disabled', str(cm.exception))
 
     @patch('arroba.util.DISABLE_GETREPO', True)
     def test_disable_get_repo_under_12h_old(self):

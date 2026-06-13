@@ -12,7 +12,6 @@ from lexrpc.server import Redirect
 from multiformats import CID
 from multiformats.multibase import MultibaseKeyError, MultibaseValueError
 import requests
-from werkzeug.exceptions import TooManyRequests
 
 from .datastore_storage import AtpBlock, AtpRemoteBlob, AtpRepo, DatastoreStorage
 from . import firehose
@@ -48,7 +47,7 @@ def get_repo(input, did=None, since=None, internal=False):
     if (util.DISABLE_GETREPO and not internal
             # and not request.headers.get('Authorization')
             and repo.created and util.now() - repo.created > timedelta(hours=12)):
-        raise TooManyRequests('temporarily disabled 12 hrs after repo creation')
+        raise NotImplementedError('temporarily disabled 12 hrs after repo creation')
 
     start = util.tid_to_int(since) if since else 0
 
