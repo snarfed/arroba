@@ -38,7 +38,6 @@ dependencies = [
     'pywebutil>=1.0',
     'requests>=2.0',
     'requests-hardened',
-    'simple-websocket',
 ]
 classifiers = [
     'Programming Language :: Python :: 3',
@@ -55,7 +54,7 @@ datastore = [
 ]
 flask = [
     'Flask>=2.0',
-    'flask-sock',
+    'werkzeug',
 ]
 tests = [
     'pymemcache',
