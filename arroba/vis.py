@@ -98,7 +98,7 @@ def render_from_prod():
         subprocess.run(['dot', '-Tsvg'], input=dot.encode(), stdout=f)
 
 
-def render_test_cases:
+def render_test_cases():
     for case in json.load((Path(os.path.dirname(__file__))
                            / 'tests/testdata/commit-proof-fixtures.json'
                            ).open()):
