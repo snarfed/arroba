@@ -8,7 +8,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-from oauth_dropins.webutil.appengine_config import ndb_client
+from webutil.appengine_config import ndb_client
 from multiformats import CID
 
 from .mst import Data, Entry, Leaf, MST

@@ -5,11 +5,15 @@ requires = ['setuptools>=68.0']
 build-backend = 'setuptools.build_meta'
 
 [tool.setuptools.packages.find]
-where = ['.']
+include = ['arroba*']
 
 # https://setuptools.pypa.io/en/latest/userguide/datafiles.html#package-data
 [tool.setuptools.package-data]
 '*' = ['tests/*']
+
+[project.urls]
+Homepage = 'https://github.com/snarfed/arroba'
+Documentation = 'https://arroba.readthedocs.io/'
 
 [project]
 name = 'arroba'
@@ -22,23 +26,6 @@ readme = 'README.md'
 license = 'CC0-1.0'
 requires-python = '>=3.9'
 keywords = ['arroba', 'AT Protocol', 'ATP', 'Bluesky']
-dependencies = [
-    'cachetools>=5.0',
-    'carbox>=0.3',
-    'cryptography>=45.0.0',
-    'dag-cbor',
-    'dag-json>=0.2',
-    'dnspython>=2.0.0',
-    'lexrpc>=0.8',
-    'libipld>=3.0.0',
-    'multiformats>=0.3.1',
-    'pyjwt>=2.0.0',
-    'pymediainfo',
-    'pymemcache',
-    'pywebutil>=1.0',
-    'requests>=2.0',
-    'requests-hardened',
-]
 classifiers = [
     'Programming Language :: Python :: 3',
     'Programming Language :: Python :: 3.9',
@@ -48,18 +35,46 @@ classifiers = [
     'Topic :: Software Development :: Libraries :: Python Modules',
 ]
 
+dependencies = [
+    'cachetools>=5.0',
+    'carbox>=0.3',
+    'cryptography>=45.0.0',
+    'dag-cbor>=0.3',
+    'dag-json>=0.2',
+    'dnspython>=2.0.0',
+    'lexrpc>=0.8',
+    'libipld>=3.0.0',
+    'multiformats>=0.3.1',
+    'pyjwt>=2.0.0',
+    'pymediainfo>=6.0.0',
+    'pywebutil>=1.0',
+    'requests>=2.0',
+    'requests-hardened>=1.0',
+]
+
 [project.optional-dependencies]
 datastore = [
     'google-cloud-ndb>=2.0',
+    'pymemcache>=3.0.0',
 ]
 flask = [
     'Flask>=2.0',
-    'werkzeug',
-]
-tests = [
-    'pymemcache',
+    'werkzeug>=2.3',
 ]
 
-[project.urls]
-'Homepage' = 'https://github.com/snarfed/arroba'
-'Documentation' = 'https://arroba.readthedocs.io/'
+[tool.uv.sources]
+arroba =            { editable = true, path = "../arroba" }
+brevity =           { editable = true, path = "../brevity" }
+flask-gae-static =  { editable = true, path = "../flask-gae-static" }
+lexrpc =            { editable = true, path = "../lexrpc" }
+mf2util =           { editable = true, path = "../mf2util" }
+mox3 =              { editable = true, path = "../mox3" }
+oauth-dropins =     { editable = true, path = "../oauth-dropins" }
+pywebutil =         { editable = true, path = "../webutil" }
+secp256k1 =         { editable = true, path = "../secp256k1-py" }
+
+[tool.uv.pip]
+# this is in ~/.config/uv/uv.toml
+
+[tool.deptry]
+extend_exclude = ['build', 'dist', 'docs', 'mst-test-suite', 'scripts']

@@ -1,19 +1,14 @@
 bgs.json
 did:plc:*
 pds_host
-private_notes
 privkey.pem
-pyrightconfig.json
 relay.json
 repo_did
 repo_handle
 repo_password
-repo_token
-service_account_creds.json
 *.log
 
 # Byte-compiled / optimized / DLL files
-__pycache__/
 *.py[cod]
 *$py.class
 
@@ -54,7 +49,6 @@ pip-delete-this-directory.txt
 htmlcov/
 .tox/
 .nox/
-.coverage
 .coverage.*
 .cache
 nosetests.xml
@@ -135,7 +129,6 @@ celerybeat.pid
 
 # Environments
 .env
-.venv
 env/
 venv/
 ENV/
