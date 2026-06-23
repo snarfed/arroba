@@ -386,7 +386,7 @@ Here's how to package, test, and ship a new release.
    ```
 1. Upload to [test.pypi.org](https://test.pypi.org/) for testing.
     ```sh
-    python -m build
+    uv build
     twine upload -r pypitest dist/arroba-$ver*
     ```
 1. Install from test.pypi.org.
