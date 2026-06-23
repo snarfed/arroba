@@ -61,10 +61,15 @@ flask = [
     'Flask>=2.0',
     'werkzeug>=2.3',
 ]
+docs = [
+    'sphinx>=7.0.0',
+    'sphinx-rtd-theme>=3.0.0',
+]
 
 [tool.uv.sources]
 arroba =            { editable = true, path = "../arroba" }
 brevity =           { editable = true, path = "../brevity" }
+carbox =            { editable = true, path = "../carbox" }
 flask-gae-static =  { editable = true, path = "../flask-gae-static" }
 lexrpc =            { editable = true, path = "../lexrpc" }
 mf2util =           { editable = true, path = "../mf2util" }
@@ -78,3 +83,10 @@ secp256k1 =         { editable = true, path = "../secp256k1-py" }
 
 [tool.deptry]
 extend_exclude = ['build', 'dist', 'docs', 'mst-test-suite', 'scripts']
+
+[tool.deptry.per_rule_ignores]
+# docs-only build tools, not imported in the codebase
+DEP002 = [
+    'sphinx',
+    'sphinx-rtd-theme',
+]
