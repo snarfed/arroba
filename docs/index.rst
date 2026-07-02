@@ -133,42 +133,69 @@ and
 `.sync <https://arroba.readthedocs.io/en/stable/source/arroba.html#module-arroba.xrpc_sync>`__
 XRPC handlers:
 
+- ``ENCRYPTED_PROPERTY_KEY``, base64-encoded AES-256-GCM key for
+  encrypting signing and recovery keys in the datastore. Generate with:
+  \`py import base64 from cryptography.hazmat.primitives.ciphers.aead
+  import AESGCM
+
+  key_bytes = AESGCM.generate_key(bit_length=256)
+  print(base64.b64encode(key_bytes)) \``\`
+
 - ``REPO_TOKEN``, static token to use as both ``accessJwt`` and
   ``refreshJwt``, defaults to contents of ``repo_token`` file. Not
   required to be an actual JWT. If not set, XRPC methods that require
   auth will return HTTP 501 Not Implemented.
+
 - ``ROLLBACK_WINDOW``, number of events to serve in the
   `subscribeRepos`` rollback
   window <https://atproto.com/specs/event-stream#sequence-numbers>`__,
   as an integer. Defaults to 50k.
+
 - ``PRELOAD_WINDOW``, number of events to preload into the
   `subscribeRepos`` rollback
   window <https://atproto.com/specs/event-stream#sequence-numbers>`__ at
   startup, as an integer. Defaults to 4k.
+
 - ``SUBSCRIBE_REPOS_BATCH_DELAY``, minimum time to wait between
   datastore queries in ``com.atproto.sync.subscribeRepos``, in seconds,
   as a float. Defaults to 0 if unset.
+
 - ``SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW``, number of sequence numbers to
   wait before skipping emitting a missing one over the firehose.
   Defaults to 300, ie 5 minutes at 1qps emitted events.
+
 - ``SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY``, seconds to wait before skipping
   emitting a missing sequence number over the firehose. Defaults to 120,
   ie 2 minutes.
+
 - ``BLOB_MAX_BYTES``, maximum allowed size of blobs, in bytes. Defaults
   to 100MB.
+
 - ``BLOB_REFETCH_DAYS``, how often in days to refetch remote URL-based
   blobs datastore to check that they’re still serving. May be integer or
   float. Defaults to 7. These re-fetches happen on demand, during
   ``com.atproto.sync.getBlob`` requests.
+
 - ``BLOB_REFETCH_TYPES``, comma-separated list of MIME types (without
   subtypes, ie the part after ``/``) to refetch blobs for. Defaults to
   ``image``.
+
 - ``MEMCACHE_SEQUENCE_BATCH``, integer, size of batch of sequence
   numbers to allocate from ``AtpSequence`` into memcache. Defaults to
   1000.
+
 - ``MEMCACHE_SEQUENCE_BUFFER``, integer, how close we should let
   memcache get to the current max allocated sequence number in
   ``AtpSequence`` before we allocate a new batch. Defaults to 100.
+
+- ``SUPPORTED_COLLECTIONS``, comma-separated list of AT Protocol
+  collection NSIDs. If set, ``com.atproto.repo.listRecords`` returns an
+  empty response for collections not in this list, and
+  ``com.atproto.repo.describeRepo`` includes this list in its response.
+  If unset, no filtering is applied.
+
+- ``DISABLE_GETREPO``, boolean (true if set to any value), whether to
+  disable the ``getRepo`` XRPC call entirely for repos older than 12h.
 
 .. raw:: html
 
@@ -181,6 +208,49 @@ XRPC handlers:
 
 Changelog
 ---------
+
+3.0 - 2026-07-01
+~~~~~~~~~~~~~~~~
+
+*Breaking changes:*
+
+Encrypt signing and rotation keys in the datastore, in ``AtpRepo``
+entities. The old non-encrypted properties have been removed. `See this
+GitHub issue <https://github.com/snarfed/bridgy-fed/issues/794>`__ for
+migration details.
+
+*Non-breaking changes:*
+
+- Add optional new ``SUPPORTED_COLLECTIONS`` environment variable, a
+  comma-separated set of NSIDs.
+- Add SSRF protection to all outgoing HTTP requests via
+  `requests-hardened <https://github.com/saleor/requests-hardened>`__.
+- ``datastore_storage``:
+
+  - ``read_blocks_by_seq``: set explicit 30s timeout on datastore query.
+    Evidently, maybe, in rare cases, datastore queries can hang
+    indefinitely if they don’t have an explicit timeout
+    (`snarfed/bridgy-fed#2367 <https://github.com/snarfed/bridgy-fed/issues/2367>`__).
+  - New ``read_many_raw`` method: bypasses ndb model instantiation and
+    uses the raw Datastore gRPC stub directly for significantly faster
+    bulk block reads in ``com.atproto.sync.getRepo``.
+  - Change ``AtpBlock.decoded`` from DAG-JSON to decoded CBOR object.
+
+- ``storage``: new ``read_many_raw`` base method with default fallback
+  implementation.
+- ``did``:
+
+  - ``write_plc`` etc: add new optional ``new_rotation_key`` kwarg.
+    Accept ``EllipticCurvePublicKey`` for ``signing_key`` as well as
+    ``EllipticCurvePrivateKey``.
+  - ``resolve_*``: thread safety bug fix for caches.
+
+- ``com.atproto.sync.getRecord``: add the repo’s head commit block, use
+  its CID as the CAR root.
+- ``com.atproto.sync.getRepo``: drastically optimize, it’s 15-20x faster
+  or more for large repos, and uses much less memory.
+
+.. _section-1:
 
 2.0 - 2026-02-07
 ~~~~~~~~~~~~~~~~
@@ -199,13 +269,12 @@ Changelog
 
 *Non-breaking changes:*
 
-Add new feature to allocate sequence numbers from memcache, atomically,
-backed by the datastore in batches. Reduces datastore contention when
-writing commits at 5-10qps and higher. Enable by passing a
-``MemcacheSequences`` to the ``DatastoreStorage`` constructor; configure
-with the ``MEMCACHE_SEQUENCE_BUFFER`` and ``MEMCACHE_SEQUENCE_BATCH``
-environment variables.
-
+- Add new feature to allocate sequence numbers from memcache,
+  atomically, backed by the datastore in batches. Reduces datastore
+  contention when writing commits at 5-10qps and higher. Enable by
+  passing a ``MemcacheSequences`` to the ``DatastoreStorage``
+  constructor; configure with the ``MEMCACHE_SEQUENCE_BUFFER`` and
+  ``MEMCACHE_SEQUENCE_BATCH`` environment variables.
 - Add new ``SUBSCRIBE_REPOS_SKIPPED_SEQ_WINDOW`` and
   ``SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY`` environment variables for
   ``subscribeRepos`` (firehose) serving.
@@ -253,7 +322,7 @@ environment variables.
     continue serving
     (`snarfed/bridgy-fed#2150 <https://github.com/snarfed/bridgy-fed/issues/2150>`__).
 
-.. _section-1:
+.. _section-2:
 
 1.0 - 2025-09-13
 ~~~~~~~~~~~~~~~~
@@ -299,7 +368,7 @@ environment variables.
     additional overhead per subscriber
     (`#52 <https://github.com/snarfed/arroba/issues/52>`__).
 
-.. _section-2:
+.. _section-3:
 
 0.8 - 2025-03-13
 ~~~~~~~~~~~~~~~~
@@ -354,7 +423,7 @@ serve the latest one
 fix: Use string TID for ``rev``, not integer sequence number. \* Bug
 fix: don’t set status to ``null`` if the account is active.
 
-.. _section-3:
+.. _section-4:
 
 0.7 - 2024-11-08
 ~~~~~~~~~~~~~~~~
@@ -416,7 +485,7 @@ fix: don’t set status to ``null`` if the account is active.
     claims, eg
     `lxm <https://github.com/bluesky-social/atproto/discussions/2687>`__.
 
-.. _section-4:
+.. _section-5:
 
 0.6 - 2024-06-24
 ~~~~~~~~~~~~~~~~
@@ -504,7 +573,7 @@ fix: don’t set status to ``null`` if the account is active.
   when appropriate
   (`snarfed/bridgy-fed#1083 <https://github.com/snarfed/bridgy-fed/issues/1083>`__).
 
-.. _section-5:
+.. _section-6:
 
 0.5 - 2024-03-16
 ~~~~~~~~~~~~~~~~
@@ -544,7 +613,7 @@ fix: don’t set status to ``null`` if the account is active.
   - Implement ``getBlob``, right now only based on “remote” blobs stored
     in ``AtpRemoteBlob``\ s in datastore storage.
 
-.. _section-6:
+.. _section-7:
 
 0.4 - 2023-09-19
 ~~~~~~~~~~~~~~~~
@@ -585,7 +654,7 @@ fix: don’t set status to ``null`` if the account is active.
   - Drop bundled ``app.bsky``/``com.atproto`` lexicons, use
     `lexrpc <https://lexrpc.readthedocs.io/>`__\ ’s instead.
 
-.. _section-7:
+.. _section-8:
 
 0.3 - 2023-08-29
 ~~~~~~~~~~~~~~~~
@@ -603,7 +672,7 @@ minimal demo code needed to wrap arroba in a fully functional PDS.
 
 - …and much more.
 
-.. _section-8:
+.. _section-9:
 
 0.2 - 2023-05-18
 ~~~~~~~~~~~~~~~~
@@ -613,7 +682,7 @@ storage. This completes the first pass at all PDS data structures. Next
 release will include initial implementations of the
 ``com.atproto.sync.*`` XRPC methods.
 
-.. _section-9:
+.. _section-10:
 
 0.1 - 2023-04-30
 ~~~~~~~~~~~~~~~~
@@ -631,7 +700,7 @@ Here’s how to package, test, and ship a new release.
     ``sh  git checkout main  git pull``
 
 2.  Run the unit tests.
-    ``sh  source local/bin/activate.csh  python -m unittest discover  python -m unittest arroba.tests.mst_test_suite # more extensive, slower tests (deliberately excluded from autodiscovery)``
+    ``sh  source .venv/bin/activate.csh  python -m unittest discover``
 
 3.  Bump the version number in ``pyproject.toml`` and ``docs/conf.py``.
     ``git grep`` the old version number to make sure it only appears in
@@ -643,16 +712,18 @@ Here’s how to package, test, and ship a new release.
     ``./docs/build.sh``. Check that the generated HTML looks fine by
     opening ``docs/_build/html/index.html`` and looking around.
 
-5.  .. code:: sh
+5.  
+
+    .. code:: sh
 
        setenv ver X.Y
        git commit -am "release v$ver"
 
 6.  Upload to `test.pypi.org <https://test.pypi.org/>`__ for testing.
-    ``sh  python -m build  twine upload -r pypitest dist/arroba-$ver*``
+    ``sh  uv build  twine upload -r pypitest dist/arroba-$ver.tar.gz dist/arroba-$ver-py3-none-any.whl``
 
 7.  Install from test.pypi.org.
-    ``sh  cd /tmp  python -m venv local  source local/bin/activate.csh  # make sure we force pip to use the uploaded version  pip uninstall arroba  pip install --upgrade pip  pip install -i https://test.pypi.org/simple --extra-index-url https://pypi.org/simple arroba==$ver``
+    ``sh  cd /tmp  python -m venv .venv  source .venv/bin/activate.csh  # make sure we force pip to use the uploaded version  pip uninstall arroba  pip install -i https://test.pypi.org/simple --extra-index-url https://pypi.org/simple arroba==$ver``
 
 8.  Smoke test that the code trivially loads and runs. \`sh python
 
@@ -672,7 +743,7 @@ Here’s how to package, test, and ship a new release.
     description text box.
 
 11. Upload to `pypi.org <https://pypi.org/>`__!
-    ``sh  twine upload dist/arroba-$ver*``
+    ``sh  twine upload dist/dist/arroba-$ver.tar.gz dist/arroba-$ver-py3-none-any.whl``
 
 12. `Wait for the docs to build on Read the
     Docs <https://readthedocs.org/projects/arroba/builds/>`__, then

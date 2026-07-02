@@ -17,7 +17,7 @@ Documentation = 'https://arroba.readthedocs.io/'
 
 [project]
 name = 'arroba'
-version = '2.0'
+version = '3.0'
 authors = [
     { name='Ryan Barrett', email='arroba@ryanb.org' },
 ]
@@ -47,7 +47,7 @@ dependencies = [
     'multiformats>=0.3.1',
     'pyjwt>=2.0.0',
     'pymediainfo>=6.0.0',
-    'pywebutil>=1.0',
+    'pywebutil>=2.0',
     'requests>=2.0',
     'requests-hardened>=1.0',
 ]
