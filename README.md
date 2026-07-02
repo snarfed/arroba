@@ -411,7 +411,7 @@ Here's how to package, test, and ship a new release.
 1. [Click here to draft a new release on GitHub.](https://github.com/snarfed/arroba/releases/new) Enter `vX.Y` in the _Tag version_ box. Leave _Release title_ empty. Copy `### Notable changes` and the changelog contents into the description text box.
 1. Upload to [pypi.org](https://pypi.org/)!
     ```sh
-    twine upload dist/dist/arroba-$ver.tar.gz dist/arroba-$ver-py3-none-any.whl
+    twine upload dist/arroba-$ver.tar.gz dist/arroba-$ver-py3-none-any.whl
     ```
 1. [Wait for the docs to build on Read the Docs](https://readthedocs.org/projects/arroba/builds/), then check that they look ok.
 1. On the [Versions page](https://readthedocs.org/projects/arroba/versions/), check that the new version is active, If it's not, activate it in the _Activate a Version_ section.
