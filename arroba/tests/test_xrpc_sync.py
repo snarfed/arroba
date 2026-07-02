@@ -3,6 +3,7 @@ import copy
 from datetime import datetime, timedelta
 from io import BytesIO
 import logging
+import os
 import threading
 from threading import Barrier, Event, Semaphore, Thread
 import time
@@ -16,7 +17,9 @@ from google.cloud.ndb.exceptions import ContextError
 from lexrpc.base import XrpcError
 from lexrpc.server import Redirect
 from multiformats import CID
-import os
+from webutil.appengine_config import ndb_client
+from webutil.testutil import NOW, requests_response
+import webutil.util
 
 from .. import datastore_storage
 from ..datastore_storage import (
@@ -34,7 +37,6 @@ from ..util import dag_cbor_cid, int_to_tid, next_tid, tid_to_int
 from .. import xrpc_sync
 
 from . import testutil
-from .testutil import NOW
 
 
 def load(blocks):
@@ -1504,9 +1506,9 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
         self.assertEqual(301, r.exception.status)
         self.assertEqual('http://blob/b', r.exception.to)
 
-    @patch.object(util.session, 'get', side_effect=[
-        testutil.requests_response(b'', status=404),  # blob/b
-        testutil.requests_response(b'asdf'),     # blob/a
+    @patch.object(webutil.util.session, 'get', side_effect=[
+        requests_response(b'', status=404),  # blob/b
+        requests_response(b'asdf'),          # blob/a
     ])
     def test_get_blob_multiple_first_refetch_404s(self, mock_get):
         cid = 'bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq'
@@ -1531,7 +1533,8 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
             call('http://blob/a', stream=True),
         ], mock_get.call_args_list)
 
-    @patch.object(util.session, 'get', return_value=testutil.requests_response(b'', status=404))
+    @patch.object(webutil.util.session, 'get',
+                  return_value=requests_response(b'', status=404))
     def test_get_blob_multiple_first_refetch_404s_second_inactive(self, mock_get):
         cid = 'bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lmtq'
         now = NOW.replace(tzinfo=None)
@@ -1657,9 +1660,8 @@ class DatastoreMemcacheSequencesSubscribeReposTest(SubscribeReposTest,
         super().setUp()
 
     def _make_storage(self):
-        sequences = MemcacheSequences(memcache=self.memcache,
-                                      ndb_client=self.ndb_client)
-        return DatastoreStorage(sequences=sequences, ndb_client=self.ndb_client)
+        sequences = MemcacheSequences(memcache=self.memcache, ndb_client=ndb_client)
+        return DatastoreStorage(sequences=sequences, ndb_client=ndb_client)
 
     @patch('arroba.firehose.PRELOAD_WINDOW', 0)
     @patch('arroba.firehose.SUBSCRIBE_REPOS_SKIPPED_SEQ_DELAY', timedelta(seconds=.1))

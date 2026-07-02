@@ -7,6 +7,7 @@ from requests.cookies import extract_cookies_to_jar
 import jwt
 from multiformats import CID
 import requests
+from webutil.testutil import NOW
 
 from .. import util
 from ..util import (
@@ -22,7 +23,7 @@ from ..util import (
     tid_to_int,
     verify_sig,
 )
-from .testutil import NOW, TestCase
+from .testutil import TestCase
 
 
 class UtilTest(TestCase):

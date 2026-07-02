@@ -5,6 +5,7 @@ import random
 
 import dag_cbor
 from multiformats import CID
+from webutil.testutil import NOW
 
 from ..datastore_storage import DatastoreStorage
 from ..mst import MST
@@ -20,7 +21,7 @@ from ..storage import (
 )
 from ..util import dag_cbor_cid, next_tid, DEACTIVATED, TOMBSTONED
 
-from .testutil import DatastoreTest, NOW, TestCase
+from .testutil import DatastoreTest, TestCase
 from .test_repo import RepoTest
 
 DECODED = {'foo': 'bar'}

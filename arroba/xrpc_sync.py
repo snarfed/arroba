@@ -12,6 +12,7 @@ from lexrpc.server import Redirect
 from multiformats import CID
 from multiformats.multibase import MultibaseKeyError, MultibaseValueError
 import requests
+import webutil.util
 
 from .datastore_storage import AtpBlock, AtpRemoteBlob, AtpRepo, DatastoreStorage
 from . import firehose
@@ -46,7 +47,7 @@ def get_repo(input, did=None, since=None, internal=False):
     # https://github.com/snarfed/bridgy-fed/issues/2424
     if (util.DISABLE_GETREPO and not internal
             # and not request.headers.get('Authorization')
-            and repo.created and util.now() - repo.created > timedelta(hours=12)):
+            and repo.created and webutil.util.now() - repo.created > timedelta(hours=12)):
         raise NotImplementedError('temporarily disabled 12 hrs after repo creation')
 
     start = util.tid_to_int(since) if since else 0
@@ -235,7 +236,7 @@ def get_blob(input, did=None, cid=None):
             continue
 
         try:
-            blob.maybe_fetch(get_fn=util.session.get)
+            blob.maybe_fetch(get_fn=webutil.util.session.get)
         except requests.RequestException:
             continue
 

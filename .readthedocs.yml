@@ -14,8 +14,8 @@ python:
         path: .
         extra_requirements:
           - datastore
+          - docs
           - flask
-      - requirements: docs/requirements.txt
 
 sphinx:
   configuration: docs/conf.py

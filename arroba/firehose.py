@@ -18,6 +18,7 @@ from carbox import car
 import dag_cbor
 from google.auth.credentials import AnonymousCredentials
 from multiformats import CID
+import webutil.util
 
 from .mst import MST
 from . import server
@@ -350,7 +351,7 @@ class Collector(threading.Thread):
                 last_event = time.time()
                 header, payload = process_event(event)
                 did = payload.get('did') or payload.get('repo')
-                delay_s = int((util.now() - datetime.fromisoformat(payload['time']))\
+                delay_s = int((webutil.util.now() - datetime.fromisoformat(payload['time']))\
                               .total_seconds())
                 logger.info(f'Emitting live to {len(subscribers)} subscribers: {payload["seq"]} {did} {header.get("t")} ({delay_s} s behind)')
 

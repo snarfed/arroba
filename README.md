@@ -373,12 +373,10 @@ Here's how to package, test, and ship a new release.
     ```
 1. Run the unit tests.
     ```sh
-    source local/bin/activate.csh
+    source .venv/bin/activate.csh
     python -m unittest discover
-    python -m unittest arroba.tests.mst_test_suite # more extensive, slower tests (deliberately excluded from autodiscovery)
     ```
 1. Bump the version number in `pyproject.toml` and `docs/conf.py`. `git grep` the old version number to make sure it only appears in the changelog. Change the current changelog entry in `README.md` for this new version from _unreleased_ to the current date.
-1. Bump the version specifiers in `pyproject.toml` for `pywebutil`, `lexrpc`, and any other relevant dependencies to their most recent versions.
 1. Build the docs. If you added any new modules, add them to the appropriate file(s) in `docs/source/`. Then run `./docs/build.sh`. Check that the generated HTML looks fine by opening `docs/_build/html/index.html` and looking around.
 1. ```sh
    setenv ver X.Y
@@ -387,16 +385,15 @@ Here's how to package, test, and ship a new release.
 1. Upload to [test.pypi.org](https://test.pypi.org/) for testing.
     ```sh
     uv build
-    twine upload -r pypitest dist/arroba-$ver*
+    twine upload -r pypitest dist/arroba-$ver.tar.gz dist/arroba-$ver-py3-none-any.whl
     ```
 1. Install from test.pypi.org.
     ```sh
     cd /tmp
-    python -m venv local
-    source local/bin/activate.csh
+    python -m venv .venv
+    source .venv/bin/activate.csh
     # make sure we force pip to use the uploaded version
     pip uninstall arroba
-    pip install --upgrade pip
     pip install -i https://test.pypi.org/simple --extra-index-url https://pypi.org/simple arroba==$ver
     ```
 1. Smoke test that the code trivially loads and runs.
@@ -414,7 +411,7 @@ Here's how to package, test, and ship a new release.
 1. [Click here to draft a new release on GitHub.](https://github.com/snarfed/arroba/releases/new) Enter `vX.Y` in the _Tag version_ box. Leave _Release title_ empty. Copy `### Notable changes` and the changelog contents into the description text box.
 1. Upload to [pypi.org](https://pypi.org/)!
     ```sh
-    twine upload dist/arroba-$ver*
+    twine upload dist/dist/arroba-$ver.tar.gz dist/arroba-$ver-py3-none-any.whl
     ```
 1. [Wait for the docs to build on Read the Docs](https://readthedocs.org/projects/arroba/builds/), then check that they look ok.
 1. On the [Versions page](https://readthedocs.org/projects/arroba/versions/), check that the new version is active, If it's not, activate it in the _Activate a Version_ section.

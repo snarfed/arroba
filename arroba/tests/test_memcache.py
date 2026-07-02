@@ -3,10 +3,11 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from pymemcache.test.utils import MockMemcacheClient
+from webutil.testutil import NOW
 
 from .. import memcache
 from ..memcache import Lease
-from .testutil import NOW, TestCase
+from .testutil import TestCase
 
 
 @patch('time.sleep')

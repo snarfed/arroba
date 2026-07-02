@@ -14,6 +14,9 @@ from lexrpc import ValidationError
 from multiformats import CID
 from pymediainfo import MediaInfo
 import requests
+from webutil.appengine_config import ndb_client
+from webutil.testutil import NOW, requests_response
+import webutil.util
 
 from .. import datastore_storage
 from .. import util
@@ -40,7 +43,7 @@ from ..util import (
 )
 
 from . import test_repo
-from .testutil import DatastoreTest, NOW, requests_response, TestCase
+from .testutil import DatastoreTest, TestCase
 
 CIDS = [
     CID.decode('bafyreie5cvv4h45feadgeuwhbcutmh6t2ceseocckahdoe6uat64zmz454'),
@@ -53,25 +56,25 @@ BLOB_CID = CID.decode('bafkreicqpqncshdd27sgztqgzocd3zhhqnnsv6slvzhs5uz6f57cq6lm
 class DatastoreStorageTest(DatastoreTest):
 
     def test_datastore_sequences_allocate_new(self):
-        sequences = DatastoreSequences(ndb_client=self.ndb_client)
+        sequences = DatastoreSequences(ndb_client=ndb_client)
         self.assertIsNone(AtpSequence.query().get())
         self.assertEqual(1, sequences.allocate('foo'))
         self.assertEqual(2, AtpSequence.get_by_id('foo').next)
 
     def test_datastore_sequences_allocate_existing(self):
-        sequences = DatastoreSequences(ndb_client=self.ndb_client)
+        sequences = DatastoreSequences(ndb_client=ndb_client)
         AtpSequence(id='foo', next=42).put()
         self.assertEqual(42, sequences.allocate('foo'))
         self.assertEqual(43, AtpSequence.get_by_id('foo').next)
 
     def test_datastore_sequences_last_new(self):
-        sequences = DatastoreSequences(ndb_client=self.ndb_client)
+        sequences = DatastoreSequences(ndb_client=ndb_client)
         self.assertIsNone(AtpSequence.query().get())
         self.assertIsNone(sequences.last('foo'))
         self.assertIsNone(AtpSequence.get_by_id('foo'))
 
     def test_datastore_sequences_last_existing(self):
-        sequences = DatastoreSequences(ndb_client=self.ndb_client)
+        sequences = DatastoreSequences(ndb_client=ndb_client)
         AtpSequence(id='foo', next=42).put()
         self.assertEqual(41, sequences.last('foo'))
         self.assertEqual(42, AtpSequence.get_by_id('foo').next)
@@ -348,10 +351,12 @@ class DatastoreStorageTest(DatastoreTest):
         self.assertEqual(head, repo.head)
 
     def test_create_remote_blob(self):
-        mock_get = MagicMock(return_value=requests_response('blob contents', headers={
-            'Content-Type': 'foo/bar',
-            'Content-Length': '123',
-        }))
+        mock_get = MagicMock(return_value=requests_response(
+            'blob contents', content_type='application/octet-stream', headers={
+                'Content-Type': 'foo/bar',
+                'Content-Length': '123',
+            }))
+
         repo = AtpRepo(id='did:abc')
         blob = AtpRemoteBlob.get_or_create(url='http://blob', repo=repo,
                                            get_fn=mock_get, max_size=456)
@@ -385,7 +390,8 @@ class DatastoreStorageTest(DatastoreTest):
         self.assertEqual([first.key, second.key], blob.key.get().repos)
 
     def test_create_remote_blob_infer_mime_type_from_url(self):
-        mock_get = MagicMock(return_value=requests_response('blob contents'))
+        mock_get = MagicMock(return_value=requests_response(
+            'blob contents', content_type=''))
 
         repo = AtpRepo(id='did:abc')
         blob = AtpRemoteBlob.get_or_create(url='http://my/blob.png', repo=repo,
@@ -406,7 +412,8 @@ class DatastoreStorageTest(DatastoreTest):
     def test_create_remote_blob_image_aspect_ratio(self):
         image_bytes = Path(__file__).with_name('keyboard.png').read_bytes()
         cid = CID.decode('bafkreicjoxic5d37v2ae3wfxkjgxtvx5hsp4ejjemaog322z5dvm7kgtvq')
-        mock_get = MagicMock(return_value=requests_response(image_bytes))
+        mock_get = MagicMock(return_value=requests_response(
+            image_bytes, content_type='image/png'))
 
         blob = AtpRemoteBlob.get_or_create(url='http://my/blob.png', get_fn=mock_get)
         mock_get.assert_called_with('http://my/blob.png', stream=True)
@@ -422,7 +429,8 @@ class DatastoreStorageTest(DatastoreTest):
     def test_create_remote_blob_video_aspect_ratio(self):
         video_bytes = Path(__file__).with_name('video.mp4').read_bytes()
         cid = CID.decode('bafkreibgl7xrsfokhkqozokegnrmp2evy55h3tbjwy24ffbmuet3ytohz4')
-        mock_get = MagicMock(return_value=requests_response(video_bytes))
+        mock_get = MagicMock(return_value=requests_response(
+            video_bytes, content_type='video/mp4'))
 
         blob = AtpRemoteBlob.get_or_create(url='http://my/blob.mp4', get_fn=mock_get)
         mock_get.assert_called_with('http://my/blob.mp4', stream=True)
@@ -436,7 +444,8 @@ class DatastoreStorageTest(DatastoreTest):
         self.assertEqual(720, blob.height)
 
     def test_create_remote_blob_default_mime_type(self):
-        mock_get = MagicMock(return_value=requests_response('blob contents'))
+        mock_get = MagicMock(return_value=requests_response(
+            'blob contents', content_type='application/octet-stream'))
 
         blob = AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get)
         mock_get.assert_called_with('http://blob', stream=True)
@@ -472,7 +481,8 @@ class DatastoreStorageTest(DatastoreTest):
         mock_get.assert_not_called()
 
     def test_create_blob_no_content_length_over_lexicon_max_size(self):
-        mock_get = MagicMock(return_value=requests_response('blob contents'))
+        mock_get = MagicMock(return_value=requests_response(
+            'blob contents', content_type='application/octet-stream'))
         with self.assertRaises(ValidationError):
             AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
                                         max_size=10)
@@ -498,10 +508,8 @@ class DatastoreStorageTest(DatastoreTest):
         self.assertIsNone(blob.cid)
 
     def test_create_blob_content_type_in_accept(self):
-        mock_get = MagicMock(return_value=requests_response('blob contents', headers={
-            'Content-Type': 'foo/bar',
-        }))
-
+        mock_get = MagicMock(return_value=requests_response(
+            'blob contents', content_type='foo/bar'))
         repo = AtpRepo(id='did:abc')
         for i in range(2):  # first time fetches, second uses datastore entity
             blob = AtpRemoteBlob.get_or_create(
@@ -517,9 +525,8 @@ class DatastoreStorageTest(DatastoreTest):
         mock_get.assert_called_once()
 
     def test_create_remote_blob_content_type_not_in_accept(self):
-        mock_get = MagicMock(return_value=requests_response('blob contents', headers={
-            'Content-Type': 'foo/bar',
-        }))
+        mock_get = MagicMock(return_value=requests_response(
+            'blob contents', content_type='application/octet-stream'))
 
         repo = AtpRepo(id='did:abc')
         with self.assertRaises(ValidationError):
@@ -529,7 +536,8 @@ class DatastoreStorageTest(DatastoreTest):
         mock_get.assert_called_with('http://blob', stream=True)
 
     def test_create_remote_blob_content_type_missing(self):
-        mock_get = MagicMock(return_value=requests_response('blob contents'))
+        mock_get = MagicMock(return_value=requests_response(
+            'blob contents', content_type=''))
 
         repo = AtpRepo(id='did:abc')
         with self.assertRaises(ValidationError):
@@ -539,7 +547,8 @@ class DatastoreStorageTest(DatastoreTest):
         mock_get.assert_called_with('http://blob', stream=True)
 
     def test_create_remote_blob_content_type_missing_accept_all(self):
-        mock_get = MagicMock(return_value=requests_response('blob contents'))
+        mock_get = MagicMock(return_value=requests_response(
+            'blob contents', content_type=''))
 
         repo = AtpRepo(id='did:abc')
         blob = AtpRemoteBlob.get_or_create(url='http://blob', get_fn=mock_get,
@@ -608,7 +617,8 @@ class DatastoreStorageTest(DatastoreTest):
 
     @patch('arroba.datastore_storage._MAX_KEYPART_BYTES', 20)
     def test_create_remote_blob_truncate_url(self):
-        mock_get = MagicMock(return_value=requests_response('blob contents'))
+        mock_get = MagicMock(return_value=requests_response(
+            'blob contents', content_type='application/octet-stream'))
         repo = AtpRepo(id='did:abc')
         blob = AtpRemoteBlob.get_or_create(url='http://my/long/blob.png',
                                            repo=repo, get_fn=mock_get)
@@ -618,7 +628,9 @@ class DatastoreStorageTest(DatastoreTest):
         got = AtpRemoteBlob.get_or_create(url='http://my/long/blob.png', repo=repo)
         self.assertEqual(blob, got)
 
-    @patch.object(util.session, 'get', return_value=requests_response('blob contents'))
+    @patch.object(webutil.util.session, 'get', return_value=requests_response(
+            'blob contents', content_type='application/octet-stream'))
+
     def test_get_or_create_blob_old_last_fetched_refetches(self, mock_get):
         blob = AtpRemoteBlob(id='http://blob', cid='123', size=10,
                              mime_type='image/foo',
@@ -693,7 +705,8 @@ class DatastoreStorageTest(DatastoreTest):
         with self.assertRaises(requests.HTTPError):
             AtpRemoteBlob.get_or_create(url='http://blob')
 
-    @patch.object(util.session, 'get', return_value=requests_response('', status=404))
+    @patch.object(webutil.util.session, 'get',
+                  return_value=requests_response('', status=404))
     def test_get_or_create_fetch_404_marks_inactive(self, mock_get):
         blob = AtpRemoteBlob(id='http://blob', cid='123', size=10,
                              mime_type='image/foo')
@@ -708,7 +721,8 @@ class DatastoreStorageTest(DatastoreTest):
         self.assertEqual('inactive', blob.status)
         self.assertEqual(NOW, blob.last_fetched)
 
-    @patch.object(util.session, 'get', return_value=requests_response('', status=500))
+    @patch.object(webutil.util.session, 'get',
+                  return_value=requests_response('', status=500))
     def test_get_or_create_fetch_500_doesnt_set_status(self, mock_get):
         blob = AtpRemoteBlob(id='http://blob', cid='123', size=10,
                              mime_type='image/foo')
@@ -723,7 +737,8 @@ class DatastoreStorageTest(DatastoreTest):
         self.assertIsNone(blob.status)
         self.assertEqual(NOW, blob.last_fetched)
 
-    @patch.object(util.session, 'get', side_effect=requests.exceptions.ConnectionError('nope'))
+    @patch.object(webutil.util.session, 'get',
+                  side_effect=requests.exceptions.ConnectionError('nope'))
     def test_get_or_create_fetch_conn_error_doesnt_set_status(self, mock_get):
         blob = AtpRemoteBlob(id='http://blob', cid='123', size=10,
                              mime_type='image/foo')
@@ -752,8 +767,8 @@ class DatastoreStorageTest(DatastoreTest):
 class MemcacheSequencesDatastoreStorageTest(DatastoreStorageTest):
     def _make_storage(self):
         sequences = MemcacheSequences(memcache=self.memcache,
-                                      ndb_client=self.ndb_client)
-        return DatastoreStorage(sequences=sequences, ndb_client=self.ndb_client)
+                                      ndb_client=ndb_client)
+        return DatastoreStorage(sequences=sequences, ndb_client=ndb_client)
 
 
 @patch('arroba.datastore_storage.MEMCACHE_SEQUENCE_BATCH', 10)
@@ -762,7 +777,7 @@ class MemcacheSequencesTest(DatastoreTest):
     def setUp(self):
         super().setUp()
         self.sequences = MemcacheSequences(memcache=self.memcache,
-                                           ndb_client=self.ndb_client)
+                                           ndb_client=ndb_client)
 
     def test_first_time(self):
         self.assertIsNone(self.sequences.last('foo'))
@@ -811,7 +826,7 @@ class MemcacheSequencesTest(DatastoreTest):
         def allocate_seqs(thread_id):
             barrier.wait()
             for _ in range(seqs_per_thread):
-                with self.ndb_client.context():
+                with ndb_client.context():
                     results[thread_id].append(self.sequences.allocate('foo'))
 
         threads = []
@@ -840,7 +855,7 @@ class MemcacheSequencesTest(DatastoreTest):
         def allocate_seqs(thread_id):
             barrier.wait()
             for i in range(seqs_per_thread):
-                with self.ndb_client.context():
+                with ndb_client.context():
                     results[thread_id].append(self.sequences.allocate('foo'))
 
         def flush_memcache():

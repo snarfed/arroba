@@ -7,11 +7,12 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from dns.rdatatype import TXT
 import dns.resolver
 import requests
+from webutil.testutil import requests_response
 
 from .. import did
 from .. import util
 
-from .testutil import dns_answer, requests_response, TestCase
+from .testutil import dns_answer, TestCase
 
 
 class DidTest(TestCase):

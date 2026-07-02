@@ -10,6 +10,7 @@ from flask import abort, make_response
 from lexrpc import Client
 from multiformats import CID
 from requests import HTTPError, RequestException
+import webutil.util
 
 from . import did
 from .mst import MST
@@ -81,7 +82,7 @@ def get_record(input, repo=None, collection=None, rkey=None, cid=None):
     logger.info(f'Falling back to AppView at {av_host}')
     appview = Client(f'https://{av_host}', access_token=jwt,
                      headers={'User-Agent': USER_AGENT},
-                     requests_session=util.session)
+                     requests_session=webutil.util.session)
 
     try:
         return appview.com.atproto.repo.getRecord(
@@ -189,7 +190,7 @@ def describe_repo(input, repo=None):
     repo = server.load_repo(input['repo'])
 
     try:
-        did_doc = did.resolve(repo.did, get_fn=util.session.get)
+        did_doc = did.resolve(repo.did, get_fn=webutil.util.session.get)
     except (ConnectionError, OSError, RequestException, TimeoutError) as e:
         raise ValueError(f"Couldn't resolve {repo.did}")
 
@@ -237,7 +238,7 @@ def import_repo(input):
             if server.storage.load_repo(repo_did):
                 raise ValueError(f'repo already exists for DID {repo_did}')
 
-            did_doc = did.resolve(repo_did, get_fn=util.session.get)
+            did_doc = did.resolve(repo_did, get_fn=webutil.util.session.get)
             signing_key = did.get_signing_key(did_doc)
             if not signing_key or not verify_sig(car_block.decoded, signing_key):
                 raise ValueError(f"Couldn't verify signature on head commit {head_cid.encode('base32')}")

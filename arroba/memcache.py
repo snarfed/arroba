@@ -3,7 +3,7 @@ from datetime import timedelta
 import logging
 import time
 
-from . import util
+import webutil.util
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ class Lease:
             # False if it already existed
             if self.client.add(self.key, 'locked', noreply=False,
                                expire=int(self.expiration.total_seconds())):
-                self.expires_at = util.now() + self.expiration
+                self.expires_at = webutil.util.now() + self.expiration
                 logger.debug(f'acquired memcache lease {self.key}')
                 return
 
@@ -79,7 +79,7 @@ class Lease:
         """Release the lease if we still hold it (hasn't expired)."""
         assert self.expires_at
 
-        if util.now() <= self.expires_at:
+        if webutil.util.now() <= self.expires_at:
             self.client.delete(self.key)
             logger.debug(f'released memcache lease {self.key}')
         else:

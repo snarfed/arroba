@@ -14,6 +14,8 @@ from unittest.mock import patch
 from flask import request
 from multiformats import CID
 import requests
+from webutil.testutil import NOW, requests_response
+import webutil.util
 from werkzeug.exceptions import HTTPException
 
 from .. import did
@@ -23,7 +25,6 @@ from .. import server
 from ..storage import Action
 from .. import util
 from . import testutil
-from . testutil import requests_response
 from .. import xrpc_repo
 
 CID1 = CID.decode('bafyreiblaotetvwobe7cu2uqvnddr6ew2q3cu75qsoweulzku2egca4dxq')
@@ -56,7 +57,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         return f'at://did:web:user.com/app.bsky.feed.post/{tid}'
 
     @patch('arroba.xrpc_repo.SUPPORTED_COLLECTIONS', ['app.bsky.feed.post'])
-    @patch.object(util.session, 'get', return_value=requests_response({'foo': 'bar'}))
+    @patch.object(webutil.util.session, 'get', return_value=requests_response({'foo': 'bar'}))
     def test_describe_repo(self, _):
         with self.assertRaises(ValueError):
             xrpc_repo.describe_repo({}, repo='unknown')
@@ -70,7 +71,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
             'handleIsCorrect': True,
         }, resp)
 
-    @patch.object(util.session, 'get', return_value=requests_response({'foo': 'bar'}))
+    @patch.object(webutil.util.session, 'get', return_value=requests_response({'foo': 'bar'}))
     def test_describe_repo_no_supported_collections(self, _):
         resp = xrpc_repo.describe_repo({}, repo='did:web:user.com')
         self.assertEqual([], resp['collections'])
@@ -82,7 +83,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         resp = xrpc_repo.describe_repo({}, repo='did:web:user.com')
         self.assertEqual(['a.b', 'c.d', 'e.f'], resp['collections'])
 
-    @patch.object(util.session, 'get', return_value=requests_response('', status=500))
+    @patch.object(webutil.util.session, 'get', return_value=requests_response('', status=500))
     def test_describe_repo_did_doc_fetch_error(self, _):
         with self.assertRaises(ValueError) as e:
             resp = xrpc_repo.describe_repo({}, repo='did:web:user.com')
@@ -98,7 +99,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
             'record': {
                 '$type': 'app.bsky.feed.post',
                 'text': 'Hello, world!',
-                'createdAt': testutil.NOW.isoformat(),
+                'createdAt': NOW.isoformat(),
             },
         })
         self.assertEqual({
@@ -166,7 +167,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
             'value': {
                 '$type': 'app.bsky.feed.post',
                 'text': 'Hello, world!',
-                'createdAt': testutil.NOW.isoformat(),
+                'createdAt': NOW.isoformat(),
             },
         }, resp)
 
@@ -213,7 +214,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
                 rkey='99999',
             )
 
-    @patch.object(util.session, 'get')
+    @patch.object(webutil.util.session, 'get')
     def test_get_record_not_found_fall_back_to_app_view(self, mock_get):
         resp = {
             'uri': 'at://did:web:other/app.bsky.feed.post/99999',
@@ -243,7 +244,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
 
     # TODO: what does getRecord return not found? uri and value in output are
     # required, and it doesn't declare any errors
-    # @patch.object(util.session, 'get')
+    # @patch.object(webutil.util.session, 'get')
     # def test_get_record_not_found_locally_or_app_view(self):
     #     with self.assertRaises(ValueError):
     #         xrpc_repo.get_record({},
@@ -252,7 +253,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
     #             rkey='99999',
     #         )
 
-    @patch.object(util.session, 'get')
+    @patch.object(webutil.util.session, 'get')
     def test_get_record_not_found_locally_or_app_view(self, mock_get):
         mock_get.return_value = requests_response({'my': 'err'}, status=400)
 
@@ -313,7 +314,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
             'record': {
                 '$type': 'app.bsky.feed.post',
                 'text': 'Hello, world!',
-                'createdAt': testutil.NOW.isoformat(),
+                'createdAt': NOW.isoformat(),
             },
         }
 
@@ -394,7 +395,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         with self.assertRaises(ValueError):
             xrpc_repo.import_repo(SNARFED2_CAR)
 
-    @patch.object(util.session, 'get',
+    @patch.object(webutil.util.session, 'get',
                   return_value=requests_response(SNARFED2_DID_DOC))
     def test_import_repo(self, _):
         self.prepare_auth()
@@ -408,7 +409,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         self.assertEqual('did:plc:5zspv27pk4iqtrl2ql2nykjh', repo.did)
         self.assertEqual('snarfed2.bsky.social', repo.handle)
 
-    @patch.object(util.session, 'get')
+    @patch.object(webutil.util.session, 'get')
     def test_import_repo_bad_signature(self, mock_get):
         self.prepare_auth()
         mock_get.return_value = requests_response({
@@ -435,7 +436,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
     #             'rkey': TID.nextStr(),
     #             'record': {
     #                 'subject': 'did:web:user.com',
-    #                 'createdAt': testutil.NOW.isoformat(),
+    #                 'createdAt': NOW.isoformat(),
     #             },
     #         })
 
@@ -467,7 +468,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
     #         'collection': 'app.bsky.feed.post',
     #         'record': {
     #             'text': 'blah',
-    #             'createdAt': testutil.NOW.isoformat(),
+    #             'createdAt': NOW.isoformat(),
     #         },
     #     })
     #     got = xrpc_repo.get_record(
@@ -509,7 +510,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
     #     recordCount = 0 # Ensures unique cids
     #     post_record = lambda: {
     #         'text': f'post ({++recordCount})',
-    #         'createdAt': testutil.NOW.isoformat(),
+    #         'createdAt': NOW.isoformat(),
     #     }
     #     profile_record = lambda: {
     #         'displayName': f'ali ({++recordCount})',
@@ -786,7 +787,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
     #             'collection': 'app.bsky.feed.post',
     #             'record': {
     #                 'text': 'x',
-    #                 'createdAt': testutil.NOW.isoformat(),
+    #                 'createdAt': NOW.isoformat(),
     #                 'deepObject': createDeepObject(4000),
     #             },
     #         }),
@@ -798,7 +799,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
     #     }, result.body)
 
     # def test_prevents_duplicate_likes(self):
-    #     now = testutil.NOW.isoformat()
+    #     now = NOW.isoformat()
     #     uriA = AtUri.make(bob.did, 'app.bsky.feed.post', TID.nextStr())
     #     cidA = cidForCbor({ 'post': 'a' })
     #     uriB = AtUri.make(bob.did, 'app.bsky.feed.post', TID.nextStr())
@@ -836,7 +837,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
     #     )
 
     # def test_prevents_duplicate_reposts(self):
-    #     now = testutil.NOW.isoformat()
+    #     now = NOW.isoformat()
     #     uriA = AtUri.make(bob.did, 'app.bsky.feed.post', TID.nextStr())
     #     cidA = cidForCbor({ 'post': 'a' })
     #     uriB = AtUri.make(bob.did, 'app.bsky.feed.post', TID.nextStr())

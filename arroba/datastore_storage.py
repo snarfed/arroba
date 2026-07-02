@@ -27,6 +27,7 @@ from lexrpc import ValidationError
 from multiformats import CID, multicodec, multihash
 from pymediainfo import MediaInfo
 from webutil.models import EncryptedProperty, WriteOnceBlobProperty
+import webutil.util
 
 from .mst import MST
 from .repo import Repo
@@ -433,7 +434,7 @@ class AtpRemoteBlob(ndb.Model):
 
 
     @classmethod
-    def get_or_create(cls, *, url=None, repo=None, get_fn=util.session.get,
+    def get_or_create(cls, *, url=None, repo=None, get_fn=webutil.util.session.get,
                       max_size=None, accept_types=None, name=''):
         """Returns a new or existing :class:`AtpRemoteBlob` for a given URL.
 
@@ -497,13 +498,14 @@ class AtpRemoteBlob(ndb.Model):
             and self.mime_type.split('/')[0] not in BLOB_REFETCH_TYPES):
             # already fetched, and we don't refetch this type
             return
-        elif self.last_fetched and self.last_fetched >= util.now() - BLOB_REFETCH_AGE:
+        elif (self.last_fetched
+              and self.last_fetched >= webutil.util.now() - BLOB_REFETCH_AGE):
             # we've (re)fetched this recently
             return
 
         url = self.url or self.key.id()
         logger.info(f'(Re)fetching blob URL {url}')
-        self.last_fetched = util.now()
+        self.last_fetched = webutil.util.now()
 
         try:
             resp = get_fn(url, stream=True)

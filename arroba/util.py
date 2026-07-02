@@ -22,7 +22,7 @@ import jwt
 from multiformats import CID, multicodec, multihash
 import requests
 from requests_hardened import Config as RequestsHardenedConfig, HTTPSession
-from webutil.util import session
+import webutil.util
 
 logger = logging.getLogger(__name__)
 
@@ -54,11 +54,6 @@ class InactiveRepo(ValueError):
         assert status
         self.status = status
         super().__init__(f'Repo {did} is {status}', *args, **kwargs)
-
-
-def now(tz=timezone.utc, **kwargs):
-    """Wrapper for :meth:`datetime.datetime.now` that lets us mock it out in tests."""
-    return datetime.now(tz=tz, **kwargs)
 
 
 def time_ns():
@@ -383,7 +378,7 @@ def service_jwt(host, repo_did, privkey, expiration=timedelta(minutes=10),
         'iss': repo_did,
         'aud': aud or f'did:web:{host}',
         'alg': 'ES256K',  # k256
-        'exp': int((now() + expiration).timestamp()),
+        'exp': int((webutil.util.now() + expiration).timestamp()),
         **claims,
     }
     logger.info(f'Generating ATProto inter-service JWT: {data}')

@@ -12,6 +12,7 @@ import logging
 
 import dag_cbor
 from multiformats import CID, multicodec, multihash
+import webutil.util
 
 from . import mst as mst_mod
 from .repo import Write
@@ -108,7 +109,7 @@ class Block:
         self._decoded = decoded
         self.seq = seq
         self.ops = ops
-        self.time = time or util.now()
+        self.time = time or webutil.util.now()
         self.repo = repo
 
     def __str__(self):
@@ -473,7 +474,7 @@ class Storage:
             '$type': f'com.atproto.sync.subscribeRepos#{type}',
             'seq': seq,
             'did': repo.did,
-            'time': util.now().isoformat(),
+            'time': webutil.util.now().isoformat(),
             **kwargs,
         }, seq=seq)
 

@@ -1,17 +1,11 @@
 """Common test utility code."""
-import base64
 import contextlib
-from datetime import datetime, timezone
-import json
+from datetime import datetime
 import logging
 import random
 import os
-import unittest
-from unittest.mock import ANY, call
-import warnings
 
 from arroba import did
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 import dag_cbor.random
 import dns.message
 import dns.name
@@ -25,7 +19,8 @@ from google.cloud import ndb
 from multiformats import CID
 from pymemcache.test.utils import MockMemcacheClient
 import requests
-from webutil import models
+from webutil.appengine_config import ndb_client
+from webutil import testutil
 
 from .. import datastore_storage
 from ..repo import Repo
@@ -34,46 +29,10 @@ from ..storage import MemoryStorage
 from .. import util
 from ..util import datetime_to_tid, next_tid, new_key
 
-NOW = datetime(2022, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
-
 # render just base32 suffix of CIDs for readability in test output
 CID.__str__ = CID.__repr__ = lambda cid: '…' + cid.encode('base32')[-7:]
 
-# don't truncate assertion error diffs
-import unittest.util
-unittest.util._MAX_LENGTH = 999999
-
 os.environ.setdefault('DATASTORE_EMULATOR_HOST', 'localhost:8089')
-
-
-def requests_response(body, status=200, headers=None):
-    """
-    Args:
-      body: dict or list, JSON response
-
-    Returns:
-      :class:`requests.Response`
-    """
-    resp = requests.Response()
-
-    if isinstance(body, (dict, list)):
-        resp.headers['content-type'] = 'application/json'
-        resp._text = json.dumps(body, indent=2)
-        resp._content = resp._text.encode()
-    elif isinstance(body, str):
-        resp._text = body
-        resp._content = resp._text.encode()
-    elif isinstance(body, bytes):
-        resp._content = body
-    else:
-        assert False, f'unknown type for body: {type(body)}'
-
-    if headers:
-        resp.headers.update(headers)
-
-    resp.encoding = 'utf-8'
-    resp.status_code = status
-    return resp
 
 
 def dns_answer(name, value):
@@ -95,26 +54,20 @@ def dns_answer(name, value):
     return answer
 
 
-class TestCase(unittest.TestCase):
-    maxDiff = None
+class TestCase(testutil.TestCase):
     # reuse these because they're expensive to generate
     key = util.new_key(seed=2349872879569)
-    encrypted_property_key = AESGCM(AESGCM.generate_key(bit_length=256))
 
     def setUp(self):
-        suppress_warnings()
         super().setUp()
 
-        util.now = lambda tz=timezone.utc: NOW.replace(tzinfo=tz)
-        util.time_ns = lambda: int(NOW.timestamp() * 1000 * 1000 * 1000)
+        util.time_ns = lambda: int(testutil.NOW.timestamp() * 1000 * 1000 * 1000)
         util._tid_ts_last = 0
 
         # make random test data deterministic
         util._clockid = 17
         random.seed(1234567890)
         dag_cbor.random.set_options(seed=1234567890)
-
-        models.ENCRYPTED_PROPERTY_KEYS = (self.encrypted_property_key,)
 
         self.memcache = MockMemcacheClient(default_noreply=False)
 
@@ -178,13 +131,11 @@ class TestCase(unittest.TestCase):
 
 
 class DatastoreTest(TestCase):
-    ndb_client = ndb.Client(project='app', credentials=AnonymousCredentials())
-
     def setUp(self):
         super().setUp()
 
         # clear datastore
-        requests.post(f'http://{self.ndb_client.host}/reset')
+        requests.post(f'http://{ndb_client.host}/reset')
 
         # DatastoreStorageTest.test_read_blocks_by_seq_ndb_context_closes_while_running
         # was somehow leaving an ndb context open, and I couldn't figure out why
@@ -193,11 +144,11 @@ class DatastoreTest(TestCase):
 
         # disable in-memory cache
         # https://github.com/googleapis/python-ndb/issues/888
-        self.ndb_context = self.ndb_client.context(cache_policy=lambda key: False)
+        self.ndb_context = ndb_client.context(cache_policy=lambda key: False)
         self.ndb_context.__enter__()
 
     def _make_storage(self):
-        return datastore_storage.DatastoreStorage(ndb_client=self.ndb_client)
+        return datastore_storage.DatastoreStorage(ndb_client=ndb_client)
 
     def tearDown(self):
         self.ndb_context.__exit__(None, None, None)
@@ -227,15 +178,3 @@ class XrpcTestCase(TestCase):
     def tearDown(self):
         self.request_context.pop()
         super().tearDown()
-
-
-def suppress_warnings():
-    # local/lib/python3.12/site-packages/google/cloud/ndb/model.py:3900: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
-    warnings.filterwarnings('ignore', category=DeprecationWarning,
-                            message=r'datetime\.datetime\.utcnow\(\) is deprecated')
-    # local/lib/python3.12/site-packages/google/cloud/ndb/tasklets.py:319: DeprecationWarning: the (type, exc, tb) signature of throw() is deprecated, use the single-arg signature instead.
-    warnings.filterwarnings('ignore', category=DeprecationWarning,
-                            message=r'the \(type, exc, tb\) signature of throw\(\) is deprecated')
-
-    # https://stackoverflow.com/a/78803598/186123
-    os.environ['GRPC_VERBOSITY'] = 'ERROR'

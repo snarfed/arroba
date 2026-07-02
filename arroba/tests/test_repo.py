@@ -11,6 +11,8 @@ from unittest.mock import ANY, call, patch
 
 from carbox import car
 import dag_cbor
+from webutil.appengine_config import ndb_client
+from webutil.testutil import NOW
 
 from .. import firehose
 from ..datastore_storage import DatastoreStorage, MemcacheSequences
@@ -21,7 +23,6 @@ from .. import util
 from ..util import dag_cbor_cid, next_tid, verify_sig
 
 from . import testutil
-from .testutil import NOW
 
 
 class RepoTest(testutil.TestCase):
@@ -161,6 +162,5 @@ class DatastoreRepoTest(RepoTest, testutil.DatastoreTest):
 class DatastoreMemcacheSequenceAllocationRepoTest(RepoTest, testutil.DatastoreTest):
     """Run all of RepoTest with DatastoreStorage and memcache sequence allocation."""
     def _make_storage(self):
-        sequences = MemcacheSequences(memcache=self.memcache,
-                                      ndb_client=self.ndb_client)
-        return DatastoreStorage(sequences=sequences, ndb_client=self.ndb_client)
+        sequences = MemcacheSequences(memcache=self.memcache, ndb_client=ndb_client)
+        return DatastoreStorage(sequences=sequences, ndb_client=ndb_client)
