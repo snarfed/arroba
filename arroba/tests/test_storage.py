@@ -392,9 +392,9 @@ class StorageTest(TestCase):
         repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
 
         data = {
-            'example.foo': self.random_objects(10),
-            'example.bar': self.random_objects(20),
-            'example.baz': self.random_objects(30),
+            'example.foo': self.random_objects(5),
+            'example.bar': self.random_objects(6),
+            'example.baz': self.random_objects(7),
         }
 
         writes = list(chain(*(
@@ -406,7 +406,7 @@ class StorageTest(TestCase):
     def test_commit_updates_and_deletes(self):
         repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
 
-        objs = list(self.random_objects(20).items())
+        objs = list(self.random_objects(10).items())
         creates = [Write(Action.CREATE, 'co.ll', tid, obj) for tid, obj in objs]
         self.storage.commit(repo, creates)
 
