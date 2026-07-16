@@ -20,8 +20,6 @@ from cryptography.hazmat.primitives import hashes
 import dag_cbor
 import jwt
 from multiformats import CID, multicodec, multihash
-import requests
-from requests_hardened import Config as RequestsHardenedConfig, HTTPSession
 import webutil.util
 
 logger = logging.getLogger(__name__)
