@@ -1546,6 +1546,22 @@ class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):
         self.assertIn('temporarily disabled', str(cm.exception))
 
     @patch('arroba.util.DISABLE_GETREPO', True)
+    @patch('arroba.util.GETREPO_TOKEN', 'towkin')
+    def test_disable_get_repo_with_token(self):
+        atp_repo = AtpRepo.get_by_id('did:web:user.com')
+        atp_repo.created = (NOW - timedelta(days=1)).replace(tzinfo=None)
+        atp_repo.put()
+
+        with self.assertRaises(NotImplementedError) as cm:
+            xrpc_sync.get_repo({}, did='did:web:user.com')
+
+        with self.app.test_request_context(
+                '/', headers={'Authorization': 'Bearer towkin'}):
+            resp = xrpc_sync.get_repo({}, did='did:web:user.com')
+
+        self.assertIsNotNone(resp)
+
+    @patch('arroba.util.DISABLE_GETREPO', True)
     def test_disable_get_repo_under_12h_old(self):
         atp_repo = AtpRepo.get_by_id('did:web:user.com')
         atp_repo.created = (NOW - timedelta(hours=11)).replace(tzinfo=None)

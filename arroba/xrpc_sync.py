@@ -6,13 +6,17 @@ import os
 
 from carbox import car
 import dag_cbor
-from flask import request
 from lexrpc.base import XrpcError
 from lexrpc.server import Redirect
 from multiformats import CID
 from multiformats.multibase import MultibaseKeyError, MultibaseValueError
 import requests
 import webutil.util
+
+try:
+    from flask import request
+except ImportError:
+    request = None
 
 from .datastore_storage import AtpBlock, AtpRemoteBlob, AtpRepo, DatastoreStorage
 from . import firehose
@@ -45,9 +49,13 @@ def get_repo(input, did=None, since=None, internal=False):
 
     # https://github.com/snarfed/arroba/issues/88
     # https://github.com/snarfed/bridgy-fed/issues/2424
-    if (util.DISABLE_GETREPO and not internal
-            # and not request.headers.get('Authorization')
-            and repo.created and webutil.util.now() - repo.created > timedelta(hours=12)):
+    authed = False
+    if request and util.GETREPO_TOKEN:
+        token = request.headers.get('Authorization', '').removeprefix('Bearer ')
+        authed = token.strip() == util.GETREPO_TOKEN
+
+    if (util.DISABLE_GETREPO and not internal and not authed and repo.created
+            and webutil.util.now() - repo.created > timedelta(hours=12)):
         raise NotImplementedError('temporarily disabled 12 hrs after repo creation')
 
     start = util.tid_to_int(since) if since else 0

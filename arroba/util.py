@@ -40,6 +40,7 @@ DELETED = 'deleted'
 TOMBSTONED = 'tombstoned'
 
 DISABLE_GETREPO = bool(os.environ.get('DISABLE_GETREPO'))
+GETREPO_TOKEN = os.environ.get('GETREPO_TOKEN') or webutil.util.read('getrepo_token')
 
 
 class InactiveRepo(ValueError):
