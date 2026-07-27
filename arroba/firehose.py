@@ -416,6 +416,7 @@ def process_event(event, prev_commit=None):
         'since': None,  # TODO: load event.commit['prev']'s CID
         'rebase': False,
         'blobs': [],
+        'tooBig': False,
     }
     if prev_data is not None:
         payload['prevData'] = prev_data

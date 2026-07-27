@@ -653,6 +653,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             'since': None,
             'rebase': False,
             'blobs': [],
+            'tooBig': False,
         }
         if prev:
             expected['prevData'] = prev.decoded['data']
