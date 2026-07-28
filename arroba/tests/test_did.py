@@ -111,7 +111,7 @@ class DidTest(TestCase):
             'alsoKnownAs': ['at://han.dull'],
             'verificationMethod': [{
                 'id': f'{did_plc.did}#atproto',
-                'type': 'EcdsaSecp256r1VerificationKey2019',
+                'type': 'Multikey',
                 'controller': did_plc.did,
                 'publicKeyMultibase': signing_did_key.removeprefix('did:key:'),
             }],
@@ -400,7 +400,7 @@ class DidTest(TestCase):
             'alsoKnownAs': ['at://alice.example'],
             'verificationMethod': [{
                 'id': 'did:plc:123abc#atproto',
-                'type': 'EcdsaSecp256r1VerificationKey2019',
+                'type': 'Multikey',
                 'controller': 'did:plc:123abc',
                 'publicKeyMultibase': 'zDnaeh9v2RmcMo13Du2d6pjUf5bZwtauYxj3n9dYjw4EZUAR7',
             }],

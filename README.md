@@ -121,7 +121,9 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 ### 3.1 - unreleased
 * `xrpc_sync`:
   * `subscribeRepos`: add missing required `tooBig` field to emitted events.
-
+* `did`
+  * `plc_operation_to_did_doc`: return `type: Multikey`.
+  
 
 ### 3.0 - 2026-07-01
 

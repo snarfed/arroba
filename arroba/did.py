@@ -438,7 +438,7 @@ def plc_operation_to_did_doc(op):
         'alsoKnownAs': op['alsoKnownAs'],
         'verificationMethod': [{
             'id': f'{op["did"]}#atproto',
-            'type': 'EcdsaSecp256r1VerificationKey2019',
+            'type': 'Multikey',
             'controller': op['did'],
             'publicKeyMultibase': signing_did_key.removeprefix('did:key:'),
         }],
