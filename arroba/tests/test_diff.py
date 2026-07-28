@@ -80,3 +80,44 @@ class DiffTest(testutil.TestCase):
             # from mst.test.ts, doesn't pass here because we generate test data
             # differently
             # assert cid in existing or cid in diff.new_cids, cid
+
+    def test_add_diff(self):
+        cids = [cid for _, cid in self.random_keys_and_cids(6)]
+
+        # add.key not already in self.deletes -> plain add
+        first = Diff()
+        first.record_add('add', cids[0])
+
+        # add.key already in self.deletes, same cid -> cancels out, no update
+        first.record_delete('cancel', cids[1])
+        second_cancel = Diff()
+        second_cancel.record_add('cancel', cids[1])
+
+        # add.key already in self.deletes, different cid -> update
+        first.record_delete('change', cids[2])
+        second_change = Diff()
+        second_change.record_add('change', cids[3])
+
+        # update.key not already in self.adds or self.deletes
+        second_update = Diff()
+        second_update.record_update('update', cids[4], cids[5])
+
+        # deleted.key not already in self.adds or self.updates -> plain delete
+        second_delete = Diff()
+        second_delete.record_delete('delete', cids[0])
+
+        # deleted.key already in self.adds -> cancels out
+        first.record_add('add_then_delete', cids[1])
+        second_add_then_delete = Diff()
+        second_add_then_delete.record_delete('add_then_delete', cids[1])
+
+        for other in (second_cancel, second_change, second_update,
+                      second_add_then_delete, second_delete):
+            first.add_diff(other)
+
+        self.assertEqual({'add': Change(key='add', cid=cids[0])}, first.adds)
+        self.assertEqual({
+            'change': Change(key='change', cid=cids[3], prev=cids[2]),
+            'update': Change(key='update', cid=cids[5], prev=cids[4]),
+        }, first.updates)
+        self.assertEqual({'delete': Change(key='delete', cid=cids[0])}, first.deletes)

@@ -256,24 +256,23 @@ class Diff:
           diff (Diff)
         """
         for add in diff.adds.values():
-            if self.deletes[add.key]:
-                deleted = self.deletes[add.key]
+            if deleted := self.deletes.get(add.key):
                 if deleted.cid != add.cid:
                     self.record_update(add.key, deleted.cid, add.cid)
-                del self.deletes[add.key]
+                self.deletes.pop(add.key, None)
             else:
                 self.record_add(add.key, add.cid)
 
         for update in diff.updates.values():
             self.record_update(update.key, update.prev, update.cid)
-            del self.adds[update.key]
-            del self.deletes[update.key]
+            self.adds.pop(update.key, None)
+            self.deletes.pop(update.key, None)
 
         for deleted in diff.deletes.values():
-            if self.adds[deleted.key]:
-                del self.adds[deleted.key]
+            if self.adds.get(deleted.key):
+                self.adds.pop(deleted.key, None)
             else:
-                del self.updates[deleted.key]
+                self.updates.pop(deleted.key, None)
                 self.record_delete(deleted.key, deleted.cid)
 
         self.new_cids |= diff.new_cids

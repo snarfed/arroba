@@ -123,7 +123,9 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
   * `subscribeRepos`: add missing required `tooBig` field to emitted events.
 * `did`
   * `plc_operation_to_did_doc`: return `type: Multikey`.
-  
+* `diff`:
+  * `Diff.add_diff`: don't assume all keys are shared between the two diffs.
+
 
 ### 3.0 - 2026-07-01
 
