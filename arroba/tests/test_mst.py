@@ -14,7 +14,8 @@ import random
 import dag_cbor.random
 from multiformats import CID
 
-from ..mst import common_prefix_len, MST
+from ..mst import common_prefix_len, Data, deserialize_node_data, MST
+from ..storage import MemoryStorage
 from .. import util
 from . import testutil
 
@@ -311,3 +312,19 @@ class MstTest(testutil.TestCase):
             'bafyreiewdvzcopoza6bdntvhmvdfqeolql6sckkiu75jpvfnwwnfi57jia',
             cid1,
         ], cfp('C0/535043'))
+
+    def test_deserialize_node_data_layer_zero(self):
+        # layer 0 is falsy, so child MSTs' layer must be checked with
+        # "is not None", not truthiness, otherwise they wrongly get layer=None
+        # instead of layer=-1
+        data = Data(l=CID1, e=[{
+            'p': 0,
+            'k': b'com.example.record/a',
+            'v': CID1,
+            't': CID1,
+        }])
+        entries = deserialize_node_data(storage=MemoryStorage(), data=data, layer=0)
+
+        left, leaf, right = entries
+        self.assertEqual(-1, left.layer)
+        self.assertEqual(-1, right.layer)

@@ -1003,7 +1003,8 @@ def deserialize_node_data(*, storage=None, data=None, layer=None):
     entries = []
     if (data.l is not None):
         entries.append(MST(storage=storage, pointer=data.l,
-                           layer=layer - 1 if layer else None))
+                           # check for None explicitly since layer could be 0
+                           layer=layer - 1 if layer is not None else None))
 
     last_key = ''
     for entry_data in data.e:
@@ -1014,7 +1015,7 @@ def deserialize_node_data(*, storage=None, data=None, layer=None):
         last_key = key
         if entry.t is not None:
             entries.append(MST(storage=storage, pointer=entry.t,
-                               layer=layer - 1 if layer else None))
+                               layer=layer - 1 if layer is not None else None))
 
     return entries
 
