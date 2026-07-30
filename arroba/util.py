@@ -1,4 +1,5 @@
 """Misc AT Protocol utils. TIDs, CIDs, etc."""
+import base64
 import copy
 from datetime import datetime, timedelta, timezone
 import json
@@ -381,4 +382,16 @@ def service_jwt(host, repo_did, privkey, expiration=timedelta(minutes=10),
         **claims,
     }
     logger.info(f'Generating ATProto inter-service JWT: {data}')
-    return jwt.encode(data, privkey, algorithm='ES256K')
+    token = jwt.encode(data, privkey, algorithm='ES256K')
+
+    # PyJWT doesn't enforce low-S, but atproto requires it. the signature is raw
+    # r||s over a signing input we're not changing, so normalize it in place
+    # instead of re-signing.
+    signing_input, _, encoded_sig = token.rpartition('.')
+    sig = base64.urlsafe_b64decode(encoded_sig + '=' * (-len(encoded_sig) % 4))
+    der = encode_dss_signature(int.from_bytes(sig[:32], 'big'),
+                               int.from_bytes(sig[32:], 'big'))
+    r, s = decode_dss_signature(apply_low_s_mitigation(der, privkey.curve))
+    encoded_sig = base64.urlsafe_b64encode(
+        r.to_bytes(32, 'big') + s.to_bytes(32, 'big')).rstrip(b'=').decode()
+    return f'{signing_input}.{encoded_sig}'

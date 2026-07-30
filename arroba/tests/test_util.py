@@ -1,4 +1,5 @@
 """Unit tests for util.py."""
+import base64
 from datetime import timedelta
 from email.message import Message
 from unittest.mock import MagicMock, patch
@@ -113,3 +114,12 @@ class UtilTest(TestCase):
             'exp': 1641093245,
             'iss': 'did:web:user.com',
         }, decoded)
+
+    def test_service_jwt_low_s(self):
+        # ECDSA picks a random nonce per signature, so S is high roughly half
+        # the time
+        order = self.key.curve.group_order
+        for i in range(20):
+            encoded = service_jwt('relay.local', 'did:web:x', self.key).split('.')[2]
+            sig = base64.urlsafe_b64decode(encoded + '=' * (-len(encoded) % 4))
+            self.assertLessEqual(int.from_bytes(sig[32:], 'big'), order // 2)

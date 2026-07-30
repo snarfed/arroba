@@ -127,6 +127,8 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
   * `Diff.add_diff`: don't assume all keys are shared between the two diffs.
 * `mst`:
   * `deserialize_node_data`: fix bug where layer 0 child pointers got `layer=None` instead of `layer=-1`.
+* `util`:
+  * `service_jwt`: enforce [low-S signatures](https://atproto.com/specs/cryptography#ecdsa-signature-malleability).
 
 
 ### 3.0 - 2026-07-01
