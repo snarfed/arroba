@@ -6,6 +6,7 @@ import os
 
 from carbox import read_car
 import dag_json
+from lexrpc.base import XrpcError
 from multiformats import CID
 from requests import RequestException
 import webutil.util
@@ -65,7 +66,7 @@ def get_record(input, repo=None, collection=None, rkey=None, cid=None):
 
     repo = server.load_repo(input['repo'])
     if not (record := repo.get_record(collection, rkey)):
-        raise ValueError(f'{collection} {rkey} not found')
+        raise XrpcError(f'{collection} {rkey} not found', name='RecordNotFound')
 
     return json.loads(dag_json.encode({
         'uri': at_uri(repo.did, collection, rkey),

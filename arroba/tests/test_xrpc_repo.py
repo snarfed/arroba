@@ -11,6 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from flask import request
+from lexrpc.base import XrpcError
 from multiformats import CID
 import requests
 from webutil.testutil import NOW, requests_response
@@ -207,12 +208,14 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         }, resp)
 
     def test_get_record_not_found(self):
-        with self.assertRaises(ValueError):
+        with self.assertRaises(XrpcError) as e:
             xrpc_repo.get_record({},
                 repo='did:web:user.com',
                 collection='app.bsky.feed.post',
                 rkey='99999',
             )
+
+        self.assertEqual('RecordNotFound', e.exception.name)
 
     def test_delete_record(self):
         self.prepare_auth()

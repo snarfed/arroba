@@ -209,9 +209,11 @@ class XrpcSyncTest(testutil.XrpcTestCase):
         self.assertEqual(([commit_data.commit.cid], expected), read_car(resp))
 
     def test_get_record_not_found(self):
-        with self.assertRaises(ValueError):
-            resp = xrpc_sync.get_record({}, did='did:web:user.com',
-                                        collection='com.example.posts', rkey='9999')
+        with self.assertRaises(XrpcError) as e:
+            xrpc_sync.get_record({}, did='did:web:user.com',
+                                 collection='com.example.posts', rkey='9999')
+
+        self.assertEqual('RecordNotFound', e.exception.name)
 
     def test_get_blocks_empty(self):
         resp = xrpc_sync.get_blocks({}, did='did:web:user.com', cids=[])

@@ -122,8 +122,10 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 * `xrpc_repo`:
   * `createRecord`, `getRecord`, `deleteRecord`, `putRecord`: enforce `SUPPORTED_COLLECTIONS` env var if set.
   * `getRecord`: remove fallback to AppView for records not found locally.
+  * `getRecord`: raise named `RecordNotFound` error..
 * `xrpc_sync`:
   * `subscribeRepos`: add missing required `tooBig` field to emitted events.
+  * `getRecord`: raise named `RecordNotFound` error..
 * `did`
   * `plc_operation_to_did_doc`: return `type: Multikey`.
 * `diff`:

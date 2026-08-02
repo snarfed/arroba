@@ -214,7 +214,7 @@ def get_record(input, did=None, collection=None, rkey=None):
     repo = server.load_repo(did)
     record = repo.get_record(collection, rkey)
     if record is None:
-        raise ValueError(f'{collection} {rkey} not found')
+        raise XrpcError(f'{collection} {rkey} not found', name='RecordNotFound')
 
     block = car.Block(decoded=record)
 
