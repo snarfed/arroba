@@ -120,7 +120,9 @@ class XrpcRepoTest(testutil.XrpcTestCase):
 
     @patch('arroba.xrpc_repo.SUPPORTED_COLLECTIONS', ['x.y'])
     def test_list_records_unsupported_collection(self):
-        self.test_create_record()
+        server.storage.commit(self.repo, [Write(
+            action=Action.CREATE, collection='app.bsky.feed.post', rkey='123',
+            record={'x': 'y'})])
         resp = xrpc_repo.list_records({}, repo='did:web:user.com',
                                       collection='app.bsky.feed.post')
         self.assertEqual({'records': []}, resp)
@@ -302,6 +304,44 @@ class XrpcRepoTest(testutil.XrpcTestCase):
             'collection': 'app.bsky.feed.post',
             'rkey': '9999',
         })
+
+    @patch('arroba.xrpc_repo.SUPPORTED_COLLECTIONS', ['x.y'])
+    def test_unsupported_collection(self):
+        self.prepare_auth()
+
+        with self.assertRaises(ValueError):
+            xrpc_repo.create_record({
+                'repo': 'at://did:web:user.com',
+                'collection': 'app.bsky.feed.post',
+                'record': {
+                    '$type': 'app.bsky.feed.post',
+                    'text': 'Hello, world!',
+                    'createdAt': NOW.isoformat(),
+                },
+            })
+
+        with self.assertRaises(ValueError):
+            xrpc_repo.get_record({}, repo='did:web:user.com',
+                                 collection='app.bsky.feed.post', rkey='123')
+
+        with self.assertRaises(ValueError):
+            xrpc_repo.delete_record({
+                'repo': 'at://did:web:user.com',
+                'collection': 'app.bsky.feed.post',
+                'rkey': '123',
+            })
+
+        with self.assertRaises(ValueError):
+            xrpc_repo.put_record({
+                'repo': 'at://did:web:user.com',
+                'collection': 'app.bsky.feed.post',
+                'rkey': '123',
+                'record': {
+                    '$type': 'app.bsky.feed.post',
+                    'text': 'Hello, world!',
+                    'createdAt': NOW.isoformat(),
+                },
+            })
 
     def test_writes_without_auth_fail(self):
         self.prepare_auth()

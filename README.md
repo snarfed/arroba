@@ -119,6 +119,8 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 ## Changelog
 
 ### 3.1 - unreleased
+* `xrpc_repo`:
+  * `createRecord`, `getRecord`, `deleteRecord`, `putRecord`: enforce `SUPPORTED_COLLECTIONS` env var if set.
 * `xrpc_sync`:
   * `subscribeRepos`: add missing required `tooBig` field to emitted events.
 * `did`

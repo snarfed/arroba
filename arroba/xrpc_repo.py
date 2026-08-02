@@ -28,7 +28,7 @@ SUPPORTED_COLLECTIONS = frozenset(
 logger = logging.getLogger(__name__)
 
 
-def validate(input, **params):
+def validate(input, collection=None, **params):
     input.update(params)
 
     for field in 'swapCommit', 'swapRecord':
@@ -38,11 +38,16 @@ def validate(input, **params):
     if not input.get('repo'):
         raise ValueError('Missing repo param')
 
+    for coll in collection, input.get('collection'):
+        if coll and SUPPORTED_COLLECTIONS and coll not in SUPPORTED_COLLECTIONS:
+            raise ValueError(f'{coll} not supported')
+
 
 @server.server.method('com.atproto.repo.createRecord')
 def create_record(input):
     """Handler for ``com.atproto.repo.createRecord`` XRPC method."""
-    validate(input)
+    validate(input, collection=input.get('collection')
+                                or (input.get('record') or {}).get('$type'))
     server.auth()
 
     repo = server.load_repo(input['repo'])
@@ -123,6 +128,9 @@ def list_records(input, repo=None, collection=None, limit=50, cursor=None,
     used, the response includes the last record returned in the previous
     response.
     """
+    if SUPPORTED_COLLECTIONS and collection not in SUPPORTED_COLLECTIONS:
+        return {'records': []}
+
     validate(input, repo=repo, collection=collection, limit=limit, cursor=cursor)
 
     if rkeyStart or rkeyEnd:
@@ -131,8 +139,6 @@ def list_records(input, repo=None, collection=None, limit=50, cursor=None,
         raise ValueError(f'reverse not supported yet')
     elif not collection:
         raise ValueError(f'collection is required')
-    elif SUPPORTED_COLLECTIONS and collection not in SUPPORTED_COLLECTIONS:
-        return {'records': []}
 
     repo = server.load_repo(input['repo'])
 
