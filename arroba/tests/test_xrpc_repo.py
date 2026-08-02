@@ -8,7 +8,6 @@ import itertools
 import json
 import os
 from pathlib import Path
-from urllib.parse import urlencode
 from unittest.mock import patch
 
 from flask import request
@@ -16,7 +15,6 @@ from multiformats import CID
 import requests
 from webutil.testutil import NOW, requests_response
 import webutil.util
-from werkzeug.exceptions import HTTPException
 
 from .. import did
 from ..datastore_storage import DatastoreStorage
@@ -208,70 +206,13 @@ class XrpcRepoTest(testutil.XrpcTestCase):
             },
         }, resp)
 
-    def test_get_record_not_found_no_app_view_env_var(self):
+    def test_get_record_not_found(self):
         with self.assertRaises(ValueError):
             xrpc_repo.get_record({},
                 repo='did:web:user.com',
                 collection='app.bsky.feed.post',
                 rkey='99999',
             )
-
-    @patch.object(webutil.util.session, 'get')
-    def test_get_record_not_found_fall_back_to_app_view(self, mock_get):
-        resp = {
-            'uri': 'at://did:web:other/app.bsky.feed.post/99999',
-            'cid': 'sydddddd',
-            'value': {'foo': 'bar'},
-        }
-        mock_get.return_value = requests_response(resp)
-
-        params = {
-            'repo': 'did:web:other',
-            'collection': 'app.bsky.feed.post',
-            'rkey': '99999',
-        }
-        os.environ.update({
-            'APPVIEW_HOST': 'app.vue',
-            'APPVIEW_JWT': 'jay-dublyew-tee',
-        })
-        self.assertEqual(resp, xrpc_repo.get_record({}, **params))
-
-        mock_get.assert_called_once_with(
-            'https://app.vue/xrpc/com.atproto.repo.getRecord?' + urlencode(params),
-            headers={
-                'User-Agent': util.USER_AGENT,
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer jay-dublyew-tee',
-            }, json=None, data=None)
-
-    # TODO: what does getRecord return not found? uri and value in output are
-    # required, and it doesn't declare any errors
-    # @patch.object(webutil.util.session, 'get')
-    # def test_get_record_not_found_locally_or_app_view(self):
-    #     with self.assertRaises(ValueError):
-    #         xrpc_repo.get_record({},
-    #             repo='did:web:user.com',
-    #             collection='app.bsky.feed.post',
-    #             rkey='99999',
-    #         )
-
-    @patch.object(webutil.util.session, 'get')
-    def test_get_record_not_found_locally_or_app_view(self, mock_get):
-        mock_get.return_value = requests_response({'my': 'err'}, status=400)
-
-        os.environ.update({
-            'APPVIEW_HOST': 'app.vue',
-            'APPVIEW_JWT': 'jay-dublyew-tee',
-        })
-        with self.assertRaises(HTTPException) as e:
-            xrpc_repo.get_record({},
-                repo='did:web:user.com',
-                collection='app.bsky.feed.post',
-                rkey='99999')
-
-        resp = e.exception.get_response()
-        self.assertEqual(400, resp.status_code)
-        self.assertEqual({'my': 'err'}, resp.json)
 
     def test_delete_record(self):
         self.prepare_auth()

@@ -6,10 +6,8 @@ import os
 
 from carbox import read_car
 import dag_json
-from flask import abort, make_response
-from lexrpc import Client
 from multiformats import CID
-from requests import HTTPError, RequestException
+from requests import RequestException
 import webutil.util
 
 from . import did
@@ -19,7 +17,7 @@ from . import server
 from .storage import Action, Block
 from . import server
 from . import util
-from .util import at_uri, dag_cbor_cid, new_key, next_tid, USER_AGENT, verify_sig
+from .util import at_uri, dag_cbor_cid, new_key, next_tid, verify_sig
 
 SUPPORTED_COLLECTIONS = frozenset(
     coll.strip() for coll in os.environ.get('SUPPORTED_COLLECTIONS', '').split(',')
@@ -65,38 +63,15 @@ def get_record(input, repo=None, collection=None, rkey=None, cid=None):
     if cid:
         raise ValueError(f'cid not supported yet')
 
-    try:
-        repo = server.load_repo(input['repo'])
-        record = repo.get_record(collection, rkey)
-        if record is not None:
-            return json.loads(dag_json.encode({
-                'uri': at_uri(repo.did, collection, rkey),
-                'cid': dag_cbor_cid(record).encode('base32'),
-                'value': record,
-            }, dialect='atproto'))
-    except ValueError as e:
-        logger.info(e)
-        pass
-
-    # fall back to AppView if available
-    av_host = os.environ.get('APPVIEW_HOST')
-    jwt = os.environ.get('APPVIEW_JWT')
-    if not av_host or not jwt:
+    repo = server.load_repo(input['repo'])
+    if not (record := repo.get_record(collection, rkey)):
         raise ValueError(f'{collection} {rkey} not found')
 
-    logger.info(f'Falling back to AppView at {av_host}')
-    appview = Client(f'https://{av_host}', access_token=jwt,
-                     headers={'User-Agent': USER_AGENT},
-                     requests_session=webutil.util.session)
-
-    try:
-        return appview.com.atproto.repo.getRecord(
-            {}, repo=input['repo'], collection=collection, rkey=rkey)
-    except HTTPError as e:
-        body = e.response.json()
-        logger.info(f'Returning AppView error to client: {e} {body}')
-        status = e.response.status_code
-        abort(status, response=make_response(body, status))
+    return json.loads(dag_json.encode({
+        'uri': at_uri(repo.did, collection, rkey),
+        'cid': dag_cbor_cid(record).encode('base32'),
+        'value': record,
+    }, dialect='atproto'))
 
 
 @server.server.method('com.atproto.repo.deleteRecord')
