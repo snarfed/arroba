@@ -26,7 +26,7 @@ from google.cloud.datastore_v1.types import entity as entity_pb2
 from lexrpc import ValidationError
 from multiformats import CID, multicodec, multihash
 from pymediainfo import MediaInfo
-from webutil.models import EncryptedProperty, WriteOnceBlobProperty
+from webutil.models import EncryptedProperty, get_multi, WriteOnceBlobProperty
 import webutil.util
 
 from .mst import MST
@@ -742,7 +742,7 @@ class DatastoreStorage(Storage, NdbMixin):
         # defensive copy in case cids is a generator
         cids = list(cids)
         keys = [ndb.Key(AtpBlock, cid.encode('base32')) for cid in cids]
-        raw = ndb.get_multi(keys)
+        raw = get_multi(keys)
         got = list(zip(cids, raw))
         return {cid: block.to_block() if block else None for cid, block in got}
 
