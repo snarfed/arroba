@@ -13,7 +13,7 @@ from .util import parse_at_uri
 
 
 # XRPC server
-server = Server(validate=True)
+server = Server(validate=True, require_lexicons=False)
 
 # initialized in app.py, testutil.XrpcTestCase.setUp
 storage = None

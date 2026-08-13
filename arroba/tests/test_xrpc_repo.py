@@ -51,9 +51,9 @@ with open(Path(__file__).parent / 'snarfed2.json') as f:
 
 class XrpcRepoTest(testutil.XrpcTestCase):
 
-    def last_at_uri(self):
+    def last_at_uri(self, collection='app.bsky.feed.post'):
         tid = util.int_to_tid(util._tid_ts_last)
-        return f'at://did:web:user.com/app.bsky.feed.post/{tid}'
+        return f'at://did:web:user.com/{collection}/{tid}'
 
     @patch('arroba.xrpc_repo.SUPPORTED_COLLECTIONS', ['app.bsky.feed.post'])
     @patch.object(webutil.util.session, 'get', return_value=requests_response({'foo': 'bar'}))
@@ -104,6 +104,22 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         self.assertEqual({
             'cid': 'bafyreibwxoxuto2bj2lsspzs6dl4kw6cyu3goswuxi5qbhpc2xlqvnnjg4',
             'uri': self.last_at_uri(),
+        }, resp)
+
+    @patch.object(server.server, '_validate', True)
+    def test_create_record_unknown_lexicon(self):
+        self.prepare_auth()
+        resp = xrpc_repo.create_record({
+            'repo': 'at://did:web:user.com',
+            'collection': 'com.example.unknown',
+            'record': {
+                '$type': 'com.example.unknown',
+                'foo': 'bar',
+            },
+        })
+        self.assertEqual({
+            'cid': 'bafyreifopfvhllxlclfjqzd3a5rzs36h5ehqeurxogc7va5sjm23uh67la',
+            'uri': self.last_at_uri(collection='com.example.unknown'),
         }, resp)
 
     def test_list_records(self):

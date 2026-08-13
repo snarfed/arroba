@@ -119,6 +119,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 ## Changelog
 
 ### 3.1 - unreleased
+* `server`: allow records with missing or unknown lexicons, ie pass lexrpc's new `require_lexicons=False`.
 * `xrpc_repo`:
   * `createRecord`, `getRecord`, `deleteRecord`, `putRecord`: enforce `SUPPORTED_COLLECTIONS` env var if set.
   * `getRecord`: remove fallback to AppView for records not found locally.
