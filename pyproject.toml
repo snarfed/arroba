@@ -65,6 +65,9 @@ docs = [
     'sphinx>=7.0.0',
     'sphinx-rtd-theme>=3.0.0',
 ]
+tests = [
+    'hypothesis>=6.0',
+]
 
 [tool.uv.sources]
 arroba =            { editable = true, path = "../arroba" }
