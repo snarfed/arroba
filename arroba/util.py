@@ -36,6 +36,9 @@ _tid_ts_last = 0  # microseconds
 
 S32_CHARS = '234567abcdefghijklmnopqrstuvwxyz'
 
+EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+MICROSECOND = timedelta(microseconds=1)
+
 DEACTIVATED = 'deactivated'
 DELETED = 'deleted'
 TOMBSTONED = 'tombstoned'
@@ -127,7 +130,13 @@ def datetime_to_tid(dt, clock_id=None):
     Returns:
       str: base32-encoded TID
     """
-    return int_to_tid(int(dt.timestamp() * 1000 * 1000), clock_id=clock_id)
+    # timestamp() returns a float, which can't represent every microsecond
+    # exactly, so subtract from the epoch instead. naive datetimes are local
+    # time, which is what timestamp() assumes too.
+    if not dt.tzinfo:
+        dt = dt.astimezone()
+
+    return int_to_tid((dt - EPOCH) // MICROSECOND, clock_id=clock_id)
 
 
 def int_to_tid(num, clock_id=None):
@@ -165,7 +174,7 @@ def tid_to_datetime(tid):
     Raises:
       ValueError: if tid is not bytes or not 13 characters long
     """
-    return datetime.fromtimestamp(tid_to_int(tid) / 1000 / 1000, timezone.utc)
+    return EPOCH + tid_to_int(tid) * MICROSECOND
 
 
 def tid_to_int(tid):

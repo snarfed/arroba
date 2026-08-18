@@ -1,6 +1,6 @@
 """Unit tests for util.py."""
 import base64
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from email.message import Message
 from unittest.mock import MagicMock, patch
 from requests.cookies import extract_cookies_to_jar
@@ -39,6 +39,13 @@ class UtilTest(TestCase):
 
     def test_tid_to_datetime(self):
         self.assertEqual(NOW, tid_to_datetime('3iom4o4g6u2l2'))
+
+    def test_datetime_tid_round_trip_keeps_microseconds(self):
+        # these lost a microsecond back when the conversions went through a
+        # float UNIX timestamp
+        for dt in (datetime(1987, 1, 1, 0, 0, 0, 2525, tzinfo=timezone.utc),
+                   datetime(2040, 1, 1, 0, 0, 0, 213, tzinfo=timezone.utc)):
+            self.assertEqual(dt, tid_to_datetime(datetime_to_tid(dt)))
 
     def test_int_to_tid(self):
         self.assertEqual('22222222222l2', int_to_tid(0))
