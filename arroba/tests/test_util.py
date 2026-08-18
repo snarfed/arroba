@@ -66,6 +66,13 @@ class UtilTest(TestCase):
         sign(commit, self.key)
         assert verify_sig(commit, self.key.public_key())
 
+    def test_sign_low_s(self):
+        # ECDSA picks a random nonce per signature, so S is high roughly half the time
+        order = self.key.curve.group_order
+        for i in range(20):
+            sig = sign({'foo': 'bar'}, self.key)['sig']
+            self.assertLessEqual(int.from_bytes(sig[32:], 'big'), order // 2)
+
     def test_verify_sig_error(self):
         with self.assertRaises(KeyError):
             self.assertFalse(verify_sig({'foo': 'bar'}, self.key.public_key()))
