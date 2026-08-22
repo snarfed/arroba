@@ -127,6 +127,8 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 * `xrpc_sync`:
   * `subscribeRepos`: add missing required `tooBig` field to emitted events.
   * `getRecord`: raise named `RecordNotFound` error..
+* `datastore_storage`:
+  * `DatastoreStorage.read_blocks_by_seq`: fix bug where an abandoned generator, eg from a disconnected `subscribeRepos` client, could clobber an unrelated thread's ndb context.
 * `did`
   * `plc_operation_to_did_doc`: return `type: Multikey`.
 * `diff`:

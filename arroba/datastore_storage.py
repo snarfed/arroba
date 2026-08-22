@@ -56,6 +56,7 @@ MEMCACHE_SEQUENCE_BATCH = int(os.environ.get('MEMCACHE_SEQUENCE_BATCH', 1000))
 MEMCACHE_SEQUENCE_BUFFER = int(os.environ.get('MEMCACHE_SEQUENCE_BUFFER', 100))
 # https://github.com/snarfed/bridgy-fed/issues/2367#issuecomment-3969792063
 QUERY_TIMEOUT = timedelta(seconds=30)
+READ_BLOCKS_PAGE_SIZE = 500
 
 
 class CommitOp(ndb.Model):
@@ -818,8 +819,12 @@ class DatastoreStorage(Storage, NdbMixin):
 
         cur_seq = start
         cur_seq_cids = []
+        cursor = None
 
         while True:
+            blocks = []
+            lost_context = False
+
             # lexrpc event subscription handlers like subscribeRepos call this
             # on a different thread, so if we're there, we need to create a new
             # ndb context
@@ -839,26 +844,38 @@ class DatastoreStorage(Storage, NdbMixin):
                     # so in rare cases, it's maybe possible that this query can hang
                     # indefinitely? so we set an explicit timeout. background:
                     # https://github.com/snarfed/bridgy-fed/issues/2327
-                    for atp_block in query.iter(read_consistency=ndb.STRONG,
-                                                timeout=QUERY_TIMEOUT.total_seconds()):
+                    atp_blocks, cursor, more = query.fetch_page(
+                        READ_BLOCKS_PAGE_SIZE, start_cursor=cursor,
+                        read_consistency=ndb.STRONG,
+                        timeout=QUERY_TIMEOUT.total_seconds())
+
+                    for atp_block in atp_blocks:
                         if atp_block.seq != cur_seq:
                             cur_seq = atp_block.seq
                             cur_seq_cids = []
                         if atp_block.key.id() not in cur_seq_cids:
                             cur_seq_cids.append(atp_block.key.id())
-                            yield atp_block.to_block()
-
-                    # finished cleanly
-                    break
+                            blocks.append(atp_block.to_block())
 
                 except ContextError as e:
                     logger.warning(f'lost ndb context! re-querying at {cur_seq}. {e}')
-                    # continue loop, restart query
+                    lost_context = True
 
-            # Context.use() resets this to the previous context when it exits,
-            # but that context is bad now, so make sure we get a new one at the
-            # top of the loop
-            context._state.context = context._state.toplevel_context = None
+            if lost_context:
+                # Context.use() resets this to the previous context when it
+                # exits, but that context is bad now, so make sure we get a new
+                # one at the top of the loop, and restart the query there since
+                # the cursor went with it
+                context._state.context = context._state.toplevel_context = None
+                cursor = None
+                continue
+
+            # don't yield inside ndb context. the generator gets abandoned eg when
+            # a subscribeRepos client disconnects, which suspends at yield forever
+            yield from blocks
+
+            if not more:
+                break
 
     @ndb_context
     @ndb.non_transactional()

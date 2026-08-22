@@ -137,11 +137,6 @@ class DatastoreTest(TestCase):
         # clear datastore
         requests.post(f'http://{ndb_client.host}/reset')
 
-        # DatastoreStorageTest.test_read_blocks_by_seq_ndb_context_closes_while_running
-        # was somehow leaving an ndb context open, and I couldn't figure out why
-        # or where. this fixes that by forcibly clearing all open contexts.
-        ndb.context._state = ndb.context._LocalState()
-
         # disable in-memory cache
         # https://github.com/googleapis/python-ndb/issues/888
         self.ndb_context = ndb_client.context(cache_policy=lambda key: False)

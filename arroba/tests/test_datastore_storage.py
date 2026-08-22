@@ -1,6 +1,7 @@
 """Unit tests for datastore_storage.py."""
 from collections import namedtuple
 from datetime import timedelta
+import gc
 import os
 from pathlib import Path
 from threading import Barrier, Thread
@@ -257,6 +258,9 @@ class DatastoreStorageTest(DatastoreTest):
         self.ndb_context.__exit__(None, None, None)
         self.assertEqual([block], list(self.storage.read_blocks_by_seq()))
 
+    # page size 1 so that we query again, and so need a context again, after
+    # the context goes away below
+    @patch('arroba.datastore_storage.READ_BLOCKS_PAGE_SIZE', 1)
     def test_read_blocks_by_seq_ndb_context_closes_while_running(self):
         self.storage.sequences.allocate(SUBSCRIBE_REPOS_NSID)
         blocks = [
@@ -268,6 +272,48 @@ class DatastoreStorageTest(DatastoreTest):
         self.assertEqual(blocks[0], next(call))
         self.ndb_context.__exit__(None, None, None)
         self.assertEqual([blocks[1]], list(call))
+
+    @patch('arroba.datastore_storage.READ_BLOCKS_PAGE_SIZE', 1)
+    def test_read_blocks_by_seq_ndb_context_goes_bad_while_running(self):
+        """The context is still current, but no longer usable.
+
+        https://github.com/snarfed/bridgy-fed/issues/1687
+        """
+        self.storage.sequences.allocate(SUBSCRIBE_REPOS_NSID)
+        blocks = [
+            self.storage.write(repo_did='did:plc:123', obj={'foo': 2}),
+            self.storage.write(repo_did='did:plc:123', obj={'bar': 3}),
+        ]
+
+        call = self.storage.read_blocks_by_seq()
+        self.assertEqual(blocks[0], next(call))
+        ndb.context._state.toplevel_context = None
+        self.assertEqual([blocks[1]], list(call))
+
+    def test_read_blocks_by_seq_abandoned_generator_keeps_caller_context(self):
+        """Abandoned generators shouldn't clobber an unrelated caller's context.
+
+        subscribeRepos subscribers abandon these generators whenever a client
+        disconnects. If one is holding an ndb context open across a yield, its
+        cleanup runs whenever it's finalized, on whatever thread happens to
+        trigger that, and restores a stale context over the live one.
+        """
+        self.storage.sequences.allocate(SUBSCRIBE_REPOS_NSID)
+        self.storage.write(repo_did='did:plc:123', obj={'foo': 2})
+        self.storage.write(repo_did='did:plc:123', obj={'bar': 3})
+
+        blocks = self.storage.read_blocks_by_seq()
+        next(blocks)  # leaves the generator suspended mid-query
+
+        # a later request or thread, with its own context
+        self.ndb_context.__exit__(None, None, None)
+        self.ndb_context = ndb_client.context(cache_policy=lambda key: False)
+        self.ndb_context.__enter__()
+        new_context = ndb.context.get_context()
+
+        del blocks
+        gc.collect()
+        self.assertIs(new_context, ndb.context.get_context())
 
     def assert_same_seq(self, cids):
         """
