@@ -647,7 +647,8 @@ class DatastoreStorageTest(DatastoreTest):
 
     @patch.object(MediaInfo, 'parse')
     def test_create_remote_blob_video_over_max_duration(self, mock_parse):
-        track = MagicMock(width=123, height=456, duration=5* 60_000)
+        too_long = datastore_storage.VIDEO_MAX_DURATION.total_seconds() * 1000 + 1
+        track = MagicMock(width=123, height=456, duration=too_long)
         mock_parse.return_value = MagicMock(video_tracks=[track])
 
         mock_get = MagicMock(return_value=requests_response(b'some video', headers={

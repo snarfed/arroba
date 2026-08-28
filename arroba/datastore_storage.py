@@ -48,10 +48,13 @@ logger = logging.getLogger(__name__)
 
 BLOB_REFETCH_AGE = timedelta(days=float(os.environ.get('BLOB_REFETCH_DAYS', 7)))
 BLOB_REFETCH_TYPES = tuple(os.environ.get('BLOB_REFETCH_TYPES', 'image').split(','))
-# https://github.com/bluesky-social/social-app/blob/8ac63d780d38c14f0963859dec5d123836adb913/src/lib/constants.ts#L191
-BLOB_MAX_BYTES = int(os.environ.get('BLOB_MAX_BYTES', 100_000_000))
-# https://bsky.app/profile/bsky.app/post/3lk26lxn6sk2u
-VIDEO_MAX_DURATION = timedelta(minutes=3)
+
+# https://bsky.app/profile/bsky.app/post/3mtwf7gxkwc2r
+# https://github.com/bluesky-social/atproto/blob/db6e2e70d1168c1a2fcf068ec42eaac6fd1702d5/lexicons/app/bsky/embed/video.json#L14
+# https://github.com/bluesky-social/social-app/blob/5eb5ac480007e1026bc4b0ef28e4d9b39a41ca63/src/lib/constants.ts#L197-L203
+BLOB_MAX_BYTES = int(os.environ.get('BLOB_MAX_BYTES', 300_000_000))
+VIDEO_MAX_DURATION = timedelta(minutes=10)
+
 MEMCACHE_SEQUENCE_BATCH = int(os.environ.get('MEMCACHE_SEQUENCE_BATCH', 1000))
 MEMCACHE_SEQUENCE_BUFFER = int(os.environ.get('MEMCACHE_SEQUENCE_BUFFER', 100))
 # https://github.com/snarfed/bridgy-fed/issues/2367#issuecomment-3969792063

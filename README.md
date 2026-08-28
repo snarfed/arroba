@@ -119,6 +119,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 ## Changelog
 
 ### 3.1 - unreleased
+
 * `server`: allow records with missing or unknown lexicons, ie pass lexrpc's new `require_lexicons=False`.
 * `xrpc_repo`:
   * `createRecord`, `getRecord`, `deleteRecord`, `putRecord`: enforce `SUPPORTED_COLLECTIONS` env var if set.
@@ -129,6 +130,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
   * `getRecord`: raise named `RecordNotFound` error..
 * `datastore_storage`:
   * `DatastoreStorage.read_blocks_by_seq`: fix bug where an abandoned generator, eg from a disconnected `subscribeRepos` client, could clobber an unrelated thread's ndb context.
+  * `AtpRemoteBlob`: bump video limits up to [300MB and 10 minutes](https://bsky.app/profile/bsky.app/post/3mtwf7gxkwc2r).
 * `did`
   * `plc_operation_to_did_doc`: return `type: Multikey`.
 * `diff`:
