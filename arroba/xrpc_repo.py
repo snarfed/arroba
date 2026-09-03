@@ -16,7 +16,6 @@ from .mst import MST
 from .repo import Repo, Write
 from . import server
 from .storage import Action, Block
-from . import server
 from . import util
 from .util import at_uri, dag_cbor_cid, new_key, next_tid, verify_sig
 

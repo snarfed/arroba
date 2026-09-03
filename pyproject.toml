@@ -59,6 +59,7 @@ datastore = [
 ]
 flask = [
     'Flask>=2.0',
+    'lexrpc[flask]>=0.8',
     'werkzeug>=2.3',
 ]
 docs = [

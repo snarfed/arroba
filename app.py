@@ -5,7 +5,6 @@ import logging
 import os
 from pathlib import Path
 from threading import Timer
-from urllib.parse import urljoin
 
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from flask import Flask, make_response, redirect, request
@@ -13,7 +12,6 @@ import google.cloud.logging
 from google.cloud import ndb
 import jwt
 import lexrpc.flask_server
-import requests
 
 logger = logging.getLogger(__name__)
 logging.basicConfig()
@@ -28,7 +26,7 @@ from arroba import firehose
 from arroba.repo import Repo
 from arroba import server
 from arroba import util
-from arroba import xrpc_repo, xrpc_server, xrpc_sync
+from arroba import xrpc_proxy, xrpc_repo, xrpc_server, xrpc_sync
 
 os.environ.setdefault('APPVIEW_HOST', 'api.bsky-sandbox.dev')
 os.environ.setdefault('RELAY_HOST', os.environ.get('BGS_HOST') or 'bgs.bsky-sandbox.dev')
@@ -67,20 +65,9 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ['REPO_TOKEN']
 app.json.compact = False
 
-# https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification
 # https://atproto.com/specs/cryptography
 privkey = load_pem_private_key(os.environ['REPO_PRIVKEY'].encode(),
                                password=None)
-
-APPVIEW_JWT = util.service_jwt(host=os.environ['APPVIEW_HOST'],
-                               repo_did=os.environ['REPO_DID'],
-                               privkey=privkey,
-                               expiration=timedelta(days=999))
-os.environ['APPVIEW_JWT'] = APPVIEW_JWT
-APPVIEW_HEADERS = {
-      'User-Agent': util.USER_AGENT,
-      'Authorization': f'Bearer {APPVIEW_JWT}',
-}
 
 @app.route('/xrpc/app.bsky.actor.getPreferences', methods=['OPTIONS'])
 @app.route('/xrpc/app.bsky.actor.putPreferences', methods=['OPTIONS'])
@@ -97,30 +84,17 @@ def get_preferences():
 def put_preferences():
     return {}, lexrpc.flask_server.RESPONSE_HEADERS
 
-# proxy all other app.bsky.* XRPCs to sandbox AppView
+def authed_did():
+    """Returns the DID of the repo that authenticated this request, if any."""
+    if request.headers.get('Authorization') == f'Bearer {os.environ["REPO_TOKEN"]}':
+        return os.environ['REPO_DID']
+
+# proxy XRPCs we don't implement to the sandbox AppView
+# https://atproto.com/specs/xrpc#service-proxying
 # https://atproto.com/blog/federation-developer-sandbox#bluesky-app-view
-@app.route(f'/xrpc/com.atproto.identity.resolveHandle', methods=['OPTIONS'])
-@app.route(f'/xrpc/app.bsky.<nsid_rest>', methods=['OPTIONS'])
-def cors_preflight(nsid_rest=None):
-    return '', lexrpc.flask_server.RESPONSE_HEADERS
-
-# TODO: move inside arroba somewhere. maybe server.py? it's Flask-specific :/
-# same with above, maybe below
-@app.route(f'/xrpc/com.atproto.identity.resolveHandle', methods=['GET'])
-@app.route(f'/xrpc/app.bsky.<nsid_rest>', methods=['GET', 'POST'])
-def proxy_appview(nsid_rest=None):
-    url = urljoin('https://' + os.environ['APPVIEW_HOST'], request.full_path)
-    logger.info(f'requests.{request.method} {url} {APPVIEW_HEADERS}')
-    resp = requests.request(request.method, url, headers=APPVIEW_HEADERS)
-    logger.info(f'Received {resp.status_code}: {"" if resp.ok else resp.text[:500]}')
-    resp.headers.pop('Transfer-Encoding', None)
-    resp.headers.pop('Content-Encoding', None)
-    return resp.content, resp.status_code, {
-      **lexrpc.flask_server.RESPONSE_HEADERS,
-      **resp.headers,
-    }
-
-lexrpc.flask_server.init_flask(server.server, app)
+lexrpc.flask_server.init_flask(server.server, app, fallback=xrpc_proxy.handler(
+    auth=authed_did,
+    default_service=f'did:web:{os.environ["APPVIEW_HOST"]}#bsky_appview'))
 
 ndb_client = thread_local.ndb_client = ndb.Client()
 

@@ -33,6 +33,10 @@ util
 ----
 .. automodule:: arroba.util
 
+xrpc_proxy
+----------
+.. automodule:: arroba.xrpc_proxy
+
 xrpc_repo
 ---------
 .. automodule:: arroba.xrpc_repo

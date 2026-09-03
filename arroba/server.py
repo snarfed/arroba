@@ -1,4 +1,4 @@
-"""Temporary!"""
+"""Minimal top-level server instance."""
 import os
 
 from lexrpc.base import XrpcError
