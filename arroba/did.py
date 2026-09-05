@@ -503,7 +503,7 @@ def resolve_handle(handle, get_fn=session.get):
     """
     if (not handle or not isinstance(handle, str)
             or not HANDLE_RE.fullmatch(handle)):
-        raise ValueError(f"{handle} isn't a valid Bluesky handle")
+        raise ValueError(f"{handle} isn't a valid ATProto (Bluesky) handle")
 
     logger.info(f'Resolving handle {handle}')
 
