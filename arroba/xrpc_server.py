@@ -10,13 +10,16 @@ logger = logging.getLogger(__name__)
 @server.server.method('com.atproto.server.createSession')
 def create_session(input):
     """Handler for ``com.atproto.server.createSession`` XRPC method."""
+    if not (token := os.environ['REPO_TOKEN']):
+        raise NotImplementedError(
+            'Authenticated XRPC methods are not currently supported')
+
     id = input['identifier']
     repo = server.storage.load_repo(id)
     if not repo:
         raise ValueError(f'Repo {id} not found')
 
     # TODO: generate JWT
-    token = os.environ['REPO_TOKEN']
     return {
         'handle': repo.handle,
         'did': repo.did,

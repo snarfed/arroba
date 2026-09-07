@@ -20,8 +20,7 @@ storage = None
 
 
 def auth():
-    token = os.environ.get('REPO_TOKEN')
-    if not token:
+    if not (token := os.environ.get('REPO_TOKEN')):
         raise NotImplementedError(
             'Authenticated XRPC methods are not currently supported')
 
