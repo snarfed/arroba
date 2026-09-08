@@ -17,6 +17,7 @@ import threading
 import urllib.parse
 
 from cachetools import cached, TTLCache
+from cachetools.keys import hashkey
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.hashes import Hash, SHA256
 from cryptography.hazmat.primitives import serialization
@@ -71,7 +72,7 @@ def resolve(did, **kwargs):
 
 
 @cached(TTLCache(maxsize=CACHE_SIZE, ttl=CACHE_TTL.total_seconds()),
-        lock=threading.Lock())
+        key=lambda did, **kwargs: hashkey(did), lock=threading.Lock())
 def resolve_plc(did, get_fn=session.get):
     """Resolves a ``did:plc`` by fetching its DID document from a PLC directory.
 
@@ -451,7 +452,7 @@ def plc_operation_to_did_doc(op):
 
 
 @cached(TTLCache(maxsize=CACHE_SIZE, ttl=CACHE_TTL.total_seconds()),
-        lock=threading.Lock())
+        key=lambda did, **kwargs: hashkey(did), lock=threading.Lock())
 def resolve_web(did, get_fn=session.get):
     """Resolves a ``did:web`` by fetching its DID document.
 
@@ -483,7 +484,7 @@ def resolve_web(did, get_fn=session.get):
 
 
 @cached(TTLCache(maxsize=CACHE_SIZE, ttl=CACHE_TTL.total_seconds()),
-        lock=threading.Lock())
+        key=lambda handle, **kwargs: hashkey(handle), lock=threading.Lock())
 def resolve_handle(handle, get_fn=session.get):
     """Resolves an ATProto handle to a DID.
 

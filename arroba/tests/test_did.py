@@ -26,6 +26,15 @@ class DidTest(TestCase):
         self.assertEqual({'foo': 'bar'}, doc)
         self.mock_get.assert_called_with('https://plc.bsky-sandbox.dev/did:plc:123')
 
+    def test_resolve_plc_cache_ignores_get_fn(self):
+        self.assertEqual({'foo': 'bar'},
+                         did.resolve_plc('did:plc:123', get_fn=self.mock_get))
+
+        other_get = MagicMock(return_value=requests_response({'baz': 'biff'}))
+        self.assertEqual({'foo': 'bar'},
+                         did.resolve_plc('did:plc:123', get_fn=other_get))
+        other_get.assert_not_called()
+
     def test_resolve_plc_bad_input(self):
         for bad in None, 1, 'foo', 'did:web:x':
             with self.subTest(bad=bad), self.assertRaises(ValueError):
@@ -35,6 +44,15 @@ class DidTest(TestCase):
         doc = did.resolve_web('did:web:abc.com', get_fn=self.mock_get)
         self.assertEqual({'foo': 'bar'}, doc)
         self.mock_get.assert_called_with('https://abc.com/.well-known/did.json')
+
+    def test_resolve_web_cache_ignores_get_fn(self):
+        self.assertEqual({'foo': 'bar'},
+                         did.resolve_web('did:web:abc.com', get_fn=self.mock_get))
+
+        other_get = MagicMock(return_value=requests_response({'baz': 'biff'}))
+        self.assertEqual({'foo': 'bar'},
+                         did.resolve_web('did:web:abc.com', get_fn=other_get))
+        other_get.assert_not_called()
 
     def test_resolve_web_path(self):
         doc = did.resolve_web('did:web:abc.com:def', get_fn=self.mock_get)
@@ -484,6 +502,18 @@ class DidTest(TestCase):
         self.assertIsNone(did.resolve_handle('foo.com', get_fn=self.mock_get))
         mock_resolve.assert_called_once_with('_atproto.foo.com.', TXT)
         self.mock_get.assert_called_with('https://foo.com/.well-known/atproto-did')
+
+    @patch('dns.resolver.resolve')
+    def test_resolve_handle_cache_ignores_get_fn(self, mock_resolve):
+        mock_resolve.return_value = dns_answer('foo.com.', 'nope')
+        self.mock_get.return_value = requests_response('did:plc:123')
+        self.assertEqual('did:plc:123',
+                         did.resolve_handle('foo.com', get_fn=self.mock_get))
+
+        other_get = MagicMock(return_value=requests_response('did:plc:456'))
+        self.assertEqual('did:plc:123',
+                         did.resolve_handle('foo.com', get_fn=other_get))
+        other_get.assert_not_called()
 
     def test_resolve_handle_bad_input(self):
         # https://atproto.com/specs/handle#handle-identifier-syntax
