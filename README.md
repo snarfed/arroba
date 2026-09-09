@@ -121,6 +121,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 ### 3.1 - unreleased
 
 * Add [service proxying](https://atproto.com/specs/xrpc#service-proxying) in new `xrpc_proxy` module. Pass `xrpc_proxy.handler(...)` to lexrpc's new `flask_server.init_flask` `fallback` kwarg to proxy methods you don't implement using [service auth](https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification).
+* Add `com.atproto.identity.resolveHandle` in new `xrpc_identity` module.
 * `server`: allow records with missing or unknown lexicons, ie pass lexrpc's new `require_lexicons=False`.
 * `xrpc_repo`:
   * `createRecord`, `getRecord`, `deleteRecord`, `putRecord`: enforce `SUPPORTED_COLLECTIONS` env var if set.
