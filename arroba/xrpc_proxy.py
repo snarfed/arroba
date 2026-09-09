@@ -13,6 +13,7 @@ from flask import request
 from lexrpc.base import XrpcError
 from lexrpc.flask_server import RESPONSE_HEADERS
 import requests
+from requests.structures import CaseInsensitiveDict
 from webutil.util import HTTP_TIMEOUT, session
 
 from . import did
@@ -164,13 +165,19 @@ def handler(auth, default_service=None):
             with resp:
                 yield from resp.raw.stream(CHUNK_SIZE, decode_content=False)
 
-        return stream(), resp.status_code, {
-            **RESPONSE_HEADERS,
-            **{name: val for name, val in resp.headers.items()
-               # hop-by-hop trailers are connection-specific. trailer header
-               # is due to a historic typo in the HTTP RFC.
-               # https://datatracker.ietf.org/doc/html/rfc2616#section-13.5.1
-               if not is_hop_by_hop(name) and name.lower() != 'trailer'},
-        }
+        # case insensitive so that the upstream service's headers collide with
+        # ours instead of both ending up in the response
+        headers = CaseInsensitiveDict(
+            (name, val) for name, val in resp.headers.items()
+            # hop-by-hop trailers are connection-specific. trailer header
+            # is due to a historic typo in the HTTP RFC.
+            # https://datatracker.ietf.org/doc/html/rfc2616#section-13.5.1
+            if not is_hop_by_hop(name) and name.lower() != 'trailer')
+
+        # last, so that they win: we're the origin the browser is talking to, so
+        # CORS is ours to decide, not the upstream service's
+        headers.update(RESPONSE_HEADERS)
+
+        return stream(), resp.status_code, headers
 
     return proxy
