@@ -94,6 +94,11 @@ def handler(auth, default_service=None):
       callable: str NSID => Flask response
     """
     def proxy(nsid):
+        # don't proxy com.atproto.server.*; the PDS owns those
+        if nsid.startswith('com.atproto.server.'):
+            return error('MethodNotImplemented', f'{nsid} not implemented',
+                         status=501)
+
         target = request.headers.get('atproto-proxy') or default_service
         if not target:
             return error('MethodNotImplemented',

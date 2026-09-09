@@ -1,5 +1,6 @@
 """Unit tests for xrpc_server.py."""
 from flask import request
+from lexrpc.base import XrpcError
 
 from ..repo import Repo
 from .. import server
@@ -50,18 +51,39 @@ class XrpcServerTest(testutil.XrpcTestCase):
             'refreshJwt': 'towkin',
         }, resp)
 
-    def test_create_session_fail(self):
+    def test_create_session_unknown_repo(self):
         with self.assertRaises(ValueError):
             resp = xrpc_server.create_session({
                 'identifier': 'nope.com',
                 'password': 'sooper-sekret',
             })
 
-        with self.assertRaises(ValueError):
-            resp = xrpc_server.create_session({
-                'identifier': 'user.com',
+    def test_create_session_wrong_password(self):
+        with self.assertRaises(XrpcError) as cm:
+            xrpc_server.create_session({
+                'identifier': 'did:web:user.com',
                 'password': 'nope',
             })
+
+        self.assertEqual('AuthenticationRequired', cm.exception.name)
+
+    def test_create_session_unknown_repo_wrong_password(self):
+        with self.assertRaises(XrpcError) as cm:
+            xrpc_server.create_session({
+                'identifier': 'nope.com',
+                'password': 'nope',
+            })
+
+        self.assertEqual('AuthenticationRequired', cm.exception.name)
+
+    def test_create_session_empty_password(self):
+        with self.assertRaises(XrpcError) as cm:
+            xrpc_server.create_session({
+                'identifier': 'did:web:user.com',
+                'password': '',
+            })
+
+        self.assertEqual('AuthenticationRequired', cm.exception.name)
 
     def test_get_session_not_logged_in(self):
         with self.assertRaises(ValueError):

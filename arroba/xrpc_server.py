@@ -1,6 +1,9 @@
 """``com.atproto.server.*`` XRPC methods."""
+import hmac
 import logging
 import os
+
+from lexrpc.base import XrpcError
 
 from . import server
 
@@ -10,9 +13,18 @@ logger = logging.getLogger(__name__)
 @server.server.method('com.atproto.server.createSession')
 def create_session(input):
     """Handler for ``com.atproto.server.createSession`` XRPC method."""
-    if not (token := os.environ['REPO_TOKEN']):
+    token = os.environ.get('REPO_TOKEN')
+    password = os.environ.get('REPO_PASSWORD')
+    if not token or not password:
         raise NotImplementedError(
             'Authenticated XRPC methods are not currently supported')
+
+    # before the repo lookup, so that an unauthenticated caller can't use the
+    # difference between our two errors to test whether a repo exists
+    input_password = input.get('password') or ''
+    if not hmac.compare_digest(input_password, password):
+        raise XrpcError('Invalid identifier or password',
+                        name='AuthenticationRequired')
 
     id = input['identifier']
     repo = server.storage.load_repo(id)

@@ -202,6 +202,14 @@ class XrpcProxyTest(testutil.TestCase):
         self.assertEqual(200, resp.status_code)
         self.assert_jwt(mock_request, lxm='x.y.query')
 
+    def test_server_methods_not_proxied(self, mock_request, _):
+        """com.atproto.server.* is the PDS's own account and session surface."""
+        resp = self.client.get('/xrpc/com.atproto.server.getSession',
+                               headers={'atproto-proxy': 'did:web:a.pp#foo'})
+        self.assertEqual(501, resp.status_code)
+        self.assertEqual('MethodNotImplemented', resp.json['error'])
+        mock_request.assert_not_called()
+
     def test_no_header_no_default_service(self, mock_request, _):
         resp = self.client.get('/xrpc/x.y.query')
         self.assertEqual(501, resp.status_code)

@@ -15,7 +15,7 @@ from multiformats import CID, multicodec, multihash
 import webutil.util
 
 from . import mst as mst_mod
-from .repo import Write
+from . import repo as repo_mod
 from .server import server
 from . import util
 from .util import dag_cbor_cid, DEACTIVATED, tid_to_int, TOMBSTONED, InactiveRepo
@@ -549,7 +549,7 @@ class Storage:
 
         commit_blocks = {}  # maps CID to Block
         assert writes is not None
-        if isinstance(writes, Write):
+        if isinstance(writes, repo_mod.Write):
             writes = [writes]
 
         if len(writes) > MAX_OPERATIONS_PER_COMMIT:
@@ -557,7 +557,7 @@ class Storage:
 
         ops = []
         for write in copy.copy(writes):
-            assert isinstance(write, Write), type(write)
+            assert isinstance(write, repo_mod.Write), type(write)
             path = f'{write.collection}/{write.rkey}'
 
             # sync v1.1: for UPDATE and DELETE, load the previous record's CID
