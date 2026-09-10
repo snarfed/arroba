@@ -44,7 +44,7 @@ class StorageTest(TestCase):
         self.assertEqual(Block(decoded=DECODED), Block(encoded=ENCODED))
 
     def test_block_hash(self):
-        self.assertEqual(id(Block(decoded=DECODED)), id(Block(encoded=ENCODED)))
+        self.assertEqual(hash(Block(decoded=DECODED)), hash(Block(encoded=ENCODED)))
 
     def test_read_events_by_seq(self):
         repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
