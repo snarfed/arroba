@@ -159,9 +159,10 @@ class XrpcProxyTest(testutil.TestCase):
 
     def test_override_cors_headers(self, mock_request, _):
         """The appview lowercases its headers; ours are title cased."""
-        mock_request.return_value = requests_response(
-            {'feed': []},
-            headers={'access-control-allow-origin': 'https://a.pp'})
+        mock_request.side_effect = [
+            requests_response({'feed': []},
+                              headers={'access-control-allow-origin': 'https://a.pp'})
+        ]
 
         resp = self.client.get('/xrpc/x.y.query',
                                headers={'atproto-proxy': 'did:web:a.pp#foo'})
