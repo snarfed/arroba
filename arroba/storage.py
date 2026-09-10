@@ -424,6 +424,27 @@ class Storage:
             assert commit_block, f'seq {seq}'
             yield make_commit()
 
+    def read_writes_since(self, repo, rev, limit=None):
+        """Reads the writes to a repo since a given revision.
+
+        Args:
+          repo (str): repo DID
+          rev (str): revision TID, exclusive
+          limit (int): optional maximum number of events to read. Commits and
+            other events each count as one, regardless of how many writes they
+            include.
+
+        Returns:
+          generator: generator of :class:`repo.Write` s, in ascending rev order.
+        """
+        events = self.read_events_by_seq(start=tid_to_int(rev) + 1, repo=repo)
+        for event in itertools.islice(events, limit):
+            if isinstance(event, CommitData):
+                for op in event.commit.ops:
+                    collection, rkey = op.path.split('/', 1)
+                    record = event.blocks[op.cid].decoded if op.cid else None
+                    yield repo_mod.Write(op.action, collection, rkey, record)
+
     def has(self, cid):
         """Checks if a given :class:`CID` is currently stored.
 

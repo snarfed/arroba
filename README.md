@@ -131,6 +131,8 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 * `xrpc_sync`:
   * `subscribeRepos`: add missing required `tooBig` field to emitted events.
   * `getRecord`: raise named `RecordNotFound` error..
+* `storage`:
+  * `Storage`: add `read_writes_since`.
 * `datastore_storage`:
   * `DatastoreStorage.read_blocks_by_seq`: fix bug where an abandoned generator, eg from a disconnected `subscribeRepos` client, could clobber an unrelated thread's ndb context.
   * `AtpRemoteBlob`: bump video limits up to [300MB and 10 minutes](https://bsky.app/profile/bsky.app/post/3mtwf7gxkwc2r).

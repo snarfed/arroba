@@ -173,6 +173,58 @@ class StorageTest(TestCase):
             'time': NOW.isoformat(),
         }, events[4])
 
+    def test_read_writes_since(self):
+        alice = Repo.create(self.storage, 'did:alice', signing_key=self.key)
+        since = alice.head.decoded['rev']
+
+        # other repos' writes shouldn't be included
+        bob = Repo.create(self.storage, 'did:bob', signing_key=self.key)
+        self.storage.commit(bob, [Write(Action.CREATE, 'co.ll', next_tid(), {'x': 'y'})])
+
+        foo = next_tid()
+        bar = next_tid()
+        self.storage.commit(alice, [
+            Write(Action.CREATE, 'co.ll', foo, {'foo': 1}),
+            Write(Action.CREATE, 'co.ll', bar, {'bar': 2}),
+        ])
+
+        self.storage.commit(alice, [Write(Action.UPDATE, 'co.ll', foo, {'foo': 3})])
+        second = alice.head.decoded['rev']
+
+        self.storage.commit(alice, [Write(Action.DELETE, 'co.ll', bar)])
+        third = alice.head.decoded['rev']
+
+        self.assertEqual([
+            Write(Action.CREATE, 'co.ll', foo, {'foo': 1}),
+            Write(Action.CREATE, 'co.ll', bar, {'bar': 2}),
+            Write(Action.UPDATE, 'co.ll', foo, {'foo': 3}),
+            Write(Action.DELETE, 'co.ll', bar),
+        ], list(self.storage.read_writes_since('did:alice', since)))
+
+        # rev is exclusive
+        self.assertEqual([Write(Action.DELETE, 'co.ll', bar)],
+                         list(self.storage.read_writes_since('did:alice', second)))
+        self.assertEqual([], list(self.storage.read_writes_since('did:alice', third)))
+
+    def test_read_writes_since_limit_counts_events(self):
+        repo = Repo.create(self.storage, 'did:alice', signing_key=self.key)
+        self.storage.commit(repo, [Write(Action.CREATE, 'co.ll', next_tid(), {'a': 1})])
+        since = repo.head.decoded['rev']
+
+        # one event with two records
+        foo = next_tid()
+        bar = next_tid()
+        self.storage.commit(repo, [
+            Write(Action.CREATE, 'co.ll', foo, {'foo': 1}),
+            Write(Action.CREATE, 'co.ll', bar, {'bar': 2}),
+        ])
+        self.storage.commit(repo, [Write(Action.CREATE, 'co.ll', next_tid(), {'baz': 3})])
+
+        self.assertEqual([
+            Write(Action.CREATE, 'co.ll', foo, {'foo': 1}),
+            Write(Action.CREATE, 'co.ll', bar, {'bar': 2}),
+        ], list(self.storage.read_writes_since('did:alice', since, limit=1)))
+
     def test_load_repo(self):
         created = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
 
