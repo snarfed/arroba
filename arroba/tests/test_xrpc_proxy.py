@@ -1,18 +1,21 @@
 """Unit tests for xrpc_proxy.py."""
 import gzip
+import os
 from unittest.mock import patch
 
 from flask import Flask
 import jwt
 from lexrpc.flask_server import init_flask
 from lexrpc.server import Server
-from webutil.testutil import requests_response
+from webutil.testutil import NOW, requests_response
 from webutil.util import HTTP_TIMEOUT
 
 # testutil must come first; it breaks the repo/storage circular import
 from . import testutil
-from ..repo import Repo
+from ..repo import Repo, Write
 from .. import server
+from ..storage import Action
+from ..util import dag_cbor_cid, int_to_tid
 from .. import xrpc_proxy
 
 APPVIEW_DID_DOC = {
@@ -22,6 +25,72 @@ APPVIEW_DID_DOC = {
         'type': 'Foo',
         'serviceEndpoint': 'https://a.pp',
     }],
+}
+
+# rev of the repo's initial commit in ReadAfterWriteTest.setUp. MemoryStorage
+# starts sequence numbers, and so revs, at 1.
+INIT_REV = int_to_tid(1, clock_id=0)
+REV_HEADER = {'Atproto-Repo-Rev': INIT_REV}
+
+OTHER_CID = dag_cbor_cid({'other': 'post'}).encode('base32')
+OTHER_POST = {
+    'uri': 'at://did:plc:other/app.bsky.feed.post/3kother',
+    'cid': OTHER_CID,
+    'author': {'did': 'did:plc:other', 'handle': 'oth.er'},
+    'record': {
+        '$type': 'app.bsky.feed.post',
+        'text': 'other',
+        'createdAt': '2022-01-01T00:00:00.000Z',
+    },
+    'indexedAt': '2022-01-01T00:00:00.000Z',
+    'viewer': {},
+}
+OTHER_REPLY = {
+    **OTHER_POST,
+    'uri': 'at://did:plc:other/app.bsky.feed.post/3kreply',
+}
+OTHER_FEED = {'feed': [{'post': OTHER_POST}]}
+
+MY_POST_URI = 'at://did:web:user.com/app.bsky.feed.post/3kmine'
+MY_POST = {
+    '$type': 'app.bsky.feed.post',
+    'text': 'mine',
+    'createdAt': '2022-01-02T03:04:05.000Z',
+}
+MY_POST_VIEW = {
+    'uri': MY_POST_URI,
+    'cid': dag_cbor_cid(MY_POST).encode('base32'),
+    'author': {'did': 'did:web:user.com', 'handle': 'han.dull'},
+    'record': MY_POST,
+    'replyCount': 0,
+    'repostCount': 0,
+    'likeCount': 0,
+    'quoteCount': 0,
+    'indexedAt': NOW.isoformat(),
+    'viewer': {},
+}
+
+MY_LIKE_URI = 'at://did:web:user.com/app.bsky.feed.like/3klike'
+MY_LIKE = {
+    '$type': 'app.bsky.feed.like',
+    'subject': {'uri': OTHER_POST['uri'], 'cid': OTHER_CID},
+    'createdAt': '2022-01-02T03:04:05.000Z',
+}
+
+BLOB_CID = dag_cbor_cid({'a': 'blob'})
+BLOB = {
+    '$type': 'blob',
+    'ref': BLOB_CID,
+    'mimeType': 'image/jpeg',
+    'size': 1234,
+}
+GET_BLOB_URL = f'https://localhost:8080/xrpc/com.atproto.sync.getBlob?did=did:web:user.com&cid={BLOB_CID.encode("base32")}'
+
+MY_PROFILE_VIEW = {
+    'did': 'did:web:user.com',
+    'handle': 'han.dull',
+    'displayName': 'Old',
+    'description': 'old description',
 }
 
 
@@ -297,3 +366,612 @@ class XrpcProxyTest(testutil.TestCase):
 
         self.assertEqual(3, mock_request.call_count)
         self.assertEqual(1, xrpc_proxy.signing_key.cache.currsize)
+
+
+@patch('arroba.did.resolve', return_value=APPVIEW_DID_DOC)
+class ReadAfterWriteTest(testutil.TestCase):
+
+    def setUp(self):
+        super().setUp()
+        server.server._validate = True
+
+        app = Flask(__name__, static_folder=None)
+        fallback = xrpc_proxy.handler(auth=lambda: 'did:web:user.com',
+                                      default_service='did:web:a.pp#foo')
+        init_flask(Server(validate=False, require_lexicons=False), app,
+                   fallback=fallback)
+        self.client = app.test_client()
+
+        self.repo = Repo.create(self.storage, 'did:web:user.com', handle='han.dull',
+                                signing_key=self.key)
+        xrpc_proxy.signing_key.cache.clear()
+
+    def commit(self, collection, rkey, record=None):
+        action = Action.CREATE if record else Action.DELETE
+        self.storage.commit(self.repo, [Write(action, collection, rkey, record)])
+
+    def get(self, nsid, **params):
+        """Makes a request and checks that the output validates."""
+        resp = self.client.get(f'/xrpc/{nsid}', query_string=params)
+        self.assertEqual(200, resp.status_code)
+        server.server.validate(nsid, 'output', resp.json)
+        return resp
+
+    @patch('webutil.util.session.request',
+           return_value=requests_response(OTHER_FEED, headers=REV_HEADER))
+    def test_timeline(self, mock_request, _):
+        self.commit('app.bsky.feed.post', '3kmine', MY_POST)
+
+        resp = self.get('app.bsky.feed.getTimeline')
+        self.assertEqual({'feed': [
+            {'post': MY_POST_VIEW},
+            {'post': OTHER_POST},
+        ]}, resp.json)
+        # upstream's rev would be wrong, since we've added newer records, and the
+        # reference PDS doesn't send its own
+        self.assertNotIn('Atproto-Repo-Rev', resp.headers)
+        self.assertFalse(mock_request.call_args.kwargs['stream'])
+
+    @patch('webutil.util.session.request', return_value=requests_response({
+        'feed': [{'post': {**MY_POST_VIEW, 'likeCount': 5}}, {'post': OTHER_POST}],
+    }, headers=REV_HEADER))
+    def test_timeline_already_has_post(self, _, __):
+        self.commit('app.bsky.feed.post', '3kmine', MY_POST)
+
+        resp = self.get('app.bsky.feed.getTimeline')
+        self.assertEqual({'feed': [
+            {'post': {**MY_POST_VIEW, 'likeCount': 5}},
+            {'post': OTHER_POST},
+        ]}, resp.json)
+
+    @patch('webutil.util.session.request', return_value=requests_response({
+        'feed': [{'post': MY_POST_VIEW}, {'post': OTHER_POST}],
+    }, headers=REV_HEADER))
+    def test_timeline_deleted_post(self, _, __):
+        self.commit('app.bsky.feed.post', '3kmine', MY_POST)
+        self.commit('app.bsky.feed.post', '3kmine')
+
+        resp = self.get('app.bsky.feed.getTimeline')
+        self.assertEqual(OTHER_FEED, resp.json)
+
+    @patch('webutil.util.session.request',
+           return_value=requests_response(OTHER_FEED, headers=REV_HEADER))
+    def test_timeline_new_posts_sorted_by_created_at(self, _, __):
+        newer = {**MY_POST, 'createdAt': '2022-01-01T02:00:00.000Z'}
+        older = {**MY_POST, 'createdAt': '2022-01-01T01:00:00.000Z'}
+        self.commit('app.bsky.feed.post', '3knewer', newer)
+        self.commit('app.bsky.feed.post', '3kolder', older)
+
+        resp = self.get('app.bsky.feed.getTimeline')
+        self.assertEqual([
+            'at://did:web:user.com/app.bsky.feed.post/3knewer',
+            'at://did:web:user.com/app.bsky.feed.post/3kolder',
+            OTHER_POST['uri'],
+        ], [item['post']['uri'] for item in resp.json['feed']])
+
+    @patch('webutil.util.session.request', return_value=requests_response(
+        {**OTHER_FEED, 'cursor': 'abc'}, headers=REV_HEADER))
+    def test_timeline_new_post_older_than_page_not_inserted(self, _, __):
+        self.commit('app.bsky.feed.post', '3kmine',
+                    {**MY_POST, 'createdAt': '2021-01-01T00:00:00.000Z'})
+
+        resp = self.get('app.bsky.feed.getTimeline')
+        self.assertEqual({**OTHER_FEED, 'cursor': 'abc'}, resp.json)
+
+    @patch('webutil.util.session.request', return_value=requests_response({
+        'feed': [{
+            'post': OTHER_POST,
+            'reason': {
+                '$type': 'app.bsky.feed.defs#reasonRepost',
+                'by': {'did': 'did:plc:reposter', 'handle': 're.poster'},
+                'indexedAt': '2020-01-01T00:00:00.000Z',
+            },
+        }],
+        'cursor': 'abc',
+    }, headers=REV_HEADER))
+    def test_timeline_oldest_in_page_is_repost(self, _, __):
+        """Reposts are sorted by when they were reposted, not the post's createdAt."""
+        self.commit('app.bsky.feed.post', '3kmine',
+                    {**MY_POST, 'createdAt': '2021-01-01T00:00:00.000Z'})
+
+        resp = self.get('app.bsky.feed.getTimeline')
+        self.assertEqual([MY_POST_URI, OTHER_POST['uri']],
+                         [item['post']['uri'] for item in resp.json['feed']])
+
+    @patch('webutil.util.session.request',
+           return_value=requests_response(OTHER_FEED, headers=REV_HEADER))
+    def test_timeline_new_post_older_than_last_page_inserted(self, _, __):
+        old_post = {**MY_POST, 'createdAt': '2021-01-01T00:00:00.000Z'}
+        self.commit('app.bsky.feed.post', '3kmine', old_post)
+
+        resp = self.get('app.bsky.feed.getTimeline')
+        self.assertEqual({'feed': [
+            {'post': {
+                **MY_POST_VIEW,
+                'cid': dag_cbor_cid(old_post).encode('base32'),
+                'record': old_post,
+            }},
+            {'post': OTHER_POST},
+        ]}, resp.json)
+
+    @patch('webutil.util.session.request')
+    def test_timeline_updated_old_post_not_inserted(self, mock_request, _):
+        old_post = {**MY_POST, 'createdAt': '2021-01-01T00:00:00.000Z'}
+        self.commit('app.bsky.feed.post', '3kmine', old_post)
+        mock_request.return_value = requests_response(
+            {**OTHER_FEED, 'cursor': 'abc'},
+            headers={'Atproto-Repo-Rev': self.repo.head.decoded['rev']})
+
+        self.storage.commit(self.repo, [Write(Action.UPDATE, 'app.bsky.feed.post',
+                                              '3kmine', {**old_post, 'text': 'edited'})])
+
+        resp = self.get('app.bsky.feed.getTimeline')
+        self.assertEqual({**OTHER_FEED, 'cursor': 'abc'}, resp.json)
+
+    @patch('webutil.util.session.request',
+           return_value=requests_response(OTHER_FEED, headers=REV_HEADER))
+    def test_timeline_later_page(self, _, __):
+        self.commit('app.bsky.feed.post', '3kmine', MY_POST)
+
+        resp = self.get('app.bsky.feed.getTimeline', cursor='123')
+        self.assertEqual(OTHER_FEED, resp.json)
+
+    @patch('webutil.util.session.request', return_value=requests_response(
+        {'feed': []}, headers=REV_HEADER))
+    def test_author_feed(self, _, __):
+        self.commit('app.bsky.feed.post', '3kmine', MY_POST)
+
+        for actor in 'did:web:user.com', 'han.dull':
+            with self.subTest(actor=actor):
+                resp = self.get('app.bsky.feed.getAuthorFeed', actor=actor)
+                self.assertEqual({'feed': [{'post': MY_POST_VIEW}]}, resp.json)
+
+    @patch('webutil.util.session.request', return_value=requests_response(
+        {'feed': []}, headers=REV_HEADER))
+    def test_author_feed_other_actor(self, _, __):
+        self.commit('app.bsky.feed.post', '3kmine', MY_POST)
+
+        resp = self.get('app.bsky.feed.getAuthorFeed', actor='did:plc:other')
+        self.assertEqual({'feed': []}, resp.json)
+
+    @patch('webutil.util.session.request', return_value=requests_response(
+        {'feed': [{'post': MY_POST_VIEW}]}, headers=REV_HEADER))
+    def test_author_feed_filter_still_removes_deleted_post(self, _, __):
+        self.commit('app.bsky.feed.post', '3kmine', MY_POST)
+        self.commit('app.bsky.feed.post', '3kmine')
+
+        resp = self.get('app.bsky.feed.getAuthorFeed', actor='did:web:user.com',
+                        filter='posts_with_media')
+        self.assertEqual({'feed': []}, resp.json)
+
+    @patch('webutil.util.session.request', return_value=requests_response(
+        {'feed': []}, headers=REV_HEADER))
+    def test_author_feed_filters(self, _, __):
+        other_ref = {'uri': OTHER_POST['uri'], 'cid': OTHER_CID}
+        my_ref = {
+            'uri': 'at://did:web:user.com/app.bsky.feed.post/3kplain',
+            'cid': dag_cbor_cid(MY_POST).encode('base32'),
+        }
+        images = {
+            '$type': 'app.bsky.embed.images',
+            'images': [{'image': BLOB, 'alt': ''}],
+        }
+
+        # in commit order, so the feed has them in reverse
+        for rkey, fields in (
+            ('3kplain', {}),
+            ('3kreply', {'reply': {'root': other_ref, 'parent': other_ref}}),
+            ('3kthread', {'reply': {'root': my_ref, 'parent': my_ref}}),
+            ('3kimages', {'embed': images}),
+            ('3kgallery', {'embed': {
+                '$type': 'app.bsky.embed.gallery',
+                'items': [{
+                    '$type': 'app.bsky.embed.gallery#image',
+                    'image': BLOB,
+                    'alt': '',
+                    'aspectRatio': {'width': 4, 'height': 3},
+                }],
+            }}),
+            ('3kvideo', {'embed': {
+                '$type': 'app.bsky.embed.video',
+                'video': {**BLOB, 'mimeType': 'video/mp4'},
+            }}),
+            ('3kquote', {'embed': {
+                '$type': 'app.bsky.embed.recordWithMedia',
+                'record': {'$type': 'app.bsky.embed.record', 'record': other_ref},
+                'media': images,
+            }}),
+        ):
+            self.commit('app.bsky.feed.post', rkey, {**MY_POST, **fields})
+
+        for filter, expected in (
+            ('posts_with_replies', ['quote', 'video', 'gallery', 'images', 'thread',
+                                    'reply', 'plain']),
+            ('posts_no_replies', ['quote', 'video', 'gallery', 'images', 'plain']),
+            ('posts_with_media', ['quote', 'gallery', 'images']),
+            ('posts_with_video', ['video']),
+            ('posts_and_author_threads', ['quote', 'video', 'gallery', 'images',
+                                          'thread', 'plain']),
+            ('unknown', []),
+        ):
+            with self.subTest(filter=filter):
+                resp = self.get('app.bsky.feed.getAuthorFeed',
+                                actor='did:web:user.com', filter=filter)
+                self.assert_equals(
+                    [f'at://did:web:user.com/app.bsky.feed.post/3k{rkey}'
+                     for rkey in expected],
+                    [item['post']['uri'] for item in resp.json['feed']])
+
+    @patch('webutil.util.session.request', return_value=requests_response(
+        {'feed': []}, headers=REV_HEADER))
+    def test_post_author_profile(self, _, __):
+        self.commit('app.bsky.actor.profile', 'self', {
+            '$type': 'app.bsky.actor.profile',
+            'displayName': 'Me',
+            'avatar': BLOB,
+        })
+        self.commit('app.bsky.feed.post', '3kmine', MY_POST)
+
+        resp = self.get('app.bsky.feed.getTimeline')
+        self.assertEqual({'feed': [{'post': {
+            **MY_POST_VIEW,
+            'author': {
+                'did': 'did:web:user.com',
+                'handle': 'han.dull',
+                'displayName': 'Me',
+                'avatar': GET_BLOB_URL,
+            },
+        }}]}, resp.json)
+
+    @patch('webutil.util.session.request', return_value=requests_response(
+        {'feed': []}, headers=REV_HEADER))
+    def test_post_images_embed(self, _, __):
+        self.commit('app.bsky.feed.post', '3kmine', {**MY_POST, 'embed': {
+            '$type': 'app.bsky.embed.images',
+            'images': [{
+                'image': BLOB,
+                'alt': 'a pic',
+                'aspectRatio': {'width': 4, 'height': 3},
+            }],
+        }})
+
+        resp = self.get('app.bsky.feed.getTimeline')
+        self.assertEqual({
+            '$type': 'app.bsky.embed.images#view',
+            'images': [{
+                'thumb': GET_BLOB_URL,
+                'fullsize': GET_BLOB_URL,
+                'alt': 'a pic',
+                'aspectRatio': {'width': 4, 'height': 3},
+            }],
+        }, resp.json['feed'][0]['post']['embed'])
+
+    @patch.dict(os.environ, {'APPVIEW_HOST': 'a.pp'})
+    @patch('webutil.util.session.request', return_value=requests_response(
+        {'feed': []}, headers=REV_HEADER))
+    def test_post_images_embed_cdn(self, _, __):
+        self.commit('app.bsky.feed.post', '3kmine', {**MY_POST, 'embed': {
+            '$type': 'app.bsky.embed.images',
+            'images': [{'image': BLOB, 'alt': ''}],
+        }})
+
+        resp = self.get('app.bsky.feed.getTimeline')
+        self.assertEqual({
+            '$type': 'app.bsky.embed.images#view',
+            'images': [{
+                'thumb': f'https://cdn.bsky.app/img/feed_thumbnail/plain/did:web:user.com/{BLOB_CID.encode("base32")}@jpeg',
+                'fullsize': f'https://cdn.bsky.app/img/feed_fullsize/plain/did:web:user.com/{BLOB_CID.encode("base32")}@jpeg',
+                'alt': '',
+            }],
+        }, resp.json['feed'][0]['post']['embed'])
+
+    @patch('webutil.util.session.request', return_value=requests_response(
+        {'feed': []}, headers=REV_HEADER))
+    def test_post_external_embed(self, _, __):
+        self.commit('app.bsky.feed.post', '3kmine', {**MY_POST, 'embed': {
+            '$type': 'app.bsky.embed.external',
+            'external': {
+                'uri': 'https://li.nk/',
+                'title': 'a link',
+                'description': 'about it',
+                'thumb': BLOB,
+            },
+        }})
+
+        resp = self.get('app.bsky.feed.getTimeline')
+        self.assertEqual({
+            '$type': 'app.bsky.embed.external#view',
+            'external': {
+                'uri': 'https://li.nk/',
+                'title': 'a link',
+                'description': 'about it',
+                'thumb': GET_BLOB_URL,
+            },
+        }, resp.json['feed'][0]['post']['embed'])
+
+    @patch('webutil.util.session.request', return_value=requests_response(
+        {'feed': []}, headers=REV_HEADER))
+    def test_post_quote_embed_omitted(self, _, __):
+        """Quote post views need the quoted post's view, which only the appview has."""
+        self.commit('app.bsky.feed.post', '3kmine', {**MY_POST, 'embed': {
+            '$type': 'app.bsky.embed.record',
+            'record': {'uri': OTHER_POST['uri'], 'cid': OTHER_CID},
+        }})
+
+        resp = self.get('app.bsky.feed.getTimeline')
+        self.assertNotIn('embed', resp.json['feed'][0]['post'])
+
+    @patch('webutil.util.session.request',
+           return_value=requests_response(MY_PROFILE_VIEW, headers=REV_HEADER))
+    def test_profile(self, _, __):
+        self.commit('app.bsky.actor.profile', 'self', {
+            '$type': 'app.bsky.actor.profile',
+            'displayName': 'New',
+            'avatar': BLOB,
+            'banner': BLOB,
+        })
+
+        resp = self.get('app.bsky.actor.getProfile', actor='did:web:user.com')
+        self.assertEqual({
+            'did': 'did:web:user.com',
+            'handle': 'han.dull',
+            'displayName': 'New',
+            'avatar': GET_BLOB_URL,
+            'banner': GET_BLOB_URL,
+        }, resp.json)
+
+    @patch('webutil.util.session.request', return_value=requests_response({
+        'profiles': [
+            {'did': 'did:plc:other', 'handle': 'oth.er', 'displayName': 'Other'},
+            MY_PROFILE_VIEW,
+        ],
+    }, headers=REV_HEADER))
+    def test_profiles(self, _, __):
+        self.commit('app.bsky.actor.profile', 'self', {
+            '$type': 'app.bsky.actor.profile',
+            'displayName': 'New',
+        })
+
+        resp = self.get('app.bsky.actor.getProfiles',
+                        actors=['did:plc:other', 'did:web:user.com'])
+        self.assertEqual({'profiles': [
+            {'did': 'did:plc:other', 'handle': 'oth.er', 'displayName': 'Other'},
+            {'did': 'did:web:user.com', 'handle': 'han.dull', 'displayName': 'New'},
+        ]}, resp.json)
+
+    @patch('webutil.util.session.request',
+           return_value=requests_response({'feed': []}, headers=REV_HEADER))
+    def test_like_own_new_post(self, _, __):
+        self.commit('app.bsky.feed.post', '3kmine', MY_POST)
+        self.commit('app.bsky.feed.like', '3klike', {
+            **MY_LIKE,
+            'subject': {'uri': MY_POST_URI, 'cid': MY_POST_VIEW['cid']},
+        })
+
+        resp = self.get('app.bsky.feed.getTimeline')
+        self.assertEqual({'feed': [{'post': {
+            **MY_POST_VIEW,
+            'likeCount': 1,
+            'viewer': {'like': MY_LIKE_URI},
+        }}]}, resp.json)
+
+    @patch('webutil.util.session.request', return_value=requests_response({
+        'feed': [{
+            'post': OTHER_REPLY,
+            'reply': {
+                'root': {'$type': 'app.bsky.feed.defs#postView', **OTHER_POST},
+                'parent': {'$type': 'app.bsky.feed.defs#postView', **OTHER_POST},
+            },
+        }],
+    }, headers=REV_HEADER))
+    def test_like_reply_root_and_parent_in_feed(self, _, __):
+        self.commit('app.bsky.feed.like', '3klike', MY_LIKE)
+
+        resp = self.get('app.bsky.feed.getTimeline')
+        liked = {
+            '$type': 'app.bsky.feed.defs#postView',
+            **OTHER_POST,
+            'likeCount': 1,
+            'viewer': {'like': MY_LIKE_URI},
+        }
+        self.assertEqual({'feed': [{
+            'post': OTHER_REPLY,
+            'reply': {'root': liked, 'parent': liked},
+        }]}, resp.json)
+
+    @patch('webutil.util.session.request',
+           return_value=requests_response(OTHER_FEED, headers=REV_HEADER))
+    def test_like_in_other_actors_author_feed(self, _, __):
+        self.commit('app.bsky.feed.like', '3klike', MY_LIKE)
+
+        resp = self.get('app.bsky.feed.getAuthorFeed', actor='did:plc:other')
+        self.assertEqual({'feed': [{'post': {
+            **OTHER_POST,
+            'likeCount': 1,
+            'viewer': {'like': MY_LIKE_URI},
+        }}]}, resp.json)
+
+    @patch('webutil.util.session.request', return_value=requests_response({
+        'posts': [OTHER_POST, OTHER_REPLY],
+    }, headers=REV_HEADER))
+    def test_posts_like(self, _, __):
+        self.commit('app.bsky.feed.like', '3klike', MY_LIKE)
+
+        resp = self.get('app.bsky.feed.getPosts', uris=[OTHER_POST['uri'],
+                                                        OTHER_REPLY['uri']])
+        self.assertEqual({'posts': [
+            {**OTHER_POST, 'likeCount': 1, 'viewer': {'like': MY_LIKE_URI}},
+            OTHER_REPLY,
+        ]}, resp.json)
+
+    @patch('webutil.util.session.request',
+           return_value=requests_response(OTHER_FEED, headers=REV_HEADER))
+    def test_like(self, _, __):
+        self.commit('app.bsky.feed.like', '3klike', MY_LIKE)
+
+        resp = self.get('app.bsky.feed.getTimeline')
+        self.assertEqual({'feed': [{'post': {
+            **OTHER_POST,
+            'likeCount': 1,
+            'viewer': {'like': MY_LIKE_URI},
+        }}]}, resp.json)
+
+    @patch('webutil.util.session.request')
+    def test_unlike(self, mock_request, _):
+        self.commit('app.bsky.feed.like', '3klike', MY_LIKE)
+        mock_request.return_value = requests_response({'feed': [{'post': {
+            **OTHER_POST,
+            'likeCount': 1,
+            'viewer': {'like': MY_LIKE_URI},
+        }}]}, headers={'Atproto-Repo-Rev': self.repo.head.decoded['rev']})
+
+        self.commit('app.bsky.feed.like', '3klike')
+
+        resp = self.get('app.bsky.feed.getTimeline')
+        self.assertEqual({'feed': [{'post': {
+            **OTHER_POST,
+            'likeCount': 0,
+            'viewer': {},
+        }}]}, resp.json)
+
+    @patch('webutil.util.session.request',
+           return_value=requests_response(OTHER_FEED, headers=REV_HEADER))
+    def test_like_then_unlike(self, _, __):
+        self.commit('app.bsky.feed.like', '3klike', MY_LIKE)
+        self.commit('app.bsky.feed.like', '3klike')
+
+        resp = self.get('app.bsky.feed.getTimeline')
+        self.assertEqual(OTHER_FEED, resp.json)
+
+    @patch('webutil.util.session.request',
+           return_value=requests_response(OTHER_FEED, headers=REV_HEADER))
+    def test_repost(self, _, __):
+        self.commit('app.bsky.feed.repost', '3krepost', {
+            '$type': 'app.bsky.feed.repost',
+            'subject': {'uri': OTHER_POST['uri'], 'cid': OTHER_CID},
+            'createdAt': '2022-01-02T03:04:05.000Z',
+        })
+
+        resp = self.get('app.bsky.feed.getTimeline')
+        self.assertEqual({'feed': [{'post': {
+            **OTHER_POST,
+            'repostCount': 1,
+            'viewer': {
+                'repost': 'at://did:web:user.com/app.bsky.feed.repost/3krepost',
+            },
+        }}]}, resp.json)
+
+    @patch('webutil.util.session.request', return_value=requests_response({
+        'thread': {
+            '$type': 'app.bsky.feed.defs#threadViewPost',
+            'post': OTHER_POST,
+            'replies': [{
+                '$type': 'app.bsky.feed.defs#threadViewPost',
+                'post': {**OTHER_REPLY, 'record': {
+                    **OTHER_POST['record'],
+                    'reply': {
+                        'root': {'uri': OTHER_POST['uri'], 'cid': OTHER_CID},
+                        'parent': {'uri': OTHER_POST['uri'], 'cid': OTHER_CID},
+                    },
+                }},
+            }],
+        },
+    }, headers=REV_HEADER))
+    def test_post_thread_like_reply(self, _, __):
+        self.commit('app.bsky.feed.like', '3klike', {
+            **MY_LIKE,
+            'subject': {'uri': OTHER_REPLY['uri'], 'cid': OTHER_CID},
+        })
+
+        resp = self.get('app.bsky.feed.getPostThread', uri=OTHER_POST['uri'])
+        self.assertEqual(OTHER_POST, resp.json['thread']['post'])
+        reply = resp.json['thread']['replies'][0]['post']
+        self.assertEqual(1, reply['likeCount'])
+        self.assertEqual({'like': MY_LIKE_URI}, reply['viewer'])
+
+    @patch('webutil.util.session.request', return_value=requests_response({
+        'thread': [{
+            'uri': OTHER_POST['uri'],
+            'depth': 0,
+            'value': {
+                '$type': 'app.bsky.unspecced.defs#threadItemPost',
+                'post': OTHER_POST,
+                'moreParents': False,
+                'moreReplies': 0,
+                'opThread': False,
+                'hiddenByThreadgate': False,
+                'mutedByViewer': False,
+            },
+        }],
+        'hasOtherReplies': False,
+    }, headers=REV_HEADER))
+    def test_post_thread_v2_like(self, _, __):
+        self.commit('app.bsky.feed.like', '3klike', MY_LIKE)
+
+        resp = self.get('app.bsky.unspecced.getPostThreadV2', anchor=OTHER_POST['uri'])
+        self.assertEqual({
+            **OTHER_POST,
+            'likeCount': 1,
+            'viewer': {'like': MY_LIKE_URI},
+        }, resp.json['thread'][0]['value']['post'])
+
+    @patch('webutil.util.session.request', return_value=requests_response({'feed': [{
+        'post': {**OTHER_REPLY, 'embed': {
+            '$type': 'app.bsky.embed.record#view',
+            'record': {
+                '$type': 'app.bsky.embed.record#viewRecord',
+                'uri': OTHER_POST['uri'],
+                'cid': OTHER_CID,
+                'author': OTHER_POST['author'],
+                'value': OTHER_POST['record'],
+                'indexedAt': OTHER_POST['indexedAt'],
+            },
+        }},
+    }]}, headers=REV_HEADER))
+    def test_like_ignores_quoted_view_record(self, mock_request, _):
+        self.commit('app.bsky.feed.like', '3klike', MY_LIKE)
+
+        resp = self.get('app.bsky.feed.getTimeline')
+        self.assertEqual(mock_request.return_value.json(), resp.json)
+
+    @patch('webutil.util.session.request',
+           return_value=requests_response(OTHER_FEED))
+    def test_no_rev_header(self, _, __):
+        self.commit('app.bsky.feed.post', '3kmine', MY_POST)
+
+        resp = self.get('app.bsky.feed.getTimeline')
+        self.assertEqual(OTHER_FEED, resp.json)
+
+    @patch('webutil.util.session.request', return_value=requests_response(
+        OTHER_FEED, headers={
+            **REV_HEADER,
+            # requests has already decoded the body by the time we see it
+            'Content-Encoding': 'gzip',
+            'Content-Length': '999',
+        }))
+    def test_no_local_records(self, mock_request, _):
+        resp = self.get('app.bsky.feed.getTimeline')
+        self.assertEqual(OTHER_FEED, resp.json)
+        self.assertEqual(INIT_REV, resp.headers['Atproto-Repo-Rev'])
+        self.assertNotIn('Content-Encoding', resp.headers)
+        self.assertEqual(str(len(resp.get_data())), resp.headers['Content-Length'])
+        self.assertFalse(mock_request.call_args.kwargs['stream'])
+
+    @patch('webutil.util.session.request', return_value=requests_response(
+        {'error': 'InvalidRequest', 'message': 'nope'}, status=400,
+        headers=REV_HEADER))
+    def test_error_status(self, _, __):
+        self.commit('app.bsky.feed.post', '3kmine', MY_POST)
+
+        resp = self.client.get('/xrpc/app.bsky.feed.getTimeline')
+        self.assertEqual(400, resp.status_code)
+        self.assertEqual({'error': 'InvalidRequest', 'message': 'nope'}, resp.json)
+
+    @patch('webutil.util.session.request', return_value=requests_response(
+        {'feed': 'not a list'}, headers=REV_HEADER))
+    def test_invalid_upstream_output(self, mock_request, _):
+        self.commit('app.bsky.feed.post', '3kmine', MY_POST)
+
+        resp = self.client.get('/xrpc/app.bsky.feed.getTimeline')
+        self.assertEqual(200, resp.status_code)
+        self.assertEqual(mock_request.return_value.content, resp.get_data())
