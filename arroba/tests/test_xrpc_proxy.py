@@ -111,7 +111,7 @@ class XrpcProxyTest(testutil.TestCase):
 
         server.auth = lambda: self.authed_did
 
-        init_flask(self.server, self.app, fallback=xrpc_proxy.handler())
+        init_flask(self.server, self.app, fallback=xrpc_proxy.handler)
 
         self.repo = Repo.create(self.storage, 'did:web:user.com', handle='han.dull',
                                 signing_key=self.key)
@@ -280,15 +280,6 @@ class XrpcProxyTest(testutil.TestCase):
         self.assertEqual(400, resp.status_code)
         self.assertEqual({'error': 'InvalidRequest', 'message': 'nope'}, resp.json)
 
-    def test_default_service(self, mock_request, _):
-        fallback = xrpc_proxy.handler(default_service='did:web:a.pp#foo')
-        app = Flask(__name__, static_folder=None)
-        init_flask(self.server, app, fallback=fallback)
-
-        resp = app.test_client().get('/xrpc/x.y.query')
-        self.assertEqual(200, resp.status_code)
-        self.assert_jwt(mock_request, lxm='x.y.query')
-
     def test_server_methods_not_proxied(self, mock_request, _):
         """com.atproto.server.* is the PDS's own account and session surface."""
         resp = self.client.get('/xrpc/com.atproto.server.getSession',
@@ -297,7 +288,7 @@ class XrpcProxyTest(testutil.TestCase):
         self.assertEqual('MethodNotImplemented', resp.json['error'])
         mock_request.assert_not_called()
 
-    def test_no_header_no_default_service(self, mock_request, _):
+    def test_no_header(self, mock_request, _):
         resp = self.client.get('/xrpc/x.y.query')
         self.assertEqual(501, resp.status_code)
         self.assertEqual('MethodNotImplemented', resp.json['error'])
@@ -416,10 +407,10 @@ class ReadAfterWriteTest(testutil.TestCase):
         self.addCleanup(auth.stop)
 
         app = Flask(__name__, static_folder=None)
-        fallback = xrpc_proxy.handler(default_service='did:web:a.pp#foo')
         init_flask(Server(validate=False, require_lexicons=False), app,
-                   fallback=fallback)
+                   fallback=xrpc_proxy.handler)
         self.client = app.test_client()
+        self.client.environ_base['HTTP_ATPROTO_PROXY'] = 'did:web:a.pp#foo'
 
         self.repo = Repo.create(self.storage, 'did:web:user.com', handle='han.dull',
                                 signing_key=self.key)

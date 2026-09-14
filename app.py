@@ -4,10 +4,10 @@ import json
 import logging
 import os
 from pathlib import Path
-from threading import Timer
+import threading
 
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
-from flask import Flask, make_response, redirect, request
+from flask import Flask, make_response, redirect
 import google.cloud.logging
 from google.cloud import ndb
 import jwt
@@ -60,6 +60,8 @@ else:
     os.environ.setdefault('GOOGLE_CLOUD_PROJECT', 'app')
     os.environ.setdefault('DATASTORE_EMULATOR_HOST', 'localhost:8089')
 
+thread_local = threading.local()
+
 logger.info(f'Env: {json.dumps(dict(sorted(os.environ.items())), indent=2)}')
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ['REPO_TOKEN']
@@ -84,17 +86,9 @@ def get_preferences():
 def put_preferences():
     return {}, lexrpc.flask_server.RESPONSE_HEADERS
 
-def authed_did():
-    """Returns the DID of the repo that authenticated this request, if any."""
-    if request.headers.get('Authorization') == f'Bearer {os.environ["REPO_TOKEN"]}':
-        return os.environ['REPO_DID']
-
-# proxy XRPCs we don't implement to the sandbox AppView
+# proxy XRPCs we don't implement to the service in the atproto-proxy header
 # https://atproto.com/specs/xrpc#service-proxying
-# https://atproto.com/blog/federation-developer-sandbox#bluesky-app-view
-lexrpc.flask_server.init_flask(server.server, app, fallback=xrpc_proxy.handler(
-    auth=authed_did,
-    default_service=f'did:web:{os.environ["APPVIEW_HOST"]}#bsky_appview'))
+lexrpc.flask_server.init_flask(server.server, app, fallback=xrpc_proxy.handler)
 
 ndb_client = thread_local.ndb_client = ndb.Client()
 
@@ -173,5 +167,5 @@ if is_prod:
         resp = relay.com.atproto.sync.requestCrawl({'hostname': os.environ['PDS_HOST']})
         logger.info(resp)
 
-    Timer(5 * 60, request_crawl).start()
+    threading.Timer(5 * 60, request_crawl).start()
     logger.info('Will send relay requestCrawl in 5m')

@@ -105,138 +105,133 @@ def error(name, message, status=400):
     return {'error': name, 'message': message}, status, RESPONSE_HEADERS
 
 
-def handler(default_service=None):
-    """Generates a service proxying handler for :func:`lexrpc.flask_server.init_flask`.
+def handler(nsid):
+    """Service proxying handler for :func:`lexrpc.flask_server.init_flask`.
 
-    Pass the returned callable as ``fallback`` so that methods we don't
-    implement ourselves get proxied to the service the client asks for in the
-    ``atproto-proxy`` header.
+    Pass as ``fallback`` so that methods we don't implement ourselves get proxied
+    to the service the client asks for in the ``atproto-proxy`` header.
 
     Authenticates requests with :func:`server.auth`. Exceptions from it that are
     werkzeug ``HTTPException``\\s, eg OAuth errors, pass through as is.
 
+    Requests without an ``atproto-proxy`` header get ``MethodNotImplemented``.
+
     Args:
-      default_service (str): ``[DID]#[service id]`` to proxy to when a request
-        has no ``atproto-proxy`` header, eg ``did:web:api.bsky.app#bsky_appview``.
-        If unset, those requests get ``MethodNotImplemented``.
+      nsid (str)
 
     Returns:
-      callable: str NSID => Flask response
+      Flask response
     """
-    def proxy(nsid):
-        # don't proxy com.atproto.server.*; the PDS owns those
-        if nsid.startswith('com.atproto.server.'):
-            return error('MethodNotImplemented', f'{nsid} not implemented',
-                         status=501)
+    # don't proxy com.atproto.server.*; the PDS owns those
+    if nsid.startswith('com.atproto.server.'):
+        return error('MethodNotImplemented', f'{nsid} not implemented',
+                     status=501)
 
-        target = request.headers.get('atproto-proxy') or default_service
-        if not target:
-            return error('MethodNotImplemented',
-                         f'{nsid} not implemented, and no atproto-proxy header',
-                         status=501)
+    if not (target := request.headers.get('atproto-proxy')):
+        return error('MethodNotImplemented',
+                     f'{nsid} not implemented, and no atproto-proxy header',
+                     status=501)
 
-        target_did, _, service_id = target.partition('#')
-        if not target_did or not service_id:
-            return error('InvalidRequest', f'Bad atproto-proxy header {target}')
+    target_did, _, service_id = target.partition('#')
+    if not target_did or not service_id:
+        return error('InvalidRequest', f'Bad atproto-proxy header {target}')
 
-        try:
-            user_did = server.auth()
-        except (NotImplementedError, ValueError) as e:
-            return error('AuthMissing', f'Proxying {nsid} requires authentication: {e}',
-                         status=401)
+    try:
+        user_did = server.auth()
+    except (NotImplementedError, ValueError) as e:
+        return error('AuthMissing', f'Proxying {nsid} requires authentication: {e}',
+                     status=401)
 
-        # ALL_REPOS credentials don't have a user to sign service auth JWTs as
-        if not isinstance(user_did, str):
-            return error('AuthMissing', f'Proxying {nsid} requires user authentication',
-                         status=401)
+    # ALL_REPOS credentials don't have a user to sign service auth JWTs as
+    if not isinstance(user_did, str):
+        return error('AuthMissing', f'Proxying {nsid} requires user authentication',
+                     status=401)
 
-        try:
-            doc = did.resolve(target_did)
-        except (ValueError, requests.RequestException) as e:
-            return error('InvalidRequest', f"Couldn't resolve {target_did}: {e}")
+    try:
+        doc = did.resolve(target_did)
+    except (ValueError, requests.RequestException) as e:
+        return error('InvalidRequest', f"Couldn't resolve {target_did}: {e}")
 
-        endpoint = None
-        for service in (doc or {}).get('service', []):
-            # DID docs may use either a relative or absolute service id
-            if service.get('id') in (f'#{service_id}', f'{target_did}#{service_id}'):
-                endpoint = service.get('serviceEndpoint')
-                break
+    endpoint = None
+    for service in (doc or {}).get('service', []):
+        # DID docs may use either a relative or absolute service id
+        if service.get('id') in (f'#{service_id}', f'{target_did}#{service_id}'):
+            endpoint = service.get('serviceEndpoint')
+            break
 
-        if not endpoint:
-            return error('InvalidRequest',
-                         f'{target_did} has no #{service_id} serviceEndpoint')
+    if not endpoint:
+        return error('InvalidRequest',
+                     f'{target_did} has no #{service_id} serviceEndpoint')
 
-        try:
-            key = signing_key(user_did)
-        except XrpcError as e:
-            return error(e.name, e.message)
+    try:
+        key = signing_key(user_did)
+    except XrpcError as e:
+        return error(e.name, e.message)
 
-        token = service_jwt(host=urlparse(endpoint).netloc, repo_did=user_did,
-                            privkey=key, aud=target_did, lxm=nsid,
-                            expiration=JWT_EXPIRATION)
-        headers = {
-            'User-Agent': USER_AGENT,
-            'Authorization': f'Bearer {token}',
-            # we stream the body back in its original encoding. no Accept-Encoding
-            # isn't the same as "any encoding is fine," so default to none explicitly
-            # rather than letting requests default to gzip.
-            'Accept-Encoding': request.headers.get('Accept-Encoding', 'identity'),
-            **{name: val for name in FORWARD_REQUEST_HEADERS
-               if (val := request.headers.get(name))},
-        }
+    token = service_jwt(host=urlparse(endpoint).netloc, repo_did=user_did,
+                        privkey=key, aud=target_did, lxm=nsid,
+                        expiration=JWT_EXPIRATION)
+    headers = {
+        'User-Agent': USER_AGENT,
+        'Authorization': f'Bearer {token}',
+        # we stream the body back in its original encoding. no Accept-Encoding
+        # isn't the same as "any encoding is fine," so default to none explicitly
+        # rather than letting requests default to gzip.
+        'Accept-Encoding': request.headers.get('Accept-Encoding', 'identity'),
+        **{name: val for name in FORWARD_REQUEST_HEADERS
+           if (val := request.headers.get(name))},
+    }
 
-        # not request.full_path; it appends a ? even with no query params
-        url = urljoin(endpoint, request.path)
-        if request.query_string:
-            url += '?' + request.query_string.decode()
+    # not request.full_path; it appends a ? even with no query params
+    url = urljoin(endpoint, request.path)
+    if request.query_string:
+        url += '?' + request.query_string.decode()
 
-        # read-after-write needs to parse and modify the response, so buffer it
-        buffer = nsid in read_after_write_fns
+    # read-after-write needs to parse and modify the response, so buffer it
+    buffer = nsid in read_after_write_fns
 
-        logger.info(f'Proxying {request.method} {url} for {user_did}')
-        resp = session.request(request.method, url, headers=headers,
-                               data=request.get_data(), stream=not buffer,
-                               timeout=HTTP_TIMEOUT)
-        logger.info(f'Got {resp.status_code}')
+    logger.info(f'Proxying {request.method} {url} for {user_did}')
+    resp = session.request(request.method, url, headers=headers,
+                           data=request.get_data(), stream=not buffer,
+                           timeout=HTTP_TIMEOUT)
+    logger.info(f'Got {resp.status_code}')
 
-        def stream():
-            # make sure we close the response's stream
-            with resp:
-                yield from resp.raw.stream(CHUNK_SIZE, decode_content=False)
+    def stream():
+        # make sure we close the response's stream
+        with resp:
+            yield from resp.raw.stream(CHUNK_SIZE, decode_content=False)
 
-        # case insensitive so that the upstream service's headers collide with
-        # ours instead of both ending up in the response
-        headers = CaseInsensitiveDict(
-            (name, val) for name, val in resp.headers.items()
-            # hop-by-hop trailers are connection-specific. trailer header
-            # is due to a historic typo in the HTTP RFC.
-            # https://datatracker.ietf.org/doc/html/rfc2616#section-13.5.1
-            if not is_hop_by_hop(name) and name.lower() != 'trailer')
+    # case insensitive so that the upstream service's headers collide with
+    # ours instead of both ending up in the response
+    headers = CaseInsensitiveDict(
+        (name, val) for name, val in resp.headers.items()
+        # hop-by-hop trailers are connection-specific. trailer header
+        # is due to a historic typo in the HTTP RFC.
+        # https://datatracker.ietf.org/doc/html/rfc2616#section-13.5.1
+        if not is_hop_by_hop(name) and name.lower() != 'trailer')
 
-        # last, so that they win: we're the origin the browser is talking to, so
-        # CORS is ours to decide, not the upstream service's
-        headers.update(RESPONSE_HEADERS)
+    # last, so that they win: we're the origin the browser is talking to, so
+    # CORS is ours to decide, not the upstream service's
+    headers.update(RESPONSE_HEADERS)
 
-        if not buffer:
-            return stream(), resp.status_code, headers
+    if not buffer:
+        return stream(), resp.status_code, headers
 
-        # requests has already decoded the body
-        headers.pop('Content-Encoding', None)
-        headers.pop('Content-Length', None)
+    # requests has already decoded the body
+    headers.pop('Content-Encoding', None)
+    headers.pop('Content-Length', None)
 
-        if (resp.status_code == 200
-                and resp.headers.get('Content-Type').startswith('application/json')
-                and (rev := resp.headers.get('Atproto-Repo-Rev'))
-                and (output := read_after_write(nsid, resp.json(), rev, user_did,
-                                                service_did=target_did))):
-            # upstream's rev is stale now that we've added newer writes. the
-            # reference PDS doesn't send its own rev here either.
-            headers.pop('Atproto-Repo-Rev', None)
-            return output, 200, headers
+    if (resp.status_code == 200
+            and resp.headers.get('Content-Type').startswith('application/json')
+            and (rev := resp.headers.get('Atproto-Repo-Rev'))
+            and (output := read_after_write(nsid, resp.json(), rev, user_did,
+                                            service_did=target_did))):
+        # upstream's rev is stale now that we've added newer writes. the
+        # reference PDS doesn't send its own rev here either.
+        headers.pop('Atproto-Repo-Rev', None)
+        return output, 200, headers
 
-        return resp.content, resp.status_code, headers
-
-    return proxy
+    return resp.content, resp.status_code, headers
 
 
 def read_after_write(nsid, output, rev, repo_did, service_did):
