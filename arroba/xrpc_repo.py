@@ -243,10 +243,43 @@ def import_repo(input):
 
 @server.server.method('com.atproto.repo.applyWrites')
 def apply_writes(input):
-    """Handler for ``com.atproto.repo.applyWrites`` XRPC method."""
+    """Handler for ``com.atproto.repo.applyWrites`` XRPC method.
+
+    All writes are committed atomically, in a single commit.
+    """
     validate(input)
-    server.auth_repo(server.load_repo(input['repo']).did)
-    return 'Not implemented', 501
+    for write in input['writes']:
+        validate(dict(input), collection=write.get('collection'))
+
+    repo = server.load_repo(input['repo'])
+    server.auth_repo(repo.did)
+
+    writes = []
+    results = []
+    for write in input['writes']:
+        type = write['$type'].partition('#')[2]
+        rkey = write.get('rkey') or next_tid()
+        writes.append(Write(action=Action[type.upper()],
+                            collection=write['collection'],
+                            rkey=rkey,
+                            record=write.get('value')))
+
+        result = {'$type': f'com.atproto.repo.applyWrites#{type}Result'}
+        if type != 'delete':
+            result.update({
+                'uri': at_uri(repo.did, write['collection'], rkey),
+                'cid': dag_cbor_cid(write['value']).encode('base32'),
+            })
+        results.append(result)
+
+    commit = server.storage.commit(repo, writes).commit
+    return {
+        'commit': {
+            'cid': commit.cid.encode('base32'),
+            'rev': commit.decoded['rev'],
+        },
+        'results': results,
+    }
 
 
 @server.server.method('com.atproto.repo.uploadBlob')

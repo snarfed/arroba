@@ -388,6 +388,16 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         with self.assertRaises(XrpcError):
             xrpc_repo.delete_record(dict(WRITE_INPUT))
 
+        with self.assertRaises(XrpcError):
+            xrpc_repo.apply_writes({
+                'repo': 'did:web:user.com',
+                'writes': [{
+                    '$type': 'com.atproto.repo.applyWrites#create',
+                    'collection': 'app.bsky.feed.post',
+                    'value': WRITE_INPUT['record'],
+                }],
+            })
+
         self.assert_no_posts()
 
     @patch.object(server, 'auth', return_value=None)
@@ -444,6 +454,117 @@ class XrpcRepoTest(testutil.XrpcTestCase):
             rkey='self',
         )
         self.assertEqual({'displayName': 'Ms. Alice'}, resp['value'])
+
+    def test_apply_writes(self):
+        self.prepare_auth()
+        server.storage.commit(self.repo, [
+            Write(action=Action.CREATE, collection='app.bsky.feed.post', rkey='old',
+                  record={'$type': 'app.bsky.feed.post', 'text': 'old'}),
+            Write(action=Action.CREATE, collection='app.bsky.feed.like', rkey='gone',
+                  record={'foo': 'bar'}),
+        ])
+
+        post = {'$type': 'app.bsky.feed.post', 'text': 'new', 'createdAt': NOW.isoformat()}
+        updated = {**post, 'text': 'updated'}
+        profile = {'$type': 'app.bsky.actor.profile', 'displayName': 'Alice'}
+
+        resp = xrpc_repo.apply_writes({
+            'repo': 'han.dull',
+            'writes': [{
+                '$type': 'com.atproto.repo.applyWrites#create',
+                'collection': 'app.bsky.feed.post',
+                'value': post,
+            }, {
+                '$type': 'com.atproto.repo.applyWrites#create',
+                'collection': 'app.bsky.actor.profile',
+                'rkey': 'self',
+                'value': profile,
+            }, {
+                '$type': 'com.atproto.repo.applyWrites#update',
+                'collection': 'app.bsky.feed.post',
+                'rkey': 'old',
+                'value': updated,
+            }, {
+                '$type': 'com.atproto.repo.applyWrites#delete',
+                'collection': 'app.bsky.feed.like',
+                'rkey': 'gone',
+            }],
+        })
+
+        repo = server.storage.load_repo('did:web:user.com')
+        self.assertEqual({
+            'commit': {
+                'cid': repo.head.cid.encode('base32'),
+                'rev': repo.head.decoded['rev'],
+            },
+            'results': [{
+                '$type': 'com.atproto.repo.applyWrites#createResult',
+                'uri': self.last_at_uri(),
+                'cid': util.dag_cbor_cid(post).encode('base32'),
+            }, {
+                '$type': 'com.atproto.repo.applyWrites#createResult',
+                'uri': 'at://did:web:user.com/app.bsky.actor.profile/self',
+                'cid': util.dag_cbor_cid(profile).encode('base32'),
+            }, {
+                '$type': 'com.atproto.repo.applyWrites#updateResult',
+                'uri': 'at://did:web:user.com/app.bsky.feed.post/old',
+                'cid': util.dag_cbor_cid(updated).encode('base32'),
+            }, {
+                '$type': 'com.atproto.repo.applyWrites#deleteResult',
+            }],
+        }, resp)
+        server.server.validate('com.atproto.repo.applyWrites', 'output', resp)
+
+        self.assertEqual({
+            'app.bsky.feed.post': {
+                util.int_to_tid(util._tid_ts_last): post,
+                'old': updated,
+            },
+            'app.bsky.actor.profile': {'self': profile},
+        }, repo.get_contents())
+
+    def test_apply_writes_is_atomic(self):
+        """If one write fails, none of them are committed."""
+        self.prepare_auth()
+        head = server.storage.load_repo('did:web:user.com').head.cid
+
+        with self.assertRaises(ValueError):
+            xrpc_repo.apply_writes({
+                'repo': 'did:web:user.com',
+                'writes': [{
+                    '$type': 'com.atproto.repo.applyWrites#create',
+                    'collection': 'app.bsky.feed.post',
+                    'value': WRITE_INPUT['record'],
+                }, {
+                    '$type': 'com.atproto.repo.applyWrites#update',
+                    'collection': 'app.bsky.feed.post',
+                    'rkey': 'nope',
+                    'value': WRITE_INPUT['record'],
+                }],
+            })
+
+        self.assertEqual(head, server.storage.load_repo('did:web:user.com').head.cid)
+        self.assert_no_posts()
+
+    @patch('arroba.xrpc_repo.SUPPORTED_COLLECTIONS', ['app.bsky.feed.post'])
+    def test_apply_writes_unsupported_collection(self):
+        self.prepare_auth()
+
+        with self.assertRaises(ValueError):
+            xrpc_repo.apply_writes({
+                'repo': 'did:web:user.com',
+                'writes': [{
+                    '$type': 'com.atproto.repo.applyWrites#create',
+                    'collection': 'app.bsky.feed.post',
+                    'value': WRITE_INPUT['record'],
+                }, {
+                    '$type': 'com.atproto.repo.applyWrites#create',
+                    'collection': 'app.bsky.feed.like',
+                    'value': {'foo': 'bar'},
+                }],
+            })
+
+        self.assert_no_posts()
 
     def test_put_update_existing_record(self):
         self.prepare_auth()

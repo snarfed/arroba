@@ -126,6 +126,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 * `server`: allow records with missing or unknown lexicons, ie pass lexrpc's new `require_lexicons=False`.
 * `server.auth`: apps can now replace it with their own function, eg `arroba.server.auth = my_auth`, to authenticate requests to both `xrpc_*` methods and `xrpc_proxy`. The default implementation checks `$REPO_TOKEN` and returns `ALL_REPOS`.
 * `xrpc_repo`:
+  * Implement `applyWrites`. All writes are committed atomically, in a single commit.
   * `createRecord`, `getRecord`, `deleteRecord`, `putRecord`: enforce `SUPPORTED_COLLECTIONS` env var if set.
   * `getRecord`: remove fallback to AppView for records not found locally.
   * `getRecord`: raise named `RecordNotFound` error..
