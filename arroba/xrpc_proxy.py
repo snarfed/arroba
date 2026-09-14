@@ -323,10 +323,12 @@ def apply_viewer_state(post, records, did):
             if not record and viewer.get(field) == uri:
                 del viewer[field]
                 post[count] = max(post.get(count, 0) - 1, 0)
+                logger.info(f'read-after-write: undoing {uri} for {post["uri"]}')
             elif (record and record['subject']['uri'] == post['uri']
                   and not viewer.get(field)):
                 viewer[field] = uri
                 post[count] = post.get(count, 0) + 1
+                logger.info(f'read-after-write: adding {uri} for {post["uri"]}')
 
 
 def apply_feed_viewer_state(feed, records, did):
@@ -360,6 +362,10 @@ def apply_posts(output, posts, repo, service_did):
     """
     posts = {at_uri(repo.did, 'app.bsky.feed.post', rkey): record
              for rkey, record in posts.items()}
+
+    for uri, record in posts.items():
+        verb = 'adding' if record else 'removing'
+        logger.info(f'read-after-write: {verb} {uri}')
 
     # remove deleted posts
     output['feed'] = [item for item in output['feed']
@@ -530,6 +536,8 @@ def get_profile(output, records, repo, service_did):
 
     if not (profile := records.get('app.bsky.actor.profile', {}).get('self') or {}):
         return
+
+    logger.info(f'read-after-write: applying updated app.bsky.actor.profile/self')
 
     for field in 'displayName', 'description':
         if val := profile.get(field):
