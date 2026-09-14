@@ -10,3 +10,9 @@ logger = logging.getLogger(__name__)
 def get_preferences(input):
     """Stub for ``app.bsky.actor.getPreferences``. Returns an empty array."""
     return {'preferences': []}
+
+
+@server.server.method('app.bsky.actor.putPreferences')
+def put_preferences(input):
+    """Stub for ``app.bsky.actor.putPreferences``. Does nothing."""
+    pass
