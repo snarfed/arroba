@@ -576,6 +576,9 @@ class Storage:
         if len(writes) > MAX_OPERATIONS_PER_COMMIT:
             raise ValueError(f'Too many operations ({len(writes)}), max is {MAX_OPERATIONS_PER_COMMIT}')
 
+        # local, not repo.mst, so that if a write fails, we haven't modified the
+        # repo, which may be shared, eg MemoryStorage's
+        mst = repo.mst
         ops = []
         for write in copy.copy(writes):
             assert isinstance(write, repo_mod.Write), type(write)
@@ -585,12 +588,12 @@ class Storage:
             # https://github.com/bluesky-social/proposals/tree/main/0006-sync-iteration#commit-validation-mst-operation-inversion
             prev_cid = None
             if write.action in (Action.UPDATE, Action.DELETE):
-                if not (prev_cid := repo.mst.get(path)):
+                if not (prev_cid := mst.get(path)):
                     raise ValueError(f"{path} doesn't exist in repo")
 
             if write.action == Action.DELETE:
                 logger.debug('deleting from MST')
-                repo.mst = repo.mst.delete(path)
+                mst = mst.delete(path)
                 logger.debug('  done')
                 ops.append(CommitOp(action=Action.DELETE, path=path,
                                     cid=None, prev_cid=prev_cid))
@@ -610,23 +613,23 @@ class Storage:
 
             if write.action == Action.CREATE:
                 logger.debug('adding to MST')
-                repo.mst = repo.mst.add(path, block.cid)
+                mst = mst.add(path, block.cid)
                 logger.debug('  done')
                 ops.append(op)
             else:
                 assert write.action == Action.UPDATE
-                orig_pointer = repo.mst.get_pointer()
+                orig_pointer = mst.get_pointer()
                 logger.debug('updating MST')
-                repo.mst = repo.mst.update(path, block.cid)
+                mst = mst.update(path, block.cid)
                 logger.debug('  done')
-                if repo.mst.get_pointer() != orig_pointer:
+                if mst.get_pointer() != orig_pointer:
                     # no-op updates are invalid in ATProto, so only include this
                     # update operation if it changes the the record and MST.
                     # https://github.com/snarfed/arroba/issues/52#issuecomment-2825755142
                     ops.append(op)
 
         logger.debug('loading unstored MST blocks')
-        root, unstored_blocks = repo.mst.get_unstored_blocks()
+        root, unstored_blocks = mst.get_unstored_blocks()
         logger.debug('  done')
         for block in unstored_blocks.values():
             block.repo = repo_did
@@ -655,12 +658,13 @@ class Storage:
 
         # update repo head
         if repo.did:
+            repo.mst = mst
             repo.head = commit_data.commit
             logger.info(f'Updating {repo.did} head {repo.head.cid}')
             self.store_repo(repo)
             logger.debug('  done')
 
-        orig_repo.mst = repo.mst
+        orig_repo.mst = mst
         orig_repo.head = commit_block
         return commit_data
 

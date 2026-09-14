@@ -512,6 +512,20 @@ class StorageTest(TestCase):
         with self.assertRaises(ValueError):
             self.storage.commit(repo, update)
 
+    def test_commit_failure_doesnt_modify_repo(self):
+        repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
+        head = repo.head.cid
+
+        with self.assertRaises(ValueError):
+            self.storage.commit(repo, [
+                Write(Action.CREATE, 'co.ll', next_tid(), {'x': 'y'}),
+                Write(Action.UPDATE, 'co.ll', next_tid(), {'x': 'z'}),
+            ])
+
+        for repo in repo, self.storage.load_repo('did:web:user.com'):
+            self.assertEqual(head, repo.head.cid)
+            self.assertEqual({}, repo.get_contents())
+
     def test_commit_delete_nonexistent_record_raises_ValueError(self):
         repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
         update = Write(Action.DELETE, 'co.ll', next_tid(), {'x': 'y'})
