@@ -46,9 +46,8 @@ def create_record(input):
     """Handler for ``com.atproto.repo.createRecord`` XRPC method."""
     validate(input, collection=input.get('collection')
                                 or (input.get('record') or {}).get('$type'))
-    server.auth()
 
-    repo = server.load_repo(input['repo'])
+    # put_record loads the repo and authenticates
     # TODO: check the lexicon's key field first
     input.setdefault('rkey', next_tid())
     return put_record(input)
@@ -78,9 +77,9 @@ def get_record(input, repo=None, collection=None, rkey=None, cid=None):
 def delete_record(input):
     """Handler for ``com.atproto.repo.deleteRecord`` XRPC method."""
     validate(input)
-    server.auth()
-
     repo = server.load_repo(input['repo'])
+    server.auth_repo(repo.did)
+
     record = repo.get_record(input['collection'], input['rkey'])
     if record is None:
         return  # noop
@@ -145,9 +144,9 @@ def list_records(input, repo=None, collection=None, limit=50, cursor=None,
 def put_record(input):
     """Handler for ``com.atproto.repo.putRecord`` XRPC method."""
     validate(input)
-    server.auth()
-
     repo = server.load_repo(input['repo'])
+    server.auth_repo(repo.did)
+
     existing = repo.get_record(input['collection'], input['rkey'])
 
     server.storage.commit(repo, [Write(
@@ -194,8 +193,6 @@ def import_repo(input):
 
     Requires that a repo doesn't already exist for this DID.
     """
-    server.auth()
-
     roots, car_blocks = read_car(input)
     if not roots:
         raise ValueError("CAR missing root CID")
@@ -216,6 +213,7 @@ def import_repo(input):
             # commit below when we create the repo.
             head = block
             repo_did = car_block.decoded['did']
+            server.auth_repo(repo_did)
             if server.storage.load_repo(repo_did):
                 raise ValueError(f'repo already exists for DID {repo_did}')
 
@@ -247,7 +245,7 @@ def import_repo(input):
 def apply_writes(input):
     """Handler for ``com.atproto.repo.applyWrites`` XRPC method."""
     validate(input)
-    server.auth()
+    server.auth_repo(server.load_repo(input['repo']).did)
     return 'Not implemented', 501
 
 

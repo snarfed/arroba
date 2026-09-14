@@ -9,6 +9,8 @@ from lexrpc.flask_server import init_flask
 from lexrpc.server import Server
 from webutil.testutil import NOW, requests_response
 from webutil.util import HTTP_TIMEOUT
+from werkzeug.exceptions import HTTPException
+from werkzeug.wrappers import Response
 
 # testutil must come first; it breaks the repo/storage circular import
 from . import testutil
@@ -106,13 +108,18 @@ class XrpcProxyTest(testutil.TestCase):
 
         self.server = Server(validate=False, require_lexicons=False)
         self.app = Flask(__name__, static_folder=None)
-        fallback = xrpc_proxy.handler(auth=lambda: self.authed_did)
-        init_flask(self.server, self.app, fallback=fallback)
+
+        server.auth = lambda: self.authed_did
+
+        init_flask(self.server, self.app, fallback=xrpc_proxy.handler())
 
         self.repo = Repo.create(self.storage, 'did:web:user.com', handle='han.dull',
                                 signing_key=self.key)
         self.client = self.app.test_client()
         xrpc_proxy.signing_key.cache.clear()
+
+    def tearDown(self):
+        server.auth = server.repo_token_auth
 
     def assert_jwt(self, mock_request, **expected):
         """Decodes the outbound Authorization header and checks its claims."""
@@ -172,11 +179,11 @@ class XrpcProxyTest(testutil.TestCase):
 
     def test_did_relative_service_id(self, mock_request, mock_resolve):
         mock_resolve.return_value = {
-            'id': 'did:web:a.pp',
-            'service': [{
-                'id': 'did:web:a.pp#foo',
-                'serviceEndpoint': 'https://a.pp',
-            }],
+        'id': 'did:web:a.pp',
+        'service': [{
+            'id': 'did:web:a.pp#foo',
+            'serviceEndpoint': 'https://a.pp',
+        }],
         }
         resp = self.client.get('/xrpc/x.y.query',
                                headers={'atproto-proxy': 'did:web:a.pp#foo'})
@@ -192,11 +199,11 @@ class XrpcProxyTest(testutil.TestCase):
         # "Paths must always be top-level, not below a prefix."
         # https://atproto.com/specs/xrpc#lexicon-http-endpoints
         mock_resolve.return_value = {
-            'id': 'did:web:a.pp',
-            'service': [{
-                'id': '#foo',
-                'serviceEndpoint': 'https://a.pp/base/',
-            }],
+        'id': 'did:web:a.pp',
+        'service': [{
+            'id': '#foo',
+            'serviceEndpoint': 'https://a.pp/base/',
+        }],
         }
         self.client.get('/xrpc/x.y.query',
                         headers={'atproto-proxy': 'did:web:a.pp#foo'})
@@ -274,8 +281,7 @@ class XrpcProxyTest(testutil.TestCase):
         self.assertEqual({'error': 'InvalidRequest', 'message': 'nope'}, resp.json)
 
     def test_default_service(self, mock_request, _):
-        fallback = xrpc_proxy.handler(auth=lambda: self.authed_did,
-                                      default_service='did:web:a.pp#foo')
+        fallback = xrpc_proxy.handler(default_service='did:web:a.pp#foo')
         app = Flask(__name__, static_folder=None)
         init_flask(self.server, app, fallback=fallback)
 
@@ -308,12 +314,42 @@ class XrpcProxyTest(testutil.TestCase):
         mock_request.assert_not_called()
 
     def test_not_authenticated(self, mock_request, _):
-        self.authed_did = None
+        """The default auth raises ValueError for a missing or bad token."""
+        def err():
+            raise ValueError('nope')
+        server.auth = err
+
         resp = self.client.get('/xrpc/x.y.query',
                                headers={'atproto-proxy': 'did:web:a.pp#foo'})
 
         self.assertEqual(401, resp.status_code)
         self.assertEqual('AuthMissing', resp.json['error'])
+        mock_request.assert_not_called()
+
+    def test_all_repos_auth_cant_proxy(self, mock_request, _):
+        """eg REPO_TOKEN. We need a user to sign the service auth JWT as."""
+        self.authed_did = server.ALL_REPOS
+        resp = self.client.get('/xrpc/x.y.query',
+                               headers={'atproto-proxy': 'did:web:a.pp#foo'})
+
+        self.assertEqual(401, resp.status_code)
+        self.assertEqual('AuthMissing', resp.json['error'])
+        mock_request.assert_not_called()
+
+    def test_auth_http_exception_passes_through(self, mock_request, _):
+        """eg OAuth errors, which carry headers like WWW-Authenticate."""
+        def err():
+            raise HTTPException(response=Response(status=401, headers={
+                'WWW-Authenticate': 'DPoP error="use_dpop_nonce"',
+            }))
+        server.auth = err
+
+        resp = self.client.get('/xrpc/x.y.query',
+                               headers={'atproto-proxy': 'did:web:a.pp#foo'})
+
+        self.assertEqual(401, resp.status_code)
+        self.assertEqual('DPoP error="use_dpop_nonce"',
+                         resp.headers['WWW-Authenticate'])
         mock_request.assert_not_called()
 
     def test_unknown_repo(self, mock_request, _):
@@ -375,9 +411,12 @@ class ReadAfterWriteTest(testutil.TestCase):
         super().setUp()
         server.server._validate = True
 
+        auth = patch.object(server, 'auth', return_value='did:web:user.com')
+        auth.start()
+        self.addCleanup(auth.stop)
+
         app = Flask(__name__, static_folder=None)
-        fallback = xrpc_proxy.handler(auth=lambda: 'did:web:user.com',
-                                      default_service='did:web:a.pp#foo')
+        fallback = xrpc_proxy.handler(default_service='did:web:a.pp#foo')
         init_flask(Server(validate=False, require_lexicons=False), app,
                    fallback=fallback)
         self.client = app.test_client()

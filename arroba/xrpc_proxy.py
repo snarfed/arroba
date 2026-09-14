@@ -105,16 +105,17 @@ def error(name, message, status=400):
     return {'error': name, 'message': message}, status, RESPONSE_HEADERS
 
 
-def handler(auth, default_service=None):
+def handler(default_service=None):
     """Generates a service proxying handler for :func:`lexrpc.flask_server.init_flask`.
 
     Pass the returned callable as ``fallback`` so that methods we don't
     implement ourselves get proxied to the service the client asks for in the
     ``atproto-proxy`` header.
 
+    Authenticates requests with :func:`server.auth`. Exceptions from it that are
+    werkzeug ``HTTPException``\\s, eg OAuth errors, pass through as is.
+
     Args:
-      auth (callable: => str): returns the DID of the user who authenticated the
-        current request, or None if it's unauthenticated
       default_service (str): ``[DID]#[service id]`` to proxy to when a request
         has no ``atproto-proxy`` header, eg ``did:web:api.bsky.app#bsky_appview``.
         If unset, those requests get ``MethodNotImplemented``.
@@ -138,8 +139,15 @@ def handler(auth, default_service=None):
         if not target_did or not service_id:
             return error('InvalidRequest', f'Bad atproto-proxy header {target}')
 
-        if not (user_did := auth()):
-            return error('AuthMissing', f'Proxying {nsid} requires authentication',
+        try:
+            user_did = server.auth()
+        except (NotImplementedError, ValueError) as e:
+            return error('AuthMissing', f'Proxying {nsid} requires authentication: {e}',
+                         status=401)
+
+        # ALL_REPOS credentials don't have a user to sign service auth JWTs as
+        if not isinstance(user_did, str):
+            return error('AuthMissing', f'Proxying {nsid} requires user authentication',
                          status=401)
 
         try:

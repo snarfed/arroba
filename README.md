@@ -124,6 +124,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 * Add `com.atproto.identity.resolveHandle` in new `xrpc_identity` module.
 * Add `app.bsky.actor.getPreferences` and `putPreferences` stubs in new `xrpc_actor` module.
 * `server`: allow records with missing or unknown lexicons, ie pass lexrpc's new `require_lexicons=False`.
+* `server.auth`: apps can now replace it with their own function, eg `arroba.server.auth = my_auth`, to authenticate requests to both `xrpc_*` methods and `xrpc_proxy`. The default implementation checks `$REPO_TOKEN` and returns `ALL_REPOS`.
 * `xrpc_repo`:
   * `createRecord`, `getRecord`, `deleteRecord`, `putRecord`: enforce `SUPPORTED_COLLECTIONS` env var if set.
   * `getRecord`: remove fallback to AppView for records not found locally.

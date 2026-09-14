@@ -31,6 +31,17 @@ CID2 = CID.decode('bafyreie7xn4ec3mhapvf7gefkxo7ktko5xkdijm7l7qn54tk3hda633wxy')
 CID1_STR = CID1.encode('base32')
 CID2_STR = CID2.encode('base32')
 
+WRITE_INPUT = {
+    'repo': 'did:web:user.com',
+    'collection': 'app.bsky.feed.post',
+    'rkey': '9999',
+    'record': {
+        '$type': 'app.bsky.feed.post',
+        'text': 'Hello, world!',
+        'createdAt': NOW.isoformat(),
+    },
+}
+
 SNARFED2_DID = 'did:plc:5zspv27pk4iqtrl2ql2nykjh'
 SNARFED2_DID_DOC = {
     'id': 'did:plc:5zspv27pk4iqtrl2ql2nykjh',
@@ -327,6 +338,78 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         with self.assertRaises(ValueError):
             xrpc_repo.put_record(input)
 
+    @patch.object(server, 'auth', return_value='did:web:user.com')
+    def test_writes_auth_once(self, mock_auth):
+        """Exactly once per request, since auth may not be idempotent.
+
+        eg DPoP proofs can't be replayed. Also, the client can pass a handle for
+        repo, which we resolve to the DID that auth returned.
+        """
+        input = {
+            'repo': 'han.dull',
+            'collection': 'app.bsky.feed.post',
+            'rkey': '9999',
+            'record': {
+                '$type': 'app.bsky.feed.post',
+                'text': 'Hello, world!',
+                'createdAt': NOW.isoformat(),
+            },
+        }
+
+        xrpc_repo.create_record(dict(input))
+        mock_auth.assert_called_once_with()
+
+        mock_auth.reset_mock()
+        xrpc_repo.put_record(dict(input))
+        mock_auth.assert_called_once_with()
+
+        mock_auth.reset_mock()
+        xrpc_repo.delete_record(dict(input))
+        mock_auth.assert_called_once_with()
+
+    @patch.object(server, 'auth', side_effect=ValueError('nope'))
+    def test_writes_auth_failure(self, _):
+        with self.assertRaises(ValueError):
+            xrpc_repo.create_record(dict(WRITE_INPUT))
+
+        with self.assertRaises(ValueError):
+            xrpc_repo.put_record(dict(WRITE_INPUT))
+
+        self.assert_no_posts()
+
+    @patch.object(server, 'auth', return_value='did:web:other.com')
+    def test_writes_auth_other_repo(self, _):
+        with self.assertRaises(XrpcError):
+            xrpc_repo.create_record(dict(WRITE_INPUT))
+
+        with self.assertRaises(XrpcError):
+            xrpc_repo.put_record(dict(WRITE_INPUT))
+
+        with self.assertRaises(XrpcError):
+            xrpc_repo.delete_record(dict(WRITE_INPUT))
+
+        self.assert_no_posts()
+
+    @patch.object(server, 'auth', return_value=None)
+    def test_writes_auth_returns_none(self, _):
+        """eg an auth function that forgets to return. Fails closed."""
+        with self.assertRaises(XrpcError):
+            xrpc_repo.create_record(dict(WRITE_INPUT))
+
+        self.assert_no_posts()
+
+    @patch.object(server, 'auth', return_value=server.ALL_REPOS)
+    def test_writes_auth_all_repos(self, _):
+        xrpc_repo.create_record(dict(WRITE_INPUT))
+        resp = xrpc_repo.list_records({}, repo='did:web:user.com',
+                                      collection='app.bsky.feed.post')
+        self.assertEqual(1, len(resp['records']))
+
+    def assert_no_posts(self):
+        resp = xrpc_repo.list_records({}, repo='did:web:user.com',
+                                      collection='app.bsky.feed.post')
+        self.assertEqual([], resp['records'])
+
     def test_authed_writes_without_repo_token_return_not_implemented(self):
         self.prepare_auth()
         del os.environ['REPO_TOKEN']
@@ -385,6 +468,21 @@ class XrpcRepoTest(testutil.XrpcTestCase):
     def test_import_repo_not_authed(self):
         with self.assertRaises(ValueError):
             xrpc_repo.import_repo(SNARFED2_CAR)
+
+    @patch.object(server, 'auth', return_value=SNARFED2_DID)
+    @patch.object(webutil.util.session, 'get',
+                  return_value=requests_response(SNARFED2_DID_DOC))
+    def test_import_repo_auth_repo_did(self, _, __):
+        """The DID comes from the CAR's head commit, not an input field."""
+        xrpc_repo.import_repo(SNARFED2_CAR)
+        self.assertEqual(SNARFED2_DID, server.storage.load_repo(SNARFED2_DID).did)
+
+    @patch.object(server, 'auth', return_value='did:web:other.com')
+    def test_import_repo_auth_other_repo(self, _):
+        with self.assertRaises(XrpcError):
+            xrpc_repo.import_repo(SNARFED2_CAR)
+
+        self.assertIsNone(server.storage.load_repo(SNARFED2_DID))
 
     def test_import_repo_existing(self):
         self.prepare_auth()
