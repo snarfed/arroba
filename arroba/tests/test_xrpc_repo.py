@@ -77,21 +77,25 @@ class XrpcRepoTest(testutil.XrpcTestCase):
             'did': 'did:web:user.com',
             'handle': 'han.dull',
             'didDoc': {'foo': 'bar'},
-            'collections': ['app.bsky.feed.post'],
+            'collections': [],
             'handleIsCorrect': True,
         }, resp)
 
     @patch.object(webutil.util.session, 'get', return_value=requests_response({'foo': 'bar'}))
-    def test_describe_repo_no_supported_collections(self, _):
+    def test_describe_repo_collections(self, _):
         resp = xrpc_repo.describe_repo({}, repo='did:web:user.com')
         self.assertEqual([], resp['collections'])
 
+        collections = ['a.b', 'a.b-c', 'a.b.c', 'a.b0', 'a.bB', 'a.b_c',
+                       'a.ba', 'c.d']
         server.storage.commit(self.repo, [
-            Write(action=Action.CREATE, collection=coll, rkey='123', record={'x': 'y'})
-            for coll in ('a.b', 'c.d', 'e.f')])
+            Write(action=Action.CREATE, collection=coll, rkey=str(rkey),
+                  record={'x': 'y'})
+            for coll in collections
+            for rkey in range(20)])
 
         resp = xrpc_repo.describe_repo({}, repo='did:web:user.com')
-        self.assertEqual(['a.b', 'c.d', 'e.f'], resp['collections'])
+        self.assertEqual(collections, resp['collections'])
 
     @patch.object(webutil.util.session, 'get', return_value=requests_response('', status=500))
     def test_describe_repo_did_doc_fetch_error(self, _):

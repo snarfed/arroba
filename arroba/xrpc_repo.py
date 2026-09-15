@@ -174,15 +174,20 @@ def describe_repo(input, repo=None):
     except (ConnectionError, OSError, RequestException, TimeoutError) as e:
         raise ValueError(f"Couldn't resolve {repo.did}")
 
-    # optimization since repo.get_contents() is slow
-    collections = (sorted(SUPPORTED_COLLECTIONS) if SUPPORTED_COLLECTIONS
-                   else list(repo.get_contents().keys()))
+    # find the first record of each collection, then skip to the next collection
+    # (0 is the character after /)
+    collections = []
+    key = ''
+    while leaf := next(repo.mst.walk_leaves_from(key), None):
+        collection = leaf.key.split('/')[0]
+        collections.append(collection)
+        key = f'{collection}0'
 
     return {
         'did': repo.did,
         'handle': repo.handle,
         'didDoc': did_doc,
-        'collections': collections,
+        'collections': sorted(collections),
         'handleIsCorrect': True,
     }
 
