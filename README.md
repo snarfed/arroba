@@ -123,6 +123,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 * Add [service proxying](https://atproto.com/specs/xrpc#service-proxying) in new `xrpc_proxy` module. Pass `xrpc_proxy.handler` to lexrpc's new `flask_server.init_flask` `fallback` kwarg to proxy methods you don't implement using [service auth](https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification). Includes [read-after-write](https://atproto.com/guides/writing-data#read-after-write) for the user's own new posts, profile, likes, and reposts in a number of `app.bsky.*` methods.
 * Add `com.atproto.identity.resolveHandle` in new `xrpc_identity` module.
 * Add `app.bsky.actor.getPreferences` and `putPreferences` stubs in new `xrpc_actor` module.
+* Add new `permissions` module for parsing, checking, and describing [OAuth permission scopes](https://atproto.com/specs/permission). Only supports the `repo` resource and the `atproto` and `transition:generic` scopes so far.
 * `server`: allow records with missing or unknown lexicons, ie pass lexrpc's new `require_lexicons=False`.
 * `server.auth`: apps can now replace it with their own function, eg `arroba.server.auth = my_auth`, to authenticate requests to both `xrpc_*` methods and `xrpc_proxy`. The default implementation checks `$REPO_TOKEN` and returns `ALL_REPOS`.
 * `xrpc_repo`:
