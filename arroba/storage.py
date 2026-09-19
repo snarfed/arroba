@@ -5,7 +5,6 @@ https://github.com/bluesky-social/atproto/blob/main/packages/repo/src/storage/re
 """
 from collections import namedtuple
 import copy
-from enum import auto, Enum
 import itertools
 import logging
 
@@ -15,10 +14,17 @@ from multiformats import CID, multicodec, multihash
 import webutil.util
 
 from . import mst as mst_mod
-from . import repo as repo_mod
 from .server import server
 from . import util
-from .util import dag_cbor_cid, DEACTIVATED, tid_to_int, TOMBSTONED, InactiveRepo
+from .util import (
+    Action,
+    dag_cbor_cid,
+    DEACTIVATED,
+    InactiveRepo,
+    tid_to_int,
+    TOMBSTONED,
+    Write,
+)
 
 SUBSCRIBE_REPOS_NSID = 'com.atproto.sync.subscribeRepos'
 
@@ -31,15 +37,6 @@ MAX_OPERATIONS_PER_COMMIT = 200
 
 logger = logging.getLogger(__name__)
 
-
-class Action(Enum):
-    """Used in :meth:`Storage.commit`.
-
-    TODO: switch to StrEnum once we can require Python 3.11.
-    """
-    CREATE = auto()
-    UPDATE = auto()
-    DELETE = auto()
 
 # TODO: Should this be a subclass of Block?
 # TODO: generalize to handle other events
@@ -435,7 +432,7 @@ class Storage:
             include.
 
         Returns:
-          generator: generator of :class:`repo.Write` s, in ascending rev order.
+          generator: generator of :class:`Write` s, in ascending rev order.
         """
         events = self.read_events_by_seq(start=tid_to_int(rev) + 1, repo=repo)
         for event in itertools.islice(events, limit):
@@ -443,7 +440,7 @@ class Storage:
                 for op in event.commit.ops:
                     collection, rkey = op.path.split('/', 1)
                     record = event.blocks[op.cid].decoded if op.cid else None
-                    yield repo_mod.Write(op.action, collection, rkey, record)
+                    yield Write(op.action, collection, rkey, record)
 
     def has(self, cid):
         """Checks if a given :class:`CID` is currently stored.
@@ -570,7 +567,7 @@ class Storage:
 
         commit_blocks = {}  # maps CID to Block
         assert writes is not None
-        if isinstance(writes, repo_mod.Write):
+        if isinstance(writes, Write):
             writes = [writes]
 
         if len(writes) > MAX_OPERATIONS_PER_COMMIT:
@@ -581,7 +578,7 @@ class Storage:
         mst = repo.mst
         ops = []
         for write in copy.copy(writes):
-            assert isinstance(write, repo_mod.Write), type(write)
+            assert isinstance(write, Write), type(write)
             path = f'{write.collection}/{write.rkey}'
 
             # sync v1.1: for UPDATE and DELETE, load the previous record's CID

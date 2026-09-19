@@ -1,7 +1,9 @@
 """Misc AT Protocol utils. TIDs, CIDs, etc."""
 import base64
+from collections import namedtuple
 import copy
 from datetime import datetime, timedelta, timezone
+from enum import auto, Enum
 import json
 import logging
 from numbers import Integral
@@ -45,6 +47,24 @@ TOMBSTONED = 'tombstoned'
 
 DISABLE_GETREPO = bool(os.environ.get('DISABLE_GETREPO'))
 GETREPO_TOKEN = os.environ.get('GETREPO_TOKEN') or webutil.util.read('getrepo_token')
+
+
+class Action(Enum):
+    """Used in :meth:`storage.Storage.commit` and :mod:`permissions`.
+
+    TODO: switch to StrEnum once we can require Python 3.11.
+    """
+    CREATE = auto()
+    UPDATE = auto()
+    DELETE = auto()
+
+
+Write = namedtuple('Write', [
+    'action',      # :class:`Action`
+    'collection',  # str
+    'rkey',        # str
+    'record',      # dict
+], defaults=[None] * 4)
 
 
 class InactiveRepo(ValueError):

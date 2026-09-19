@@ -8,7 +8,7 @@ https://github.com/bluesky-social/atproto/blob/main/packages/repo/src/repo.ts
 Huge thanks to the Bluesky team for working in the public, in open source, and to
 Daniel Holmgren and Devin Ivy for this code specifically!
 """
-from collections import defaultdict, namedtuple
+from collections import defaultdict
 import copy
 import logging
 
@@ -18,18 +18,11 @@ import dag_cbor
 from multiformats import CID
 
 from . import util
+from .util import Write
 from . import mst
 from . import storage as storage_mod
 
 logger = logging.getLogger(__name__)
-
-
-Write = namedtuple('Write', [
-    'action',      # :class:`Action`
-    'collection',  # str
-    'rkey',        # str
-    'record',      # dict
-], defaults=[None] * 4)
 
 
 class Repo:
