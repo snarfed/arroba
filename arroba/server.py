@@ -3,7 +3,8 @@
 Globals that clients can override:
 * server (:class:`lexrpc.server.Server`)
 * storage (:class:`storage.Storage`)
-* auth (callable, () => str authenticated DID or `ALL_REPOS`)
+* authenticate (callable, () => (str authenticated DID or `ALL_REPOS`,
+                         sequence of str OAuth scopes or `ALL_SCOPES`))
 """
 import os
 
@@ -15,6 +16,7 @@ try:
 except ImportError:
     flask = None
 
+from . import permissions
 from .util import parse_at_uri
 
 
@@ -24,18 +26,20 @@ server = Server(validate=True, require_lexicons=False)
 # initialized in app.py, testutil.XrpcTestCase.setUp
 storage = None
 
-# returned by auth for credentials that aren't tied to a user and can write to
-# every repo, eg REPO_TOKEN.
 ALL_REPOS = object()
+"""Permission that allows access to every repo. Returned by :func:`global_token_auth`."""
+
+ALL_SCOPES = object()
+"""Permission that allows all OAuth scopes."""
 
 
-def repo_token_auth():
-    """Authenticates the current request. Default implementation of :func:`auth`.
+def global_token_auth():
+    """Checks that the current request includes the ``$REPO_TOKEN`` global token.
 
-    Checks that the `Authorization` header contains the ``$REPO_TOKEN`` bearer token.
+    ...in the `Authorization` header.
 
     Returns:
-      :data:`ALL_REPOS`
+      (:data:`ALL_REPOS`, :data:`ALL_SCOPES`) tuple
 
     Raises:
       ValueError: if the request isn't authenticated
@@ -48,27 +52,58 @@ def repo_token_auth():
     if flask.request.headers.get('Authorization') != f'Bearer {token}':
         raise ValueError('Invalid bearer token in Authorization header')
 
-    return ALL_REPOS
+    return ALL_REPOS, ALL_SCOPES
 
 
-# apps can replace this with their own function, eg arroba.server.auth = my_auth,
-# with the same signature as repo_token_auth
-auth = repo_token_auth
+authenticate = global_token_auth
+"""Callable that authenticates the current request.
+
+Determines whether the current request has a logged in user, and if so,
+what their permissions are.
+
+Defaults to :func:`global_token_auth`. Clients should replace this with their own.
+
+Returns:
+  tuple: (str authenticated DID or `ALL_REPOS`,
+          sequence of str OAuth scopes or `ALL_SCOPES`))
+
+Raises:
+  ValueError: if the request isn't authenticated
+"""
 
 
-def auth_repo(did):
+def authorize(did, writes):
     """Authenticates the current request and checks that it can write to a repo.
+
+    Calls :func:`authenticate` exactly once.
 
     Args:
       did (str): the repo's DID
+      writes (sequence of (str collection, str action) tuples): the writes to
+        check against the credential's OAuth scopes. Actions are from
+        :const:`permissions.ACTIONS`.
+
+    Returns:
+      str or :data:`ALL_REPOS`: the authenticated DID
 
     Raises:
-      XrpcError: if the credential can't write to the repo
-      Exception: anything :func:`auth` raises
+      XrpcError: if the credential can't write to the repo, or its scopes
+        don't allow one of ``writes``
+      ValueError: if the request isn't authenticated
     """
-    authed = auth()
-    if authed is not ALL_REPOS and authed != did:
-        raise XrpcError(f'Not authorized to write to {did}', name='AuthRequired')
+    authed_did, scopes = authenticate()
+    if authed_did not in (did, ALL_REPOS):
+        raise XrpcError(f'Not authenticated as {did}', name='AuthRequired')
+
+    if scopes is not ALL_SCOPES:
+        for collection, action in writes:
+            if not permissions.allows(scopes, collection, action):
+                msg = f'Missing scope repo:{collection}?action={action}'
+                header = f'DPoP error="insufficient_scope", error_description="{msg}"'
+                raise XrpcError(msg, name='insufficient_scope', status=403,
+                                headers={'WWW-Authenticate': header})
+
+    return authed_did
 
 
 def load_repo(did_or_at_uri):

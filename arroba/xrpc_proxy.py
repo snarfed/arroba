@@ -111,7 +111,7 @@ def handler(nsid):
     Pass as ``fallback`` so that methods we don't implement ourselves get proxied
     to the service the client asks for in the ``atproto-proxy`` header.
 
-    Authenticates requests with :func:`server.auth`. Exceptions from it that are
+    Authenticates requests with :func:`server.authenticate`. Exceptions from it that are
     werkzeug ``HTTPException``\\s, eg OAuth errors, pass through as is.
 
     Requests without an ``atproto-proxy`` header get ``MethodNotImplemented``.
@@ -137,7 +137,7 @@ def handler(nsid):
         return error('InvalidRequest', f'Bad atproto-proxy header {target}')
 
     try:
-        user_did = server.auth()
+        user_did, _ = server.authenticate()
     except (NotImplementedError, ValueError) as e:
         return error('AuthMissing', f'Proxying {nsid} requires authentication: {e}',
                      status=401)

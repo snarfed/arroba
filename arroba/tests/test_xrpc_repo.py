@@ -342,7 +342,8 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         with self.assertRaises(ValueError):
             xrpc_repo.put_record(input)
 
-    @patch.object(server, 'auth', return_value='did:web:user.com')
+    @patch.object(server, 'authenticate', return_value=(
+        'did:web:user.com', ['atproto', 'transition:generic']))
     def test_writes_auth_once(self, mock_auth):
         """Exactly once per request, since auth may not be idempotent.
 
@@ -371,7 +372,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         xrpc_repo.delete_record(dict(input))
         mock_auth.assert_called_once_with()
 
-    @patch.object(server, 'auth', side_effect=ValueError('nope'))
+    @patch.object(server, 'authenticate', side_effect=ValueError('nope'))
     def test_writes_auth_failure(self, _):
         with self.assertRaises(ValueError):
             xrpc_repo.create_record(dict(WRITE_INPUT))
@@ -381,7 +382,8 @@ class XrpcRepoTest(testutil.XrpcTestCase):
 
         self.assert_no_posts()
 
-    @patch.object(server, 'auth', return_value='did:web:other.com')
+    @patch.object(server, 'authenticate', return_value=(
+        'did:web:other.com', ['atproto', 'transition:generic']))
     def test_writes_auth_other_repo(self, _):
         with self.assertRaises(XrpcError):
             xrpc_repo.create_record(dict(WRITE_INPUT))
@@ -404,20 +406,94 @@ class XrpcRepoTest(testutil.XrpcTestCase):
 
         self.assert_no_posts()
 
-    @patch.object(server, 'auth', return_value=None)
-    def test_writes_auth_returns_none(self, _):
-        """eg an auth function that forgets to return. Fails closed."""
+    @patch.object(server, 'authenticate', return_value=(None, None))
+    def test_writes_auth_returns_no_did(self, _):
+        """Fails closed."""
         with self.assertRaises(XrpcError):
             xrpc_repo.create_record(dict(WRITE_INPUT))
 
         self.assert_no_posts()
 
-    @patch.object(server, 'auth', return_value=server.ALL_REPOS)
+    @patch.object(server, 'authenticate', return_value=(server.ALL_REPOS, server.ALL_SCOPES))
     def test_writes_auth_all_repos(self, _):
         xrpc_repo.create_record(dict(WRITE_INPUT))
         resp = xrpc_repo.list_records({}, repo='did:web:user.com',
                                       collection='app.bsky.feed.post')
         self.assertEqual(1, len(resp['records']))
+
+    @patch.object(server, 'authenticate', return_value=(
+        'did:web:user.com', ['atproto', 'repo:app.bsky.feed.like']))
+    def test_create_record_insufficient_scope(self, _):
+        with self.assertRaises(XrpcError) as e:
+            xrpc_repo.create_record(dict(WRITE_INPUT))
+
+        self.assertEqual('insufficient_scope', e.exception.name)
+        self.assertEqual(403, e.exception.status)
+        self.assert_no_posts()
+
+    @patch.object(server, 'authenticate', return_value=(
+        'did:web:user.com', ['atproto', 'repo:app.bsky.feed.post?action=create']))
+    def test_put_record_update_insufficient_scope(self, _):
+        xrpc_repo.put_record(dict(WRITE_INPUT))
+
+        with self.assertRaises(XrpcError) as e:
+            xrpc_repo.put_record({**WRITE_INPUT, 'record': {
+                **WRITE_INPUT['record'],
+                'text': 'updated',
+            }})
+
+        self.assertEqual('insufficient_scope', e.exception.name)
+        resp = xrpc_repo.get_record({}, repo='did:web:user.com',
+                                    collection='app.bsky.feed.post', rkey='9999')
+        self.assertEqual('Hello, world!', resp['value']['text'])
+
+    @patch.object(server, 'authenticate', return_value=(
+        'did:web:user.com', ['atproto', 'repo:app.bsky.feed.post?action=create']))
+    def test_delete_record_insufficient_scope(self, _):
+        xrpc_repo.create_record(dict(WRITE_INPUT))
+
+        with self.assertRaises(XrpcError) as e:
+            xrpc_repo.delete_record(dict(WRITE_INPUT))
+
+        self.assertEqual('insufficient_scope', e.exception.name)
+        resp = xrpc_repo.list_records({}, repo='did:web:user.com',
+                                      collection='app.bsky.feed.post')
+        self.assertEqual(1, len(resp['records']))
+
+    @patch.object(server, 'authenticate', return_value=(
+        'did:web:user.com', ['atproto', 'repo:app.bsky.feed.post']))
+    def test_apply_writes_insufficient_scope(self, _):
+        """One disallowed write fails the whole batch."""
+        with self.assertRaises(XrpcError) as e:
+            xrpc_repo.apply_writes({
+                'repo': 'did:web:user.com',
+                'writes': [{
+                    '$type': 'com.atproto.repo.applyWrites#create',
+                    'collection': 'app.bsky.feed.post',
+                    'value': WRITE_INPUT['record'],
+                }, {
+                    '$type': 'com.atproto.repo.applyWrites#create',
+                    'collection': 'app.bsky.feed.like',
+                    'value': {
+                        '$type': 'app.bsky.feed.like',
+                        'subject': {'uri': 'at://x/y/z', 'cid': 'abc'},
+                        'createdAt': NOW.isoformat(),
+                    },
+                }],
+            })
+
+        self.assertEqual('insufficient_scope', e.exception.name)
+        self.assert_no_posts()
+
+    @patch.object(server, 'authenticate', side_effect=ValueError('nope'))
+    def test_upload_blob_not_authed(self, _):
+        with self.assertRaises(ValueError):
+            xrpc_repo.upload_blob(b'foo')
+
+    @patch.object(server, 'authenticate', return_value=(
+        'did:web:user.com', ['atproto', 'transition:generic']))
+    def test_upload_blob_not_implemented(self, _):
+        self.assertEqual(('Not implemented', 501), xrpc_repo.upload_blob(b'foo'))
 
     def assert_no_posts(self):
         resp = xrpc_repo.list_records({}, repo='did:web:user.com',
@@ -428,18 +504,14 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         self.prepare_auth()
         del os.environ['REPO_TOKEN']
 
-        input = {
-            'repo': 'at://did:web:user.com',
-        }
+        with self.assertRaises(NotImplementedError):
+            xrpc_repo.create_record(dict(WRITE_INPUT))
 
         with self.assertRaises(NotImplementedError):
-            xrpc_repo.create_record(input)
+            xrpc_repo.delete_record(dict(WRITE_INPUT))
 
         with self.assertRaises(NotImplementedError):
-            xrpc_repo.delete_record(input)
-
-        with self.assertRaises(NotImplementedError):
-            xrpc_repo.put_record(input)
+            xrpc_repo.put_record(dict(WRITE_INPUT))
 
     def test_put_new_record(self):
         self.prepare_auth()
@@ -594,7 +666,8 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         with self.assertRaises(ValueError):
             xrpc_repo.import_repo(SNARFED2_CAR)
 
-    @patch.object(server, 'auth', return_value=SNARFED2_DID)
+    @patch.object(server, 'authenticate', return_value=(
+        SNARFED2_DID, ['atproto', 'transition:generic']))
     @patch.object(webutil.util.session, 'get',
                   return_value=requests_response(SNARFED2_DID_DOC))
     def test_import_repo_auth_repo_did(self, _, __):
@@ -602,7 +675,8 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         xrpc_repo.import_repo(SNARFED2_CAR)
         self.assertEqual(SNARFED2_DID, server.storage.load_repo(SNARFED2_DID).did)
 
-    @patch.object(server, 'auth', return_value='did:web:other.com')
+    @patch.object(server, 'authenticate', return_value=(
+        'did:web:other.com', ['atproto', 'transition:generic']))
     def test_import_repo_auth_other_repo(self, _):
         with self.assertRaises(XrpcError):
             xrpc_repo.import_repo(SNARFED2_CAR)

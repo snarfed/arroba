@@ -43,7 +43,7 @@ def create_session(input):
 @server.server.method('com.atproto.server.getSession')
 def get_session(input):
     """Handler for ``com.atproto.server.getSession`` XRPC method."""
-    server.auth()
+    server.authenticate()
 
     # TODO: parse JWT, extract repo DID
     # decoded = jwt.decode(data, server.repo.privkey, algorithm='ES256K')
@@ -56,7 +56,7 @@ def get_session(input):
 @server.server.method('com.atproto.server.refreshSession')
 def refresh_session(input, did=None, commit=None):
     """Handler for ``com.atproto.server.refreshSession`` XRPC method."""
-    server.auth()
+    server.authenticate()
 
     token = os.environ['REPO_TOKEN']
     return {

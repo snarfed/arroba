@@ -124,8 +124,10 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 * Add `com.atproto.identity.resolveHandle` in new `xrpc_identity` module.
 * Add `app.bsky.actor.getPreferences` and `putPreferences` stubs in new `xrpc_actor` module.
 * Add new `permissions` module for parsing, checking, and describing [OAuth permission scopes](https://atproto.com/specs/permission). Only supports the `repo` resource and the `atproto` and `transition:generic` scopes so far.
-* `server`: allow records with missing or unknown lexicons, ie pass lexrpc's new `require_lexicons=False`.
-* `server.auth`: apps can now replace it with their own function, eg `arroba.server.auth = my_auth`, to authenticate requests to both `xrpc_*` methods and `xrpc_proxy`. The default implementation checks `$REPO_TOKEN` and returns `ALL_REPOS`.
+* `server`:
+  * Allow records with missing or unknown lexicons, ie pass lexrpc's new `require_lexicons=False`.
+  * Add new `authenticate` global function which clients can override to authenticate requests. It returns a `(DID, OAuth scopes)` tuple. The default implementation, `global_token_auth`, checks `$REPO_TOKEN` and returns `(ALL_REPOS, ALL_SCOPES)`.
+  * Add new `authorize` function, which checks whether the current request is allowed to do one or more writes.
 * `xrpc_repo`:
   * Implement `applyWrites`. All writes are committed atomically, in a single commit.
   * `describeRepo`: return the collections actually in the repo, even if `SUPPORTED_COLLECTIONS` is set. ([#87](https://github.com/snarfed/arroba/issues/87))

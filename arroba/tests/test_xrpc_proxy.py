@@ -102,6 +102,7 @@ MY_PROFILE_VIEW = {
        side_effect=lambda *args, **kwargs: requests_response({'feed': []}))
 class XrpcProxyTest(testutil.TestCase):
     authed_did = 'did:web:user.com'
+    authed_scopes = ['atproto', 'transition:generic']
 
     def setUp(self):
         super().setUp()
@@ -109,7 +110,7 @@ class XrpcProxyTest(testutil.TestCase):
         self.server = Server(validate=False, require_lexicons=False)
         self.app = Flask(__name__, static_folder=None)
 
-        server.auth = lambda: self.authed_did
+        server.authenticate = lambda: (self.authed_did, self.authed_scopes)
 
         init_flask(self.server, self.app, fallback=xrpc_proxy.handler)
 
@@ -119,7 +120,7 @@ class XrpcProxyTest(testutil.TestCase):
         xrpc_proxy.signing_key.cache.clear()
 
     def tearDown(self):
-        server.auth = server.repo_token_auth
+        server.authenticate = server.global_token_auth
 
     def assert_jwt(self, mock_request, **expected):
         """Decodes the outbound Authorization header and checks its claims."""
@@ -308,7 +309,7 @@ class XrpcProxyTest(testutil.TestCase):
         """The default auth raises ValueError for a missing or bad token."""
         def err():
             raise ValueError('nope')
-        server.auth = err
+        server.authenticate = err
 
         resp = self.client.get('/xrpc/x.y.query',
                                headers={'atproto-proxy': 'did:web:a.pp#foo'})
@@ -320,6 +321,7 @@ class XrpcProxyTest(testutil.TestCase):
     def test_all_repos_auth_cant_proxy(self, mock_request, _):
         """eg REPO_TOKEN. We need a user to sign the service auth JWT as."""
         self.authed_did = server.ALL_REPOS
+        self.authed_scopes = server.ALL_SCOPES
         resp = self.client.get('/xrpc/x.y.query',
                                headers={'atproto-proxy': 'did:web:a.pp#foo'})
 
@@ -333,7 +335,7 @@ class XrpcProxyTest(testutil.TestCase):
             raise HTTPException(response=Response(status=401, headers={
                 'WWW-Authenticate': 'DPoP error="use_dpop_nonce"',
             }))
-        server.auth = err
+        server.authenticate = err
 
         resp = self.client.get('/xrpc/x.y.query',
                                headers={'atproto-proxy': 'did:web:a.pp#foo'})
@@ -402,7 +404,8 @@ class ReadAfterWriteTest(testutil.TestCase):
         super().setUp()
         server.server._validate = True
 
-        auth = patch.object(server, 'auth', return_value='did:web:user.com')
+        auth = patch.object(server, 'authenticate', return_value=(
+            'did:web:user.com', ['atproto', 'transition:generic']))
         auth.start()
         self.addCleanup(auth.stop)
 

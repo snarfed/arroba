@@ -78,7 +78,7 @@ def delete_record(input):
     """Handler for ``com.atproto.repo.deleteRecord`` XRPC method."""
     validate(input)
     repo = server.load_repo(input['repo'])
-    server.auth_repo(repo.did)
+    server.authorize(repo.did, [(input['collection'], 'delete')])
 
     record = repo.get_record(input['collection'], input['rkey'])
     if record is None:
@@ -145,12 +145,13 @@ def put_record(input):
     """Handler for ``com.atproto.repo.putRecord`` XRPC method."""
     validate(input)
     repo = server.load_repo(input['repo'])
-    server.auth_repo(repo.did)
 
     existing = repo.get_record(input['collection'], input['rkey'])
+    action = Action.CREATE if existing is None else Action.UPDATE
+    server.authorize(repo.did, [(input['collection'], action.name.lower())])
 
     server.storage.commit(repo, [Write(
-        action=Action.CREATE if existing is None else Action.UPDATE,
+        action=action,
         collection=input['collection'],
         rkey=input['rkey'],
         record=input['record'],
@@ -218,7 +219,7 @@ def import_repo(input):
             # commit below when we create the repo.
             head = block
             repo_did = car_block.decoded['did']
-            server.auth_repo(repo_did)
+            server.authorize(repo_did, ())
             if server.storage.load_repo(repo_did):
                 raise ValueError(f'repo already exists for DID {repo_did}')
 
@@ -257,7 +258,6 @@ def apply_writes(input):
         validate(dict(input), collection=write.get('collection'))
 
     repo = server.load_repo(input['repo'])
-    server.auth_repo(repo.did)
 
     writes = []
     results = []
@@ -277,6 +277,7 @@ def apply_writes(input):
             })
         results.append(result)
 
+    server.authorize(repo.did, [(w.collection, w.action.name.lower()) for w in writes])
     commit = server.storage.commit(repo, writes).commit
     return {
         'commit': {
@@ -291,6 +292,5 @@ def apply_writes(input):
 def upload_blob(input):
     """Handler for ``com.atproto.repo.uploadBlob`` XRPC method."""
     # input: binary
-    validate({})
-    server.auth()
+    server.authenticate()
     return 'Not implemented', 501
