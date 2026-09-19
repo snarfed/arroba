@@ -79,9 +79,8 @@ def authorize(did, writes):
 
     Args:
       did (str): the repo's DID
-      writes (sequence of (str collection, str action) tuples): the writes to
-        check against the credential's OAuth scopes. Actions are from
-        :const:`permissions.ACTIONS`.
+      writes (sequence of :class:`util.Write`): the writes to check against
+        the credential's OAuth scopes
 
     Returns:
       str or :data:`ALL_REPOS`: the authenticated DID
@@ -96,9 +95,9 @@ def authorize(did, writes):
         raise XrpcError(f'Not authenticated as {did}', name='AuthRequired')
 
     if scopes is not ALL_SCOPES:
-        for collection, action in writes:
-            if not permissions.allows(scopes, collection, action):
-                msg = f'Missing scope repo:{collection}?action={action}'
+        for write in writes:
+            if not permissions.allows(scopes, write.collection, write.action):
+                msg = f'Missing scope repo:{write.collection}?action={write.action.name.lower()}'
                 header = f'DPoP error="insufficient_scope", error_description="{msg}"'
                 raise XrpcError(msg, name='insufficient_scope', status=403,
                                 headers={'WWW-Authenticate': header})

@@ -78,17 +78,16 @@ def delete_record(input):
     """Handler for ``com.atproto.repo.deleteRecord`` XRPC method."""
     validate(input)
     repo = server.load_repo(input['repo'])
-    server.authorize(repo.did, [(input['collection'], 'delete')])
+    writes = [Write(action=Action.DELETE,
+                    collection=input['collection'],
+                    rkey=input['rkey'])]
+    server.authorize(repo.did, writes)
 
     record = repo.get_record(input['collection'], input['rkey'])
     if record is None:
         return  # noop
 
-    server.storage.commit(repo, [Write(
-        action=Action.DELETE,
-        collection=input['collection'],
-        rkey=input['rkey'],
-    )])
+    server.storage.commit(repo, writes)
 
 
 @server.server.method('com.atproto.repo.listRecords')
@@ -147,15 +146,14 @@ def put_record(input):
     repo = server.load_repo(input['repo'])
 
     existing = repo.get_record(input['collection'], input['rkey'])
-    action = Action.CREATE if existing is None else Action.UPDATE
-    server.authorize(repo.did, [(input['collection'], action.name.lower())])
-
-    server.storage.commit(repo, [Write(
-        action=action,
+    writes = [Write(
+        action=Action.CREATE if existing is None else Action.UPDATE,
         collection=input['collection'],
         rkey=input['rkey'],
         record=input['record'],
-    )])
+    )]
+    server.authorize(repo.did, writes)
+    server.storage.commit(repo, writes)
 
     return {
         'uri': at_uri(repo.did, input['collection'], input['rkey']),
@@ -219,7 +217,7 @@ def import_repo(input):
             # commit below when we create the repo.
             head = block
             repo_did = car_block.decoded['did']
-            server.authorize(repo_did, ())
+            server.authorize(repo_did, [])
             if server.storage.load_repo(repo_did):
                 raise ValueError(f'repo already exists for DID {repo_did}')
 
@@ -277,7 +275,7 @@ def apply_writes(input):
             })
         results.append(result)
 
-    server.authorize(repo.did, [(w.collection, w.action.name.lower()) for w in writes])
+    server.authorize(repo.did, writes)
     commit = server.storage.commit(repo, writes).commit
     return {
         'commit': {

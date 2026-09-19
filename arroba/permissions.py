@@ -13,17 +13,20 @@ from urllib.parse import parse_qs, unquote
 
 from lexrpc.base import NSID_RE
 
+from .util import Action
+
 logger = logging.getLogger(__name__)
 
-ACTIONS = ('create', 'update', 'delete')
+# maps action names in scope strings to Actions. case-sensitive.
+SCOPE_ACTIONS = {action.name.lower(): action for action in Action}
 
 # printable, non-whitespace ASCII
 SCOPE_RE = re.compile(r'[!-~]+')
 
 Repo = namedtuple('Repo', [
     'collection',  # tuple of string lexicon NSIDs
-    'action',      # tuple of string actions from ACTIONS
-], defaults=(ACTIONS,))
+    'action',      # tuple of Actions
+], defaults=(tuple(Action),))
 
 
 def parse(scope):
@@ -77,11 +80,11 @@ def parse(scope):
     elif bad := [c for c in collections if c != '*' and not NSID_RE.fullmatch(c)]:
         raise ValueError(f'Invalid collection(s) {bad} in {scope}')
 
-    actions = params.get('action') or ACTIONS
-    if bad := set(actions) - set(ACTIONS):
+    actions = params.get('action') or SCOPE_ACTIONS.keys()
+    if bad := set(actions) - SCOPE_ACTIONS.keys():
         raise ValueError(f'Invalid action(s) {bad} in {scope}')
 
-    return (Repo(tuple(collections), tuple(actions)),)
+    return (Repo(tuple(collections), tuple(SCOPE_ACTIONS[a] for a in actions)),)
 
 
 def supported(scopes):
@@ -110,12 +113,12 @@ def allows(scopes, collection, action):
     Args:
       scopes (sequence of str)
       collection (str): NSID
-      action (str): one of :const:`ACTIONS`
+      action (Action)
 
     Returns:
       bool:
     """
-    assert action in ACTIONS, action
+    assert isinstance(action, Action), action
     return any((collection in perm.collection or '*' in perm.collection)
                and action in perm.action
                for scope in supported(scopes)
@@ -138,7 +141,7 @@ def describe(scope):
         return 'Know which account is yours'
 
     perm, = parse(scope)
-    actions = _join(perm.action).capitalize()
+    actions = _join([action.name.lower() for action in perm.action]).capitalize()
     collections = 'all' if '*' in perm.collection else _join(perm.collection)
     return f'{actions} {collections} records'
 
