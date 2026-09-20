@@ -130,6 +130,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
   * Add new `authorize` function, which checks whether the current request is allowed to do one or more writes.
 * `xrpc_repo`:
   * Implement `applyWrites`. All writes are committed atomically, in a single commit.
+  * `createRecord`, `putRecord`, `deleteRecord`, `applyWrites`: enforce `repo` OAuth scopes. `importRepo`: require the `$REPO_TOKEN` global token, since we don't support the `account:repo` scope yet.
   * `describeRepo`: return the collections actually in the repo, even if `SUPPORTED_COLLECTIONS` is set. ([#87](https://github.com/snarfed/arroba/issues/87))
   * `createRecord`, `getRecord`, `deleteRecord`, `putRecord`: enforce `SUPPORTED_COLLECTIONS` env var if set.
   * `getRecord`: remove fallback to AppView for records not found locally.

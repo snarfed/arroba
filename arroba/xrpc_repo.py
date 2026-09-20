@@ -217,7 +217,8 @@ def import_repo(input):
             # commit below when we create the repo.
             head = block
             repo_did = car_block.decoded['did']
-            server.authorize(repo_did, [])
+            server.global_token_auth()
+
             if server.storage.load_repo(repo_did):
                 raise ValueError(f'repo already exists for DID {repo_did}')
 

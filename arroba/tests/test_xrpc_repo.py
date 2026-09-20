@@ -666,19 +666,19 @@ class XrpcRepoTest(testutil.XrpcTestCase):
         with self.assertRaises(ValueError):
             xrpc_repo.import_repo(SNARFED2_CAR)
 
-    @patch.object(server, 'authenticate', return_value=(
-        SNARFED2_DID, ['atproto', 'transition:generic']))
     @patch.object(webutil.util.session, 'get',
                   return_value=requests_response(SNARFED2_DID_DOC))
-    def test_import_repo_auth_repo_did(self, _, __):
+    def test_import_repo_auth_repo_did(self, _):
         """The DID comes from the CAR's head commit, not an input field."""
+        self.prepare_auth()
         xrpc_repo.import_repo(SNARFED2_CAR)
         self.assertEqual(SNARFED2_DID, server.storage.load_repo(SNARFED2_DID).did)
 
-    @patch.object(server, 'authenticate', return_value=(
-        'did:web:other.com', ['atproto', 'transition:generic']))
-    def test_import_repo_auth_other_repo(self, _):
-        with self.assertRaises(XrpcError):
+    @patch.object(server, 'authenticate',
+                  return_value=(SNARFED2_DID, server.ALL_SCOPES))
+    def test_import_repo_user_auth_not_allowed(self, _):
+        """Only $REPO_TOKEN can import, not eg an OAuth user token."""
+        with self.assertRaises(ValueError):
             xrpc_repo.import_repo(SNARFED2_CAR)
 
         self.assertIsNone(server.storage.load_repo(SNARFED2_DID))
