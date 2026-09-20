@@ -329,6 +329,38 @@ class XrpcProxyTest(testutil.TestCase):
         self.assertEqual('AuthMissing', resp.json['error'])
         mock_request.assert_not_called()
 
+    def test_rpc_scope(self, mock_request, _):
+        for scopes in (
+            ['atproto', 'rpc:x.y.query?aud=did:web:a.pp%23foo'],
+            ['atproto', 'rpc:*?aud=did:web:a.pp%23foo'],
+            ['atproto', 'rpc:x.y.query?aud=*'],
+        ):
+            with self.subTest(scopes=scopes):
+                self.authed_scopes = scopes
+                resp = self.client.get('/xrpc/x.y.query',
+                                       headers={'atproto-proxy': 'did:web:a.pp#foo'})
+                self.assertEqual(200, resp.status_code)
+
+    def test_insufficient_scope(self, mock_request, _):
+        for scopes in (
+            ['atproto'],
+            ['atproto', 'repo:app.bsky.feed.post'],
+            ['atproto', 'rpc:x.y.other?aud=did:web:a.pp%23foo'],
+            ['atproto', 'rpc:x.y.query?aud=did:web:a.pp%23bar'],
+            ['atproto', 'rpc:x.y.query?aud=did:web:oth.er%23foo'],
+        ):
+            with self.subTest(scopes=scopes):
+                self.authed_scopes = scopes
+                resp = self.client.get('/xrpc/x.y.query',
+                                       headers={'atproto-proxy': 'did:web:a.pp#foo'})
+                self.assertEqual(403, resp.status_code)
+                self.assertEqual('insufficient_scope', resp.json['error'])
+                self.assertEqual(
+                    'DPoP error="insufficient_scope", error_description="Missing scope rpc:x.y.query?aud=did:web:a.pp%23foo"',
+                    resp.headers['WWW-Authenticate'])
+
+        mock_request.assert_not_called()
+
     def test_auth_http_exception_passes_through(self, mock_request, _):
         """eg OAuth errors, which carry headers like WWW-Authenticate."""
         def err():

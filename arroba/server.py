@@ -98,10 +98,7 @@ def authorize(did, writes):
         for write in writes:
             perm = permissions.Repo((write.collection,), (write.action,))
             if not permissions.allows(scopes, perm):
-                msg = f'Missing scope repo:{write.collection}?action={write.action.name.lower()}'
-                header = f'DPoP error="insufficient_scope", error_description="{msg}"'
-                raise XrpcError(msg, name='insufficient_scope', status=403,
-                                headers={'WWW-Authenticate': header})
+                raise permissions.insufficient_scope(perm)
 
     return authed_did
 

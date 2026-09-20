@@ -1,5 +1,13 @@
 """Unit tests for permissions.py."""
-from ..permissions import allows, describe, supported, parse, Repo, Rpc
+from ..permissions import (
+    allows,
+    describe,
+    insufficient_scope,
+    parse,
+    Repo,
+    Rpc,
+    supported,
+)
 from ..storage import Action
 from .testutil import TestCase
 
@@ -179,6 +187,20 @@ class PermissionsTest(TestCase):
         ):
             with self.subTest(scope=scope):
                 self.assertEqual(expected, describe(scope))
+
+    def test_insufficient_scope(self):
+        err = insufficient_scope(Repo(('app.example.post',), (Action.CREATE,)))
+        self.assertEqual('insufficient_scope', err.name)
+        self.assertEqual(403, err.status)
+        self.assertEqual('Missing scope repo:app.example.post?action=create',
+                         err.message)
+        self.assertEqual({
+            'WWW-Authenticate': 'DPoP error="insufficient_scope", error_description="Missing scope repo:app.example.post?action=create"',
+        }, err.headers)
+
+        err = insufficient_scope(Rpc(('app.example.getFoo',), ('did:web:ho.st#svc',)))
+        self.assertEqual('Missing scope rpc:app.example.getFoo?aud=did:web:ho.st%23svc',
+                         err.message)
 
     def test_describe_invalid(self):
         with self.assertRaises(ValueError):

@@ -15,9 +15,9 @@ field.
 from collections import namedtuple
 import logging
 import re
-from urllib.parse import parse_qs, unquote
+from urllib.parse import parse_qs, quote, unquote
 
-from lexrpc.base import NSID_RE
+from lexrpc.base import NSID_RE, XrpcError
 
 from .util import Action
 
@@ -166,6 +166,29 @@ def allows(scopes, permission):
                        for want, have in zip(permission, granted))
                for scope in supported(scopes)
                for granted in parse(scope))
+
+
+def insufficient_scope(permission):
+    """Returns an error for a request that a credential's scopes don't allow.
+
+    Args:
+      permission (Repo or Rpc): the request, with single concrete values
+
+    Returns:
+      XrpcError: with the scope the credential would have needed
+    """
+    if isinstance(permission, Repo):
+        action = permission.action[0].name.lower()
+        scope = f'repo:{permission.collection[0]}?action={action}'
+    else:
+        assert isinstance(permission, Rpc)
+        aud = quote(permission.service[0], safe=':')
+        scope = f'rpc:{permission.method[0]}?aud={aud}'
+
+    msg = f'Missing scope {scope}'
+    return XrpcError(msg, name='insufficient_scope', status=403, headers={
+        'WWW-Authenticate': f'DPoP error="insufficient_scope", error_description="{msg}"',
+    })
 
 
 def describe(scope):

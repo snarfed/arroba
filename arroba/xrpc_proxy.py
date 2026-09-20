@@ -22,6 +22,7 @@ import webutil.util
 from webutil.util import HTTP_TIMEOUT, parse_iso8601, session
 
 from . import did
+from . import permissions
 from . import server
 from .util import at_uri, dag_cbor_cid, service_jwt, USER_AGENT
 
@@ -93,16 +94,18 @@ def signing_key(repo_did):
     return server.load_repo(repo_did).signing_key
 
 
-def error(name, message, status=400):
+def error(name, message, status=400, headers=None):
     """Returns an XRPC error as a Flask response.
 
     Args:
       name (str)
       message (str)
       status (int)
+      headers (dict): additional response headers
     """
     logger.info(f'{status} {name}: {message}')
-    return {'error': name, 'message': message}, status, RESPONSE_HEADERS
+    headers = {**RESPONSE_HEADERS, **(headers or {})}
+    return ({'error': name, 'message': message}, status, headers)
 
 
 def handler(nsid):
@@ -137,7 +140,7 @@ def handler(nsid):
         return error('InvalidRequest', f'Bad atproto-proxy header {target}')
 
     try:
-        user_did, _ = server.authenticate()
+        user_did, scopes = server.authenticate()
     except (NotImplementedError, ValueError) as e:
         return error('AuthMissing', f'Proxying {nsid} requires authentication: {e}',
                      status=401)
@@ -146,6 +149,13 @@ def handler(nsid):
     if not isinstance(user_did, str):
         return error('AuthMissing', f'Proxying {nsid} requires user authentication',
                      status=401)
+
+    # authorize against rpc: permissions/scopes
+    # https://atproto.com/specs/permission#rpc
+    perm = permissions.Rpc((nsid,), (target,))
+    if scopes is not server.ALL_SCOPES and not permissions.allows(scopes, perm):
+        err = permissions.insufficient_scope(perm)
+        return error(err.name, err.message, status=err.status, headers=err.headers)
 
     try:
         doc = did.resolve(target_did)
