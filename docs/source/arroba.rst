@@ -6,16 +6,28 @@ Reference documentation.
 .. contents::
 
 did
-----
+---
 .. automodule:: arroba.did
 
 diff
 ----
 .. automodule:: arroba.diff
 
+firehose
+--------
+.. automodule:: arroba.firehose
+
+memcache
+--------
+.. automodule:: arroba.memcache
+
 mst
 ---
 .. automodule:: arroba.mst
+
+permissions
+-----------
+.. automodule:: arroba.permissions
 
 repo
 ----
@@ -36,6 +48,10 @@ util
 xrpc_identity
 -------------
 .. automodule:: arroba.xrpc_identity
+
+xrpc_actor
+----------
+.. automodule:: arroba.xrpc_actor
 
 xrpc_proxy
 ----------
