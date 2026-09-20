@@ -167,10 +167,16 @@ def null_diff(tree):
 
 
 Change = namedtuple('Change', [
-    'key',   # str
-    'cid',   # CID
-    'prev',  # CID
+    'key',
+    'cid',
+    'prev',
 ], defaults=[None])
+"""
+Attributes:
+  key (str)
+  cid (CID)
+  prev (CID)
+"""
 
 
 class Diff:

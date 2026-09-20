@@ -63,21 +63,38 @@ logger = logging.getLogger(__name__)
 _VALID_KEY_RE = re.compile(r'[a-zA-Z0-9_\-:.]+')
 
 Entry = namedtuple('Entry', [
-    'p',  # int, length of prefix that this data key shares with the prev data key
-    'k',  # bytes, the rest of the data key outside the shared prefix
-    'v',  # CID, value
-    't',  # CID, next subtree (to the right of leaf), or None
+    'p',
+    'k',
+    'v',
+    't',
 ])
+"""
+Attributes:
+  p (int): length of prefix that this data key shares with the prev data key
+  k (bytes): the rest of the data key outside the shared prefix
+  v (CID): value
+  t (CID): next subtree (to the right of leaf), or None
+"""
 
 Data = namedtuple('Data', [
-    'l',  # CID, left-most subtree, or None
-    'e',  # list of Entry
+    'l',
+    'e',
 ])
+"""
+Attributes:
+  l (CID): left-most subtree, or None
+  e (list of Entry)
+"""
 
 Leaf = namedtuple('Leaf', [
-    'key',    # str, data key (collection + record key aka rkey)
-    'value',  # CID
+    'key',
+    'value',
 ])
+"""
+Attributes:
+  key (str): data key (collection + record key aka rkey)
+  value (CID)
+"""
 
 
 class MST:
@@ -1106,11 +1123,18 @@ def ensure_valid_key(key):
 
 
 WalkStatus = namedtuple('WalkStatus', [
-    'done',     # bool
-    'cur',      # MST or Leaf
-    'walking',  # MST or None if cur is the root of the tree
-    'index',    # int
+    'done',
+    'cur',
+    'walking',
+    'index',
 ], defaults=[None, None, None, None])
+"""
+Attributes:
+  done (bool)
+  cur (MST or Leaf)
+  walking (MST): or None if ``cur`` is the root of the tree
+  index (int)
+"""
 
 
 class Walker:

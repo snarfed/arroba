@@ -60,11 +60,18 @@ class Action(Enum):
 
 
 Write = namedtuple('Write', [
-    'action',      # :class:`Action`
-    'collection',  # str
-    'rkey',        # str
-    'record',      # dict
+    'action',
+    'collection',
+    'rkey',
+    'record',
 ], defaults=[None] * 4)
+"""
+Attributes:
+  action (Action)
+  collection (str)
+  rkey (str)
+  record (dict)
+"""
 
 
 class InactiveRepo(ValueError):

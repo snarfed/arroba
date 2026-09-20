@@ -197,6 +197,9 @@ XRPC handlers:
 - ``DISABLE_GETREPO``, boolean (true if set to any value), whether to
   disable the ``getRepo`` XRPC call entirely for repos older than 12h.
 
+- ``GETREPO_TOKEN``, string, allows ``getRepo`` calls if the bearer
+  token in the ``Authorization`` header matches. Requires Flask.
+
 .. raw:: html
 
    <!-- Only used in app.py:
@@ -208,6 +211,100 @@ XRPC handlers:
 
 Changelog
 ---------
+
+3.1 - unreleased
+~~~~~~~~~~~~~~~~
+
+- Add `service
+  proxying <https://atproto.com/specs/xrpc#service-proxying>`__ in new
+  ``xrpc_proxy`` module. Pass ``xrpc_proxy.handler`` to lexrpc’s new
+  ``flask_server.init_flask`` ``fallback`` kwarg to proxy methods you
+  don’t implement using `service
+  auth <https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification>`__.
+  Includes
+  `read-after-write <https://atproto.com/guides/writing-data#read-after-write>`__
+  for the user’s own new posts, profile, likes, and reposts in a number
+  of ``app.bsky.*`` methods.
+- Add ``com.atproto.identity.resolveHandle`` in new ``xrpc_identity``
+  module.
+- Add ``app.bsky.actor.getPreferences`` and ``putPreferences`` stubs in
+  new ``xrpc_actor`` module.
+- Add new ``permissions`` module for parsing, checking, and describing
+  `OAuth permission scopes <https://atproto.com/specs/permission>`__.
+  Only supports the ``repo`` resource and the ``atproto`` and
+  ``transition:generic`` scopes so far.
+- ``server``:
+
+  - Allow records with missing or unknown lexicons, ie pass lexrpc’s new
+    ``require_lexicons=False``.
+  - Add new ``authenticate`` global function which clients can override
+    to authenticate requests. It returns a ``(DID, OAuth scopes)``
+    tuple. The default implementation, ``global_token_auth``, checks
+    ``$REPO_TOKEN`` and returns ``(ALL_REPOS, ALL_SCOPES)``.
+  - Add new ``authorize`` function, which checks whether the current
+    request is allowed to do one or more writes.
+
+- ``xrpc_repo``:
+
+  - Implement ``applyWrites``. All writes are committed atomically, in a
+    single commit.
+  - ``createRecord``, ``putRecord``, ``deleteRecord``, ``applyWrites``:
+    enforce ``repo`` OAuth scopes. ``importRepo``: require the
+    ``$REPO_TOKEN`` global token, since we don’t support the
+    ``account:repo`` scope yet.
+  - ``describeRepo``: return the collections actually in the repo, even
+    if ``SUPPORTED_COLLECTIONS`` is set.
+    (`#87 <https://github.com/snarfed/arroba/issues/87>`__)
+  - ``createRecord``, ``getRecord``, ``deleteRecord``, ``putRecord``:
+    enforce ``SUPPORTED_COLLECTIONS`` env var if set.
+  - ``getRecord``: remove fallback to AppView for records not found
+    locally.
+  - ``getRecord``: raise named ``RecordNotFound`` error..
+
+- ``xrpc_sync``:
+
+  - ``subscribeRepos``: add missing required ``tooBig`` field to emitted
+    events.
+  - ``getRecord``: raise named ``RecordNotFound`` error..
+
+- ``storage``:
+
+  - ``Storage``: add ``read_writes_since``.
+
+- ``util``:
+
+  - Move ``Action`` here from ``storage`` and ``Write`` here from
+    ``repo``. ``storage.Action`` and ``repo.Write`` are kept as aliases.
+
+- ``datastore_storage``:
+
+  - ``DatastoreStorage.read_blocks_by_seq``: fix bug where an abandoned
+    generator, eg from a disconnected ``subscribeRepos`` client, could
+    clobber an unrelated thread’s ndb context.
+  - ``AtpRemoteBlob``: bump video limits up to `300MB and 10
+    minutes <https://bsky.app/profile/bsky.app/post/3mtwf7gxkwc2r>`__.
+
+- ``did``
+
+  - ``plc_operation_to_did_doc``: return ``type: Multikey``.
+
+- ``diff``:
+
+  - ``Diff.add_diff``: don’t assume all keys are shared between the two
+    diffs.
+
+- ``mst``:
+
+  - ``deserialize_node_data``: fix bug where layer 0 child pointers got
+    ``layer=None`` instead of ``layer=-1``.
+
+- ``util``:
+
+  - ``service_jwt``: enforce `low-S
+    signatures <https://atproto.com/specs/cryptography#ecdsa-signature-malleability>`__.
+  - ``datetime_to_tid``, ``tid_to_datetime``: fix bug where they could
+    be off by a microsecond, due to floating point error in the UNIX
+    timestamp conversion.
 
 3.0 - 2026-07-01
 ~~~~~~~~~~~~~~~~
@@ -223,6 +320,8 @@ migration details.
 
 - Add optional new ``SUPPORTED_COLLECTIONS`` environment variable, a
   comma-separated set of NSIDs.
+- Add optional new ``GETREPO_TOKEN`` environment variable, allows
+  authenticated requests when ``getRepo`` is disabled.
 - Add SSRF protection to all outgoing HTTP requests via
   `requests-hardened <https://github.com/saleor/requests-hardened>`__.
 - ``datastore_storage``:
@@ -700,7 +799,7 @@ Here’s how to package, test, and ship a new release.
     ``sh  git checkout main  git pull``
 
 2.  Run the unit tests.
-    ``sh  source .venv/bin/activate.csh  python -m unittest discover``
+    ``sh  source .venv/bin/activate.csh  python -m unittest discover  python -m unittest arroba/tests/hypothesis/*.py``
 
 3.  Bump the version number in ``pyproject.toml`` and ``docs/conf.py``.
     ``git grep`` the old version number to make sure it only appears in
@@ -743,7 +842,7 @@ Here’s how to package, test, and ship a new release.
     description text box.
 
 11. Upload to `pypi.org <https://pypi.org/>`__!
-    ``sh  twine upload dist/dist/arroba-$ver.tar.gz dist/arroba-$ver-py3-none-any.whl``
+    ``sh  twine upload dist/arroba-$ver.tar.gz dist/arroba-$ver-py3-none-any.whl``
 
 12. `Wait for the docs to build on Read the
     Docs <https://readthedocs.org/projects/arroba/builds/>`__, then

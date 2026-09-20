@@ -41,17 +41,31 @@ logger = logging.getLogger(__name__)
 # TODO: Should this be a subclass of Block?
 # TODO: generalize to handle other events
 CommitData = namedtuple('CommitData', [
-    'commit',  # Block
-    'blocks',  # dict of CID to Block
-    'prev',    # CID or None
+    'commit',
+    'blocks',
+    'prev',
 ], defaults=[None])  # prev
+"""
+Attributes:
+  commit (Block)
+  blocks (dict): maps CID to Block
+  prev (CID or None)
+"""
 
-CommitOp = namedtuple('CommitOp', [  # for subscribeRepos
-    'action',  # Action
-    'path',    # str
-    'cid',     # CID, or None for DELETE
-    'prev_cid', # previous CID for UPDATE and DELETE operations, None for CREATE
+CommitOp = namedtuple('CommitOp', [
+    'action',
+    'path',
+    'cid',
+    'prev_cid',
 ], defaults=[None, None])  # cid, prev_cid
+"""A repo operation in a ``subscribeRepos`` commit.
+
+Attributes:
+  action (Action)
+  path (str)
+  cid (CID): or None for ``DELETE``
+  prev_cid (CID): previous CID for ``UPDATE`` and ``DELETE``, None for ``CREATE``
+"""
 
 # commit record format is:
 # https://atproto.com/specs/repository#commit-objects

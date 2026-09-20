@@ -32,11 +32,18 @@ from webutil.util import session
 from . import util
 
 DidPlc = namedtuple('DidPlc', [
-    'did',           # str
-    'signing_key',   # ec.EllipticCurvePrivateKey
-    'rotation_key',  # ec.EllipticCurvePrivateKey
-    'doc',           # dict, DID document
+    'did',
+    'signing_key',
+    'rotation_key',
+    'doc',
 ])
+"""
+Attributes:
+  did (str)
+  signing_key (ec.EllipticCurvePrivateKey)
+  rotation_key (ec.EllipticCurvePrivateKey)
+  doc (dict): DID document
+"""
 
 logger = logging.getLogger(__name__)
 
