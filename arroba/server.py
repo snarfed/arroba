@@ -96,7 +96,8 @@ def authorize(did, writes):
 
     if scopes is not ALL_SCOPES:
         for write in writes:
-            if not permissions.allows(scopes, write.collection, write.action):
+            perm = permissions.Repo((write.collection,), (write.action,))
+            if not permissions.allows(scopes, perm):
                 msg = f'Missing scope repo:{write.collection}?action={write.action.name.lower()}'
                 header = f'DPoP error="insufficient_scope", error_description="{msg}"'
                 raise XrpcError(msg, name='insufficient_scope', status=403,

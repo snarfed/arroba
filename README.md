@@ -123,7 +123,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 * Add [service proxying](https://atproto.com/specs/xrpc#service-proxying) in new `xrpc_proxy` module. Pass `xrpc_proxy.handler` to lexrpc's new `flask_server.init_flask` `fallback` kwarg to proxy methods you don't implement using [service auth](https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification). Includes [read-after-write](https://atproto.com/guides/writing-data#read-after-write) for the user's own new posts, profile, likes, and reposts in a number of `app.bsky.*` methods.
 * Add `com.atproto.identity.resolveHandle` in new `xrpc_identity` module.
 * Add `app.bsky.actor.getPreferences` and `putPreferences` stubs in new `xrpc_actor` module.
-* Add new `permissions` module for parsing, checking, and describing [OAuth permission scopes](https://atproto.com/specs/permission). Only supports the `repo` resource and the `atproto` and `transition:generic` scopes so far.
+* Add new `permissions` module for parsing, checking, and describing [OAuth permission scopes](https://atproto.com/specs/permission). Supports `repo` and `rpc` resources and `atproto` and `transition:generic` scopes.
 * `server`:
   * Allow records with missing or unknown lexicons, ie pass lexrpc's new `require_lexicons=False`.
   * Add new `authenticate` global function which clients can override to authenticate requests. It returns a `(DID, OAuth scopes)` tuple. The default implementation, `global_token_auth`, checks `$REPO_TOKEN` and returns `(ALL_REPOS, ALL_SCOPES)`.
