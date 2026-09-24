@@ -28,7 +28,7 @@ from .storage import (
 from . import util
 
 ROLLBACK_WINDOW = int(os.getenv('ROLLBACK_WINDOW', 50_000))
-# 4000 seqs is ~1h as of May 2025, loads in prod in ~2m
+# 4000 seqs is ~1h as of Sep 2026, loads in prod in ~4m
 PRELOAD_WINDOW = int(os.getenv('PRELOAD_WINDOW', 4000))
 SUBSCRIBE_REPOS_BATCH_DELAY = timedelta(seconds=float(os.getenv('SUBSCRIBE_REPOS_BATCH_DELAY', 0)))
 # only wait for a skipped seq if we're within this many seqs of current
