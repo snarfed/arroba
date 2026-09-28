@@ -24,7 +24,7 @@ if __name__ == '__main__':
     host = sys.argv[1] if len(sys.argv) >= 2 else 'bsky.network'
     scheme = 'http' if host.split(':')[0] == 'localhost' else 'https'
     client = Client(f'{scheme}://{host}', require_lexicons=False)
-    start = int(sys.argv[2]) if len(sys.argv) >= 3 else {}
+    start = int(sys.argv[2]) if len(sys.argv) >= 3 else None
     stop = int(sys.argv[3]) if len(sys.argv) >= 4 else None
 
     for header, payload in client.com.atproto.sync.subscribeRepos(cursor=start):
