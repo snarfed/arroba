@@ -68,6 +68,7 @@ docs = [
 ]
 tests = [
     'hypothesis>=6.0',
+    'pywebutil[tests]>=2.0',
 ]
 
 [tool.uv.sources]
