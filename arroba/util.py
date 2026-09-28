@@ -436,19 +436,22 @@ def service_jwt(host, repo_did, privkey, expiration=timedelta(minutes=10),
 
 
 def media_metadata(content):
-    """Extracts metadata from an image or video.
+    """Extracts metadata from an image, video, or audio file.
 
     Args:
       content (bytes)
 
     Returns:
-      pymediainfo.Track or None: the first video or image track, with
-      ``width``, ``height``, and ``duration`` (int, milliseconds, may be None).
-      None if ``content`` isn't parseable media.
+      pymediainfo.Track or None: the first video, audio, or image track, with
+      ``width``, ``height``, and ``duration`` (int, milliseconds), any of which
+      may be None. None if ``content`` isn't parseable media.
     """
     try:
         media_info = MediaInfo.parse(BytesIO(content))
-        tracks = media_info.video_tracks or media_info.image_tracks
+        # audio before image so that eg embedded cover art doesn't win
+        tracks = (media_info.video_tracks
+                  or media_info.audio_tracks
+                  or media_info.image_tracks)
         if not tracks:
             return None
 

@@ -149,6 +149,10 @@ class UtilTest(TestCase):
         track = media_metadata(Path(__file__).with_name('video.mp4').read_bytes())
         self.assertEqual((1280, 720, 101), (track.width, track.height, track.duration))
 
+    def test_media_metadata_audio(self):
+        track = media_metadata(Path(__file__).with_name('sample.mp3').read_bytes())
+        self.assertEqual((None, None, 3239), (track.width, track.height, track.duration))
+
     @patch.object(MediaInfo, 'parse', return_value=MagicMock(
         video_tracks=[MagicMock(width=123, height=456, duration='4740.000001')]))
     def test_media_metadata_string_float_duration(self, _):
