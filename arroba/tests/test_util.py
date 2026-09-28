@@ -2,11 +2,13 @@
 import base64
 from datetime import datetime, timedelta, timezone
 from email.message import Message
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 from requests.cookies import extract_cookies_to_jar
 
 import jwt
 from multiformats import CID
+from pymediainfo import MediaInfo
 import requests
 from webutil.testutil import NOW
 
@@ -18,6 +20,7 @@ from ..util import (
     next_tid,
     parse_at_uri,
     int_to_tid,
+    media_metadata,
     service_jwt,
     sign,
     tid_to_datetime,
@@ -137,3 +140,19 @@ class UtilTest(TestCase):
             encoded = service_jwt('relay.local', 'did:web:x', self.key).split('.')[2]
             sig = base64.urlsafe_b64decode(encoded + '=' * (-len(encoded) % 4))
             self.assertLessEqual(int.from_bytes(sig[32:], 'big'), order // 2)
+
+    def test_media_metadata_image(self):
+        track = media_metadata(Path(__file__).with_name('keyboard.png').read_bytes())
+        self.assertEqual((21, 12, None), (track.width, track.height, track.duration))
+
+    def test_media_metadata_video(self):
+        track = media_metadata(Path(__file__).with_name('video.mp4').read_bytes())
+        self.assertEqual((1280, 720, 101), (track.width, track.height, track.duration))
+
+    @patch.object(MediaInfo, 'parse', return_value=MagicMock(
+        video_tracks=[MagicMock(width=123, height=456, duration='4740.000001')]))
+    def test_media_metadata_string_float_duration(self, _):
+        self.assertEqual(4740, media_metadata(b'xyz').duration)
+
+    def test_media_metadata_not_media(self):
+        self.assertIsNone(media_metadata(b'not media'))

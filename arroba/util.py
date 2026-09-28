@@ -4,6 +4,7 @@ from collections import namedtuple
 import copy
 from datetime import datetime, timedelta, timezone
 from enum import auto, Enum
+from io import BytesIO
 import json
 import logging
 from numbers import Integral
@@ -23,6 +24,7 @@ from cryptography.hazmat.primitives import hashes
 import dag_cbor
 import jwt
 from multiformats import CID, multicodec, multihash
+from pymediainfo import MediaInfo
 import webutil.util
 
 logger = logging.getLogger(__name__)
@@ -431,3 +433,28 @@ def service_jwt(host, repo_did, privkey, expiration=timedelta(minutes=10),
     encoded_sig = base64.urlsafe_b64encode(
         r.to_bytes(32, 'big') + s.to_bytes(32, 'big')).rstrip(b'=').decode()
     return f'{signing_input}.{encoded_sig}'
+
+
+def media_metadata(content):
+    """Extracts metadata from an image or video.
+
+    Args:
+      content (bytes)
+
+    Returns:
+      pymediainfo.Track or None: the first video or image track, with
+      ``width``, ``height``, and ``duration`` (int, milliseconds, may be None).
+      None if ``content`` isn't parseable media.
+    """
+    try:
+        media_info = MediaInfo.parse(BytesIO(content))
+        tracks = media_info.video_tracks or media_info.image_tracks
+        if not tracks:
+            return None
+
+        track = tracks[0]
+        if track.duration:
+            track.duration = int(float(track.duration))
+        return track
+    except (OSError, RuntimeError, TypeError, ValueError) as e:
+        logger.info(e)

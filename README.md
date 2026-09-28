@@ -152,6 +152,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 * `mst`:
   * `deserialize_node_data`: fix bug where layer 0 child pointers got `layer=None` instead of `layer=-1`.
 * `util`:
+  * Add `media_metadata`, extracted from `AtpRemoteBlob.generate_metadata`.
   * `service_jwt`: enforce [low-S signatures](https://atproto.com/specs/cryptography#ecdsa-signature-malleability).
   * `datetime_to_tid`, `tid_to_datetime`: fix bug where they could be off by a microsecond, due to floating point error in the UNIX timestamp conversion.
 

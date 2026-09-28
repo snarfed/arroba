@@ -1,7 +1,6 @@
 """Google Cloud Datastore implementation of repo storage."""
 from datetime import timedelta, timezone
 from functools import wraps
-from io import BytesIO
 import itertools
 import json
 import logging
@@ -25,7 +24,6 @@ from google.cloud.datastore_v1.types import datastore as ds_pb2
 from google.cloud.datastore_v1.types import entity as entity_pb2
 from lexrpc import ValidationError
 from multiformats import CID, multicodec, multihash
-from pymediainfo import MediaInfo
 from webutil.models import EncryptedProperty, WriteOnceBlobProperty
 import webutil.util
 
@@ -570,24 +568,13 @@ class AtpRemoteBlob(ndb.Model):
     def generate_metadata(self, content):
         """Extracts and stores metadata from an image or video.
 
-        Uses ``self.mime_type`` to determine whether/how to parse the content.
-
         Args:
           content (bytes)
         """
-        try:
-            media_info = MediaInfo.parse(BytesIO(content))
-            tracks = media_info.video_tracks or media_info.image_tracks
-            if not tracks:
-                return
-
-            track = tracks[0]
+        if track := util.media_metadata(content):
             self.width = track.width
             self.height = track.height
-            if track.duration:
-                self.duration = int(float(track.duration))
-        except (OSError, RuntimeError, TypeError, ValueError) as e:
-            logger.info(e)
+            self.duration = track.duration
 
     def validate(self, max_size=None, accept_types=None, name=''):
         """Checks that this blob satisfies size and type constraints.
@@ -678,7 +665,8 @@ class DatastoreStorage(Storage, NdbMixin):
         logger.debug(f'Loading repo {atp_repo.key}')
         handle = atp_repo.handles[0] if atp_repo.handles else None
 
-        created = atp_repo.created.replace(tzinfo=timezone.utc) if atp_repo.created else None
+        created = (atp_repo.created.replace(tzinfo=timezone.utc) if atp_repo.created
+                   else None)
         return Repo.load(self, cid=CID.decode(atp_repo.head), handle=handle,
                          status=atp_repo.status, signing_key=atp_repo.signing_key,
                          rotation_key=atp_repo.rotation_key, created=created)
