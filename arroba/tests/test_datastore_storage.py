@@ -800,6 +800,59 @@ class DatastoreStorageTest(DatastoreTest):
         self.assertIsNone(blob.status)
         self.assertEqual(NOW, blob.last_fetched)
 
+    @patch.object(webutil.util.session, 'get')
+    def test_get_or_create_content(self, mock_get):
+        repo = AtpRepo(id='did:abc')
+        blob = AtpRemoteBlob.get_or_create(url='http://my/blob.png', repo=repo,
+                                           content=b'blob contents',
+                                           mime_type='image/png')
+        mock_get.assert_not_called()
+        self.assertEqual({
+            '$type': 'blob',
+            'ref': BLOB_CID,
+            'mimeType': 'image/png',
+            'size': 13,
+        }, blob.as_object())
+
+        blob = blob.key.get()
+        self.assertEqual('http://my/blob.png', blob.url)
+        self.assertEqual([repo.key], blob.repos)
+        self.assertEqual(NOW, blob.last_fetched)
+        self.assertIsNone(blob.status)
+
+    def test_get_or_create_content_image_aspect_ratio(self):
+        blob = AtpRemoteBlob.get_or_create(
+            url='http://my/blob.png', mime_type='image/png',
+            content=Path(__file__).with_name('keyboard.png').read_bytes())
+        self.assertEqual((21, 12), (blob.width, blob.height))
+
+    def test_get_or_create_content_existing_blob(self):
+        repo_a = AtpRepo(id='did:a')
+        AtpRemoteBlob(id='http://blob', cid='old-cid', size=3, mime_type='image/gif',
+                      repos=[repo_a.key], status='inactive').put()
+
+        repo_b = AtpRepo(id='did:b')
+        blob = AtpRemoteBlob.get_or_create(url='http://blob', repo=repo_b,
+                                           content=b'blob contents',
+                                           mime_type='image/png')
+
+        blob = blob.key.get()
+        self.assertEqual(BLOB_CID.encode('base32'), blob.cid)
+        self.assertEqual(13, blob.size)
+        self.assertEqual('image/png', blob.mime_type)
+        self.assertEqual([repo_a.key, repo_b.key], blob.repos)
+        self.assertEqual(NOW, blob.last_fetched)
+        self.assertIsNone(blob.status)
+
+    def test_get_or_create_content_over_max_size(self):
+        with self.assertRaises(ValidationError):
+            AtpRemoteBlob.get_or_create(url='http://blob', content=b'blob contents',
+                                        mime_type='image/png', max_size=10)
+
+    def test_get_or_create_content_requires_mime_type(self):
+        with self.assertRaises(AssertionError):
+            AtpRemoteBlob.get_or_create(url='http://blob', content=b'blob contents')
+
     def test_validate_size_unset(self):
         blob = AtpRemoteBlob(id='http://blob', cid='123', mime_type='image/foo')
         blob.validate(max_size=100)

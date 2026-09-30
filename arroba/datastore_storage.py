@@ -437,10 +437,12 @@ class AtpRemoteBlob(ndb.Model):
 
     @classmethod
     def get_or_create(cls, *, url=None, repo=None, get_fn=webutil.util.session.get,
-                      max_size=None, accept_types=None, name=''):
+                      max_size=None, accept_types=None, name='', content=None,
+                      mime_type=None):
         """Returns a new or existing :class:`AtpRemoteBlob` for a given URL.
 
-        If there isn't an existing :class:`AtpRemoteBlob`, or if the existing one
+        If ``content`` is provided, uses it as the blob's contents. Otherwise, if
+        there isn't an existing :class:`AtpRemoteBlob`, or if the existing one
         needs to be reloaded, fetches the URL over the network.
 
         Args:
@@ -452,6 +454,10 @@ class AtpRemoteBlob(ndb.Model):
           accept_types (sequence of str, optional): the ``accept`` parameter for
             this blob field in its lexicon, if any. The set of allowed MIME types.
           name (str, optional): blob field name in lexicon
+          content (bytes, optional): the blob's contents, eg if it was just
+            uploaded. If provided, we don't fetch the URL.
+          mime_type (str, optional): the blob's MIME type. Required if
+            ``content`` is provided.
 
         Returns:
           AtpRemoteBlob: existing or newly created blob
@@ -463,6 +469,9 @@ class AtpRemoteBlob(ndb.Model):
             limit
         """
         assert url
+        if content is not None:
+            assert mime_type
+
         url_key = url
         if len(url_key) > _MAX_KEYPART_BYTES:
             # TODO: handle Unicode chars. naive approach is to UTF-8 encode,
@@ -483,10 +492,13 @@ class AtpRemoteBlob(ndb.Model):
             return blob
 
         blob = get_or_insert()
-        if blob.status:
-            raise requests.HTTPError(f'Blob {url_key} is {blob.status}')
+        if content is not None:
+            blob.set_content(content, mime_type)
+        else:
+            if blob.status:
+                raise requests.HTTPError(f'Blob {url_key} is {blob.status}')
+            blob.maybe_fetch(get_fn=get_fn)
 
-        blob.maybe_fetch(get_fn=get_fn)
         blob.validate(max_size=max_size, accept_types=accept_types, name=name)
         return blob
 
@@ -540,11 +552,21 @@ class AtpRemoteBlob(ndb.Model):
             self.put()
             raise ValidationError(f'{url} Content-Length {length} is over BLOB_MAX_BYTES')
 
-        # calculate CID and update blob
-        digest = multihash.digest(resp.content, 'sha2-256')
+        self.set_content(resp.content, self.mime_type)
+
+    def set_content(self, content, mime_type):
+        """Updates this blob's metadata from its contents, and stores it.
+
+        Args:
+          content (bytes)
+          mime_type (str)
+        """
+        digest = multihash.digest(content, 'sha2-256')
         self.cid = CID('base58btc', 1, 'raw', digest).encode('base32')
-        self.size = len(resp.content)
-        self.generate_metadata(resp.content)
+        self.mime_type = mime_type
+        self.size = len(content)
+        self.last_fetched = webutil.util.now()
+        self.generate_metadata(content)
         self.status = None
         self.put()
 

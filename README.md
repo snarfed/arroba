@@ -144,7 +144,10 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
   * Move `Action` here from `storage` and `Write` here from `repo`. `storage.Action` and `repo.Write` are kept as aliases.
 * `datastore_storage`:
   * `DatastoreStorage.read_blocks_by_seq`: fix bug where an abandoned generator, eg from a disconnected `subscribeRepos` client, could clobber an unrelated thread's ndb context.
-  * `AtpRemoteBlob`: bump video limits up to [300MB and 10 minutes](https://bsky.app/profile/bsky.app/post/3mtwf7gxkwc2r).
+  * `AtpRemoteBlob`:
+    * Bump video limits up to [300MB and 10 minutes](https://bsky.app/profile/bsky.app/post/3mtwf7gxkwc2r).
+    * `get_or_create`: add `content` and `mime_type` kwargs, for creating blobs from contents we already have, without fetching them.
+    * Add `set_content`.
 * `did`
   * `plc_operation_to_did_doc`: return `type: Multikey`.
 * `diff`:
