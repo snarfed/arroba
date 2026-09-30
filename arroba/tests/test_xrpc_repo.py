@@ -10,8 +10,9 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
-from flask import request
+from flask import Flask, request
 from lexrpc.base import XrpcError
+from lexrpc.flask_server import init_flask
 from multiformats import CID
 import requests
 from webutil.testutil import NOW, requests_response
@@ -157,7 +158,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
                                       collection='app.bsky.feed.post')
         self.assertEqual({'records': []}, resp)
 
-    def test_list_records_encodes_cids_blobs(self):
+    def test_list_records_cids_blobs(self):
         repo = server.load_repo('did:web:user.com')
 
         server.storage.commit(repo, [
@@ -177,11 +178,11 @@ class XrpcRepoTest(testutil.XrpcTestCase):
             'records': [{
                 'uri': 'at://did:web:user.com/app.bsky.feed.post/0',
                 'cid': 'bafyreiebpz6rwjafxxc3ed4r6ukq54ioctdrgj4r5ejr3eestqecypzeja',
-                'value': {'cid': {'$link': CID1_STR}},
+                'value': {'cid': CID1},
             }, {
                 'uri': 'at://did:web:user.com/app.bsky.feed.post/1',
                 'cid': 'bafyreig6osigu5lx7oi7nlwx6oi6jjgnwwpjislog7dd34j2m6mt47wspm',
-                'value': {'blob': {'$type': 'blob', 'ref': {'$link': CID2_STR}}},
+                'value': {'blob': {'$type': 'blob', 'ref': CID2}},
             }],
         }, resp)
 
@@ -203,7 +204,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
             },
         }, resp)
 
-    def test_get_record_encodes_cids_blobs(self):
+    def test_get_record_cids_blobs(self):
         repo = server.load_repo('did:web:user.com')
         server.storage.commit(repo, [Write(
             action=Action.CREATE,
@@ -228,6 +229,41 @@ class XrpcRepoTest(testutil.XrpcTestCase):
             'uri': 'at://did:web:user.com/test.coll/self',
             'cid': 'bafyreibnpyb6kyzty7i67aunjykm56jgjzb3cfqzmcnkkvoa46ztzqt2ka',
             'value': {
+                'cid': CID1,
+                'blob': {
+                    '$type': 'blob',
+                    'ref': CID2,
+                    'mimeType': 'foo/bar',
+                    'size': 13,
+                },
+            },
+        }, resp)
+
+    def test_get_record_endpoint_encodes_cids_blobs(self):
+        repo = server.load_repo('did:web:user.com')
+        server.storage.commit(repo, [Write(
+            action=Action.CREATE,
+            collection='test.coll',
+            rkey='self',
+            record={
+                'cid': CID1,
+                'blob': {
+                    '$type': 'blob',
+                    'ref': CID2,
+                    'mimeType': 'foo/bar',
+                    'size': 13,
+                },
+            })])
+
+        app = Flask(__name__, static_folder=None)
+        init_flask(server.server, app)
+        resp = app.test_client().get(
+            '/xrpc/com.atproto.repo.getRecord?repo=did:web:user.com&collection=test.coll&rkey=self')
+        self.assertEqual(200, resp.status_code, resp.json)
+        self.assertEqual({
+            'uri': 'at://did:web:user.com/test.coll/self',
+            'cid': 'bafyreibnpyb6kyzty7i67aunjykm56jgjzb3cfqzmcnkkvoa46ztzqt2ka',
+            'value': {
                 'cid': {'$link': CID1_STR},
                 'blob': {
                     '$type': 'blob',
@@ -236,7 +272,7 @@ class XrpcRepoTest(testutil.XrpcTestCase):
                     'size': 13,
                 },
             },
-        }, resp)
+        }, resp.json)
 
     def test_get_record_not_found(self):
         with self.assertRaises(XrpcError) as e:

@@ -14,7 +14,6 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from google.api_core import gapic_v1
 import dag_cbor
-import dag_json
 import libipld
 from google.cloud import ndb
 from google.cloud.ndb import context

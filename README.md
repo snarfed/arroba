@@ -135,6 +135,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
   * `createRecord`, `getRecord`, `deleteRecord`, `putRecord`: enforce `SUPPORTED_COLLECTIONS` env var if set.
   * `getRecord`: remove fallback to AppView for records not found locally.
   * `getRecord`: raise named `RecordNotFound` error..
+  * `getRecord`, `listRecords`: return native `CID`s and `bytes` instead of ATProto-flavored JSON. lexrpc's `flask_server` now encodes them.
 * `xrpc_sync`:
   * `subscribeRepos`: add missing required `tooBig` field to emitted events.
   * `getRecord`: raise named `RecordNotFound` error..

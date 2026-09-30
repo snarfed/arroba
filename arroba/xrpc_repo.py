@@ -1,11 +1,9 @@
 """``com.atproto.repo.*`` XRPC methods."""
 import itertools
-import json
 import logging
 import os
 
 from carbox import read_car
-import dag_json
 from lexrpc.base import XrpcError
 from multiformats import CID
 from requests import RequestException
@@ -66,11 +64,11 @@ def get_record(input, repo=None, collection=None, rkey=None, cid=None):
     if not (record := repo.get_record(collection, rkey)):
         raise XrpcError(f'{collection} {rkey} not found', name='RecordNotFound')
 
-    return json.loads(dag_json.encode({
+    return {
         'uri': at_uri(repo.did, collection, rkey),
         'cid': dag_cbor_cid(record).encode('base32'),
         'value': record,
-    }, dialect='atproto'))
+    }
 
 
 @server.server.method('com.atproto.repo.deleteRecord')
@@ -123,13 +121,12 @@ def list_records(input, repo=None, collection=None, limit=50, cursor=None,
     blocks = server.storage.read_many([e.value for e in entries])
     records = [blocks[e.value].decoded for e in entries]
 
-
     records = [
-        json.loads(dag_json.encode({
+        {
             'uri': at_uri(repo.did, *entry.key.split('/', 2)),  # collection, rkey
             'cid': dag_cbor_cid(record).encode('base32'),
             'value': record,
-        }, dialect='atproto'))
+        }
         for entry, record in zip(entries, records)]
 
     ret = {'records': records}
