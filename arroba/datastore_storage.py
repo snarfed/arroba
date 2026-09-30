@@ -414,6 +414,8 @@ class AtpRemoteBlob(ndb.Model):
     size = ndb.IntegerProperty()
     mime_type = ndb.StringProperty(required=True, default='application/octet-stream')
     repos = ndb.KeyProperty(repeated=True)
+    remote_id = ndb.StringProperty()
+    'ID of this blob on its remote host, if any, eg Mastodon media attachment id'
 
     # only populated if mime_type is image/* or video/*
     # used in images.aspectRatio in app.bsky.embed.images

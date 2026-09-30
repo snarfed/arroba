@@ -149,6 +149,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
     * Bump video limits up to [300MB and 10 minutes](https://bsky.app/profile/bsky.app/post/3mtwf7gxkwc2r).
     * `get_or_create`: add `content` and `mime_type` kwargs, for creating blobs from contents we already have, without fetching them.
     * Add `set_content`.
+    * Add `remote_id` property.
 * `did`
   * `plc_operation_to_did_doc`: return `type: Multikey`.
 * `diff`:
