@@ -45,13 +45,13 @@ util
 ----
 .. automodule:: arroba.util
 
-xrpc_identity
--------------
-.. automodule:: arroba.xrpc_identity
-
 xrpc_actor
 ----------
 .. automodule:: arroba.xrpc_actor
+
+xrpc_identity
+-------------
+.. automodule:: arroba.xrpc_identity
 
 xrpc_proxy
 ----------

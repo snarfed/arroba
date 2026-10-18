@@ -118,7 +118,7 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 
 ## Changelog
 
-### 3.1 - unreleased
+### 3.1 - 2026-10-18
 
 * Add [service proxying](https://atproto.com/specs/xrpc#service-proxying) in new `xrpc_proxy` module. Pass `xrpc_proxy.handler` to lexrpc's new `flask_server.init_flask` `fallback` kwarg to proxy methods you don't implement using [service auth](https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification). Includes [read-after-write](https://atproto.com/guides/writing-data#read-after-write) for the user's own new posts, profile, likes, and reposts in a number of `app.bsky.*` methods.
 * Add `com.atproto.identity.resolveHandle` in new `xrpc_identity` module.

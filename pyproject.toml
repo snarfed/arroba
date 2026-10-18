@@ -17,7 +17,7 @@ Documentation = 'https://arroba.readthedocs.io/'
 
 [project]
 name = 'arroba'
-version = '3.0'
+version = '3.1'
 authors = [
     { name='Ryan Barrett', email='arroba@ryanb.org' },
 ]
@@ -42,12 +42,12 @@ dependencies = [
     'dag-cbor>=0.3',
     'dag-json>=0.2',
     'dnspython>=2.0.0',
-    'lexrpc>=0.8',
+    'lexrpc>=3.0',
     'libipld>=3.0.0',
     'multiformats>=0.3.1',
     'pyjwt>=2.0.0',
     'pymediainfo>=6.0.0',
-    'pywebutil>=2.0',
+    'pywebutil>=3.0',
     'requests>=2.0',
     'requests-hardened>=1.0',
 ]
@@ -68,7 +68,7 @@ docs = [
 ]
 tests = [
     'hypothesis>=6.0',
-    'pywebutil[tests]>=2.0',
+    'pywebutil[tests]>=3.0',
 ]
 
 [tool.uv.sources]

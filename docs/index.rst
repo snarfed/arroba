@@ -212,7 +212,7 @@ XRPC handlers:
 Changelog
 ---------
 
-3.1 - unreleased
+3.1 - 2026-10-18
 ~~~~~~~~~~~~~~~~
 
 - Add `service
@@ -231,8 +231,8 @@ Changelog
   new ``xrpc_actor`` module.
 - Add new ``permissions`` module for parsing, checking, and describing
   `OAuth permission scopes <https://atproto.com/specs/permission>`__.
-  Only supports the ``repo`` resource and the ``atproto`` and
-  ``transition:generic`` scopes so far.
+  Supports ``repo`` and ``rpc`` resources and ``atproto`` and
+  ``transition:generic`` scopes.
 - ``server``:
 
   - Allow records with missing or unknown lexicons, ie pass lexrpc’s new
@@ -260,6 +260,9 @@ Changelog
   - ``getRecord``: remove fallback to AppView for records not found
     locally.
   - ``getRecord``: raise named ``RecordNotFound`` error..
+  - ``getRecord``, ``listRecords``: return native ``CID``\ s and
+    ``bytes`` instead of ATProto-flavored JSON. lexrpc’s
+    ``flask_server`` now encodes them.
 
 - ``xrpc_sync``:
 
@@ -281,8 +284,15 @@ Changelog
   - ``DatastoreStorage.read_blocks_by_seq``: fix bug where an abandoned
     generator, eg from a disconnected ``subscribeRepos`` client, could
     clobber an unrelated thread’s ndb context.
-  - ``AtpRemoteBlob``: bump video limits up to `300MB and 10
-    minutes <https://bsky.app/profile/bsky.app/post/3mtwf7gxkwc2r>`__.
+  - ``AtpRemoteBlob``:
+
+    - Bump video limits up to `300MB and 10
+      minutes <https://bsky.app/profile/bsky.app/post/3mtwf7gxkwc2r>`__.
+    - ``get_or_create``: add ``content`` and ``mime_type`` kwargs, for
+      creating blobs from contents we already have, without fetching
+      them.
+    - Add ``set_content``.
+    - Add ``remote_id`` property.
 
 - ``did``
 
@@ -300,11 +310,15 @@ Changelog
 
 - ``util``:
 
+  - Add ``media_metadata``, extracted from
+    ``AtpRemoteBlob.generate_metadata``.
   - ``service_jwt``: enforce `low-S
     signatures <https://atproto.com/specs/cryptography#ecdsa-signature-malleability>`__.
   - ``datetime_to_tid``, ``tid_to_datetime``: fix bug where they could
     be off by a microsecond, due to floating point error in the UNIX
     timestamp conversion.
+
+.. _section-1:
 
 3.0 - 2026-07-01
 ~~~~~~~~~~~~~~~~
@@ -349,7 +363,7 @@ migration details.
 - ``com.atproto.sync.getRepo``: drastically optimize, it’s 15-20x faster
   or more for large repos, and uses much less memory.
 
-.. _section-1:
+.. _section-2:
 
 2.0 - 2026-02-07
 ~~~~~~~~~~~~~~~~
@@ -421,7 +435,7 @@ migration details.
     continue serving
     (`snarfed/bridgy-fed#2150 <https://github.com/snarfed/bridgy-fed/issues/2150>`__).
 
-.. _section-2:
+.. _section-3:
 
 1.0 - 2025-09-13
 ~~~~~~~~~~~~~~~~
@@ -467,7 +481,7 @@ migration details.
     additional overhead per subscriber
     (`#52 <https://github.com/snarfed/arroba/issues/52>`__).
 
-.. _section-3:
+.. _section-4:
 
 0.8 - 2025-03-13
 ~~~~~~~~~~~~~~~~
@@ -522,7 +536,7 @@ serve the latest one
 fix: Use string TID for ``rev``, not integer sequence number. \* Bug
 fix: don’t set status to ``null`` if the account is active.
 
-.. _section-4:
+.. _section-5:
 
 0.7 - 2024-11-08
 ~~~~~~~~~~~~~~~~
@@ -584,7 +598,7 @@ fix: don’t set status to ``null`` if the account is active.
     claims, eg
     `lxm <https://github.com/bluesky-social/atproto/discussions/2687>`__.
 
-.. _section-5:
+.. _section-6:
 
 0.6 - 2024-06-24
 ~~~~~~~~~~~~~~~~
@@ -672,7 +686,7 @@ fix: don’t set status to ``null`` if the account is active.
   when appropriate
   (`snarfed/bridgy-fed#1083 <https://github.com/snarfed/bridgy-fed/issues/1083>`__).
 
-.. _section-6:
+.. _section-7:
 
 0.5 - 2024-03-16
 ~~~~~~~~~~~~~~~~
@@ -712,7 +726,7 @@ fix: don’t set status to ``null`` if the account is active.
   - Implement ``getBlob``, right now only based on “remote” blobs stored
     in ``AtpRemoteBlob``\ s in datastore storage.
 
-.. _section-7:
+.. _section-8:
 
 0.4 - 2023-09-19
 ~~~~~~~~~~~~~~~~
@@ -753,7 +767,7 @@ fix: don’t set status to ``null`` if the account is active.
   - Drop bundled ``app.bsky``/``com.atproto`` lexicons, use
     `lexrpc <https://lexrpc.readthedocs.io/>`__\ ’s instead.
 
-.. _section-8:
+.. _section-9:
 
 0.3 - 2023-08-29
 ~~~~~~~~~~~~~~~~
@@ -771,7 +785,7 @@ minimal demo code needed to wrap arroba in a fully functional PDS.
 
 - …and much more.
 
-.. _section-9:
+.. _section-10:
 
 0.2 - 2023-05-18
 ~~~~~~~~~~~~~~~~
@@ -781,7 +795,7 @@ storage. This completes the first pass at all PDS data structures. Next
 release will include initial implementations of the
 ``com.atproto.sync.*`` XRPC methods.
 
-.. _section-10:
+.. _section-11:
 
 0.1 - 2023-04-30
 ~~~~~~~~~~~~~~~~
