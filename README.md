@@ -441,7 +441,7 @@ Here's how to package, test, and ship a new release.
     source .venv/bin/activate.csh
     # make sure we force pip to use the uploaded version
     pip uninstall arroba
-    pip install -i https://test.pypi.org/simple --extra-index-url https://pypi.org/simple arroba==$ver
+    'pip' install -i https://test.pypi.org/simple --extra-index-url https://pypi.org/simple arroba==$ver
     ```
 1. Smoke test that the code trivially loads and runs.
     ```sh

@@ -81,11 +81,12 @@ def delete_record(input):
                     rkey=input['rkey'])]
     server.authorize(repo.did, writes)
 
-    record = repo.get_record(input['collection'], input['rkey'])
-    if record is None:
-        return  # noop
-
-    server.storage.commit(repo, writes)
+    try:
+        server.storage.commit(repo, writes)
+    except ValueError as e:
+        # this record probably doesn't exist
+        logger.info(str(e))
+        pass
 
 
 @server.server.method('com.atproto.repo.listRecords')
