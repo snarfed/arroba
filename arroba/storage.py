@@ -639,6 +639,9 @@ class Storage:
                     # https://github.com/snarfed/arroba/issues/52#issuecomment-2825755142
                     ops.append(op)
 
+        if writes and not ops:
+            logger.info(f'no-op-commit')
+
         logger.debug('loading unstored MST blocks')
         root, unstored_blocks = mst.get_unstored_blocks()
         logger.debug('  done')
