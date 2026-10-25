@@ -535,7 +535,8 @@ class Storage:
           repo_did (str): optional, used if this is the repo's first commit
 
         Returns:
-          CommitData:
+          CommitData: the new commit. If all writes are no-op updates, doesn't
+          commit, and returns the repo's existing head commit, with no blocks
 
         Raises:
           InactiveError: if the repo is not active
@@ -547,7 +548,11 @@ class Storage:
         try:
             commit_data = self._commit(repo, writes, seq, repo_did=repo_did)
             if repo.callback:
-                repo.callback(data=commit_data)
+                # every real commit has at least its commit block
+                if commit_data.blocks:
+                    repo.callback(data=commit_data)
+                else:
+                    repo.callback(lost_seq=seq)
         except BaseException:
             if repo.callback:
                 repo.callback(lost_seq=seq)
@@ -640,7 +645,9 @@ class Storage:
                     ops.append(op)
 
         if writes and not ops:
-            logger.info(f'no-op-commit')
+            logger.info(f'All writes are no-op updates, not committing to {repo_did}')
+            return CommitData(commit=repo.head, blocks={},
+                              prev=repo.head.decoded.get('prev'))
 
         logger.debug('loading unstored MST blocks')
         root, unstored_blocks = mst.get_unstored_blocks()

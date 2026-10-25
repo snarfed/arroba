@@ -118,6 +118,11 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 
 ## Changelog
 
+### 3.2 - unreleased
+
+* `storage`:
+  * `Storage.commit`: if all writes are no-op updates, don't commit. Instead, return the repo's existing head commit, and pass the allocated sequence number to the callback as `lost_seq`.
+
 ### 3.1 - 2026-10-18
 
 * Add [service proxying](https://atproto.com/specs/xrpc#service-proxying) in new `xrpc_proxy` module. Pass `xrpc_proxy.handler` to lexrpc's new `flask_server.init_flask` `fallback` kwarg to proxy methods you don't implement using [service auth](https://atproto.com/specs/xrpc#inter-service-authentication-temporary-specification). Includes [read-after-write](https://atproto.com/guides/writing-data#read-after-write) for the user's own new posts, profile, likes, and reposts in a number of `app.bsky.*` methods.

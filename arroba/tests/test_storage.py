@@ -503,8 +503,58 @@ class StorageTest(TestCase):
         repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
         tid = next_tid()
         self.storage.commit(repo, [Write(Action.CREATE, 'co.ll', tid, {'x': 'y'})])
-        self.storage.commit(repo, [Write(Action.UPDATE, 'co.ll', tid, {'x': 'y'})])
-        self.assertEqual([], repo.head.ops)
+        head = repo.head
+
+        seen = []
+        repo.callback = lambda data=None, lost_seq=None: seen.append((data, lost_seq))
+        got = self.storage.commit(repo, [Write(Action.UPDATE, 'co.ll', tid, {'x': 'y'})])
+
+        self.assertEqual(head, got.commit)
+        for repo in repo, self.storage.load_repo('did:web:user.com'):
+            self.assertEqual(head.cid, repo.head.cid)
+
+        # the seq we allocated is lost
+        self.assertEqual([(None, self.storage.sequences.last(SUBSCRIBE_REPOS_NSID))],
+                         seen)
+
+    def test_commit_noop_update_stale_repo_returns_latest_head(self):
+        repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
+        tid = next_tid()
+        self.storage.commit(repo, [Write(Action.CREATE, 'co.ll', tid, {'x': 'y'})])
+        stale = self.storage.load_repo('did:web:user.com')
+
+        # commit with a different repo object, so that stale's head is stale
+        self.storage.commit(repo, [Write(Action.CREATE, 'co.ll', next_tid(), {'a': 'b'})])
+        latest = self.storage.load_repo('did:web:user.com').head
+
+        got = self.storage.commit(stale, [Write(Action.UPDATE, 'co.ll', tid, {'x': 'y'})])
+        self.assertEqual(latest.cid, got.commit.cid)
+        self.assertEqual(latest.decoded['prev'], got.prev)
+
+    def test_commit_noop_update_and_real_update_commits(self):
+        repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
+        same = next_tid()
+        changed = next_tid()
+        self.storage.commit(repo, [
+            Write(Action.CREATE, 'co.ll', same, {'x': 'y'}),
+            Write(Action.CREATE, 'co.ll', changed, {'x': 'y'}),
+        ])
+        head = repo.head
+
+        self.storage.commit(repo, [
+            Write(Action.UPDATE, 'co.ll', same, {'x': 'y'}),
+            Write(Action.UPDATE, 'co.ll', changed, {'x': 'z'}),
+        ])
+
+        # commits, but only includes the real update
+        self.assertNotEqual(head.cid, repo.head.cid)
+        self.assertEqual(head.cid, repo.head.decoded['prev'])
+        self.assertEqual([CommitOp(
+            action=Action.UPDATE,
+            path=f'co.ll/{changed}',
+            cid=dag_cbor_cid({'x': 'z'}),
+            prev_cid=dag_cbor_cid({'x': 'y'}),
+        )], repo.head.ops)
 
     def test_commit_update_nonexistent_record_raises_ValueError(self):
         repo = Repo.create(self.storage, 'did:web:user.com', signing_key=self.key)
