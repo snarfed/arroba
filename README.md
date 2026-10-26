@@ -120,6 +120,16 @@ Optional, only used in [com.atproto.repo](https://arroba.readthedocs.io/en/stabl
 
 ### 3.2 - unreleased
 
+_Breaking changes:
+
+* `server`:
+  * `authorize`: change `writes` arg to `perms`, a sequence of `permissions.Repo`/`Rpc`/`Blob`. Allow `did=None` for requests that don't target a specific repo, eg `uploadBlob`.
+
+_Non-breaking changes:
+
+* `permissions`: add [`blob`](https://atproto.com/specs/permission#blob) support.
+* `xrpc_repo`:
+  * `uploadBlob`: enforce `blob` OAuth scopes.
 * `storage`:
   * `Storage.commit`: if all writes are no-op updates, don't commit. Instead, return the repo's existing head commit, and pass the allocated sequence number to the callback as `lost_seq`.
 

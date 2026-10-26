@@ -529,7 +529,34 @@ class XrpcRepoTest(testutil.XrpcTestCase):
     @patch.object(server, 'authenticate', return_value=(
         'did:web:user.com', ['atproto', 'transition:generic']))
     def test_upload_blob_not_implemented(self, _):
-        self.assertEqual(('Not implemented', 501), xrpc_repo.upload_blob(b'foo'))
+        with self.app.test_request_context('/', content_type='image/png'):
+            self.assertEqual(('Not implemented', 501), xrpc_repo.upload_blob(b'foo'))
+
+    @patch.object(server, 'authenticate', return_value=(
+        'did:web:user.com', ['atproto', 'blob:image/*']))
+    def test_upload_blob_scope(self, _):
+        with self.app.test_request_context('/', content_type='image/png; foo=bar'):
+            self.assertEqual(('Not implemented', 501), xrpc_repo.upload_blob(b'foo'))
+
+    @patch.object(server, 'authenticate', return_value=(
+        'did:web:user.com', ['atproto', 'blob:image/*']))
+    def test_upload_blob_insufficient_scope(self, _):
+        with self.app.test_request_context('/', content_type='video/mp4'), \
+             self.assertRaises(XrpcError) as e:
+            xrpc_repo.upload_blob(b'foo')
+
+        self.assertEqual('insufficient_scope', e.exception.name)
+        self.assertEqual('Missing scope blob:video/mp4', e.exception.message)
+
+    @patch.object(server, 'authenticate', return_value=(
+        'did:web:user.com', ['atproto', 'blob:image/*']))
+    def test_upload_blob_no_content_type(self, _):
+        """Defaults to application/octet-stream."""
+        with self.assertRaises(XrpcError) as e:
+            xrpc_repo.upload_blob(b'foo')
+
+        self.assertEqual('Missing scope blob:application/octet-stream',
+                         e.exception.message)
 
     def assert_no_posts(self):
         resp = xrpc_repo.list_records({}, repo='did:web:user.com',

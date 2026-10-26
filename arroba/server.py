@@ -72,31 +72,32 @@ Raises:
 """
 
 
-def authorize(did, writes):
-    """Authenticates the current request and checks that it can write to a repo.
+def authorize(did, perms):
+    """Authenticates the current request and checks its permissions.
 
     Calls :func:`authenticate` exactly once.
 
     Args:
-      did (str): the repo's DID
-      writes (sequence of :class:`util.Write`): the writes to check against
-        the credential's OAuth scopes
+      did (str or None): the repo's DID, or None to use the request's authenticated
+        user
+      perms (sequence of :class:`permissions.Repo`, :class:`permissions.Rpc`,
+        or :class:`permissions.Blob`): the permissions to check against the
+        credential's OAuth scopes
 
     Returns:
       str or :data:`ALL_REPOS`: the authenticated DID
 
     Raises:
-      XrpcError: if the credential can't write to the repo, or its scopes
-        don't allow one of ``writes``
+      XrpcError: if the credential can't access the repo, or its scopes don't
+        allow one of ``perms``
       ValueError: if the request isn't authenticated
     """
     authed_did, scopes = authenticate()
-    if authed_did not in (did, ALL_REPOS):
+    if not authed_did or (did and authed_did not in (did, ALL_REPOS)):
         raise XrpcError(f'Not authenticated as {did}', name='AuthRequired')
 
     if scopes is not ALL_SCOPES:
-        for write in writes:
-            perm = permissions.Repo((write.collection,), (write.action,))
+        for perm in perms:
             if not permissions.allows(scopes, perm):
                 raise permissions.insufficient_scope(perm)
 

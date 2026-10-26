@@ -4,6 +4,7 @@ import logging
 import os
 
 from carbox import read_car
+from flask import request
 from lexrpc.base import XrpcError
 from multiformats import CID
 from requests import RequestException
@@ -11,6 +12,7 @@ import webutil.util
 
 from . import did
 from .mst import MST
+from . import permissions
 from .repo import Repo, Write
 from . import server
 from .storage import Action, Block
@@ -37,6 +39,18 @@ def validate(input, collection=None, **params):
     for coll in collection, input.get('collection'):
         if coll and SUPPORTED_COLLECTIONS and coll not in SUPPORTED_COLLECTIONS:
             raise ValueError(f'{coll} not supported')
+
+
+def to_permissions(writes):
+    """Converts writes to the permissions they need.
+
+    Args:
+      writes (sequence of :class:`util.Write`)
+
+    Returns:
+      list of :class:`permissions.Repo`
+    """
+    return [permissions.Repo((w.collection,), (w.action,)) for w in writes]
 
 
 @server.server.method('com.atproto.repo.createRecord')
@@ -79,7 +93,7 @@ def delete_record(input):
     writes = [Write(action=Action.DELETE,
                     collection=input['collection'],
                     rkey=input['rkey'])]
-    server.authorize(repo.did, writes)
+    server.authorize(repo.did, to_permissions(writes))
 
     try:
         server.storage.commit(repo, writes)
@@ -150,7 +164,7 @@ def put_record(input):
         rkey=input['rkey'],
         record=input['record'],
     )]
-    server.authorize(repo.did, writes)
+    server.authorize(repo.did, to_permissions(writes))
     server.storage.commit(repo, writes)
 
     return {
@@ -274,7 +288,7 @@ def apply_writes(input):
             })
         results.append(result)
 
-    server.authorize(repo.did, writes)
+    server.authorize(repo.did, to_permissions(writes))
     commit = server.storage.commit(repo, writes).commit
     return {
         'commit': {
@@ -289,5 +303,6 @@ def apply_writes(input):
 def upload_blob(input):
     """Handler for ``com.atproto.repo.uploadBlob`` XRPC method."""
     # input: binary
-    server.authenticate()
+    mime_type = request.mimetype or 'application/octet-stream'
+    server.authorize(None, [permissions.Blob((mime_type,))])
     return 'Not implemented', 501
