@@ -1,6 +1,7 @@
 """Unit tests for permissions.py."""
 from ..permissions import (
     allows,
+    Blob,
     describe,
     insufficient_scope,
     parse,
@@ -17,7 +18,8 @@ class PermissionsTest(TestCase):
     def test_parse(self):
         for scope, expected in (
             ('atproto', ()),
-            ('transition:generic', (Repo(('*',)), Rpc(('*',), ('*',)))),
+            ('transition:generic',
+             (Repo(('*',)), Rpc(('*',), ('*',)), Blob(('*/*',)))),
             ('repo:*', (Repo(('*',)),)),
             ('repo:app.example.profile', (Repo(('app.example.profile',)),)),
             ('repo:app.example.profile?action=create&action=update&action=delete',
@@ -40,6 +42,12 @@ class PermissionsTest(TestCase):
             ('rpc?lxm=*&aud=did:web:ho.st#svc', (Rpc(('*',), ('did:web:ho.st#svc',)),)),
             ('rpc?lxm=app.example.getFoo&lxm=app.example.getBar&aud=did:web:ho.st#svc',
              (Rpc(('app.example.getFoo', 'app.example.getBar'), ('did:web:ho.st#svc',)),)),
+            ('blob:*/*', (Blob(('*/*',)),)),
+            ('blob:image/*', (Blob(('image/*',)),)),
+            ('blob:image%2Fpng', (Blob(('image/png',)),)),
+            ('blob?accept=video/*&accept=text/html', (Blob(('video/*', 'text/html')),)),
+            ('blob?accept=application/vnd.foo%2Bjson',
+             (Blob(('application/vnd.foo+json',)),)),
         ):
             with self.subTest(scope=scope):
                 self.assertEqual(expected, parse(scope))
@@ -79,10 +87,19 @@ class PermissionsTest(TestCase):
             'rpc:app.example.getFoo?aud=did:web:ho.st#svc&action=create',
             # too broad, https://atproto.com/specs/permission#rpc
             'rpc:*?aud=*',
+            'blob',
+            'blob:',
+            'blob:*',
+            'blob:image',
+            'blob:image/',
+            'blob:*/png',
+            'blob:image/p*',
+            'blob:image/png/x',
+            'blob:image/png?accept=video/*',
+            'blob:image/png?action=create',
             # we don't support these (yet)
             'transition:chat.bsky',
             'transition:email',
-            'blob:*/*',
             'account:email',
             'identity:handle',
             'include:app.example.authFull',
@@ -98,6 +115,7 @@ class PermissionsTest(TestCase):
             'atproto',
             'repo:app.example.post',
             'rpc:app.example.getFoo?aud=did:web:ho.st#svc',
+            'blob:image/*',
             'transition:generic',
         ], supported([
             'atproto',
@@ -106,6 +124,8 @@ class PermissionsTest(TestCase):
             'repo:app.example.*',
             'rpc:app.example.getFoo?aud=did:web:ho.st#svc',
             'rpc:*?aud=*',
+            'blob:image/*',
+            'blob:*',
             'transition:generic',
             'transition:email',
         ]))
@@ -113,6 +133,7 @@ class PermissionsTest(TestCase):
     def test_allows(self):
         post_create = Repo(('app.example.post',), (Action.CREATE,))
         get_foo = Rpc(('app.example.getFoo',), ('did:web:ho.st#svc',))
+        png = Blob(('image/png',))
 
         for scopes, permission, expected in (
             ([], post_create, False),
@@ -149,9 +170,22 @@ class PermissionsTest(TestCase):
             (['rpc:app.example.getBar?aud=did:web:ho.st#svc'], get_foo, False),
             (['rpc:app.example.getFoo?aud=did:web:other.ho.st%23svc'], get_foo, False),
 
+            ([], png, False),
+            (['atproto'], png, False),
+            (['atproto', 'transition:generic'], png, True),
+            (['blob:*/*'], png, True),
+            (['blob:image/*'], png, True),
+            (['blob:image/png'], png, True),
+            (['blob:image/jpeg'], png, False),
+            (['blob:video/*'], png, False),
+            (['blob?accept=video/*&accept=image/png'], png, True),
+            (['blob:image/*'], Blob(('imagefoo/png',)), False),
+
             # scopes for one resource don't allow another
             (['rpc:*?aud=did:web:ho.st#svc'], post_create, False),
             (['repo:*'], get_foo, False),
+            (['repo:*'], png, False),
+            (['blob:*/*'], post_create, False),
 
             # invalid and unsupported scopes are ignored
             (['repo:app.example.*'], post_create, False),
@@ -165,7 +199,8 @@ class PermissionsTest(TestCase):
         for scope, expected in (
             ('atproto', ['Know which account is yours']),
             ('transition:generic', ['Create, update, and delete all records',
-                                    'Make any requests to any service as you']),
+                                    'Make any requests to any service as you',
+                                    'Upload any files']),
             ('repo:*', ['Create, update, and delete all records']),
             ('repo:app.example.post',
              ['Create, update, and delete app.example.post records']),
@@ -184,6 +219,9 @@ class PermissionsTest(TestCase):
              ['Make app.example.getFoo requests to did:plc:123abc as you']),
             ('rpc?lxm=app.example.getFoo&lxm=app.example.getBar&aud=did:web:ho.st#svc',
              ['Make app.example.getFoo and app.example.getBar requests to ho.st as you']),
+            ('blob:*/*', ['Upload any files']),
+            ('blob:image/*', ['Upload image/* files']),
+            ('blob?accept=video/*&accept=image/png', ['Upload video/* and image/png files']),
         ):
             with self.subTest(scope=scope):
                 self.assertEqual(expected, describe(scope))
@@ -201,6 +239,9 @@ class PermissionsTest(TestCase):
         err = insufficient_scope(Rpc(('app.example.getFoo',), ('did:web:ho.st#svc',)))
         self.assertEqual('Missing scope rpc:app.example.getFoo?aud=did:web:ho.st%23svc',
                          err.message)
+
+        err = insufficient_scope(Blob(('image/png',)))
+        self.assertEqual('Missing scope blob:image/png', err.message)
 
     def test_describe_invalid(self):
         with self.assertRaises(ValueError):
