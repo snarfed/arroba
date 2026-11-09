@@ -331,6 +331,10 @@ def sign(obj, private_key):
     return obj
 
     # old, using pycryptodome
+    # TODO: switch back to this now that pycryptodome supports secp256k1 and low-S?
+    # https://github.com/Legrandin/pycryptodome/issues/103#issuecomment-6704747838
+    # https://github.com/Legrandin/pycryptodome/issues/759#issuecomment-6704759671
+    #
     # signer = DSS.new(private_key, 'fips-186-3', randfunc=_randfunc)
     # commit['sig'] = signer.sign(SHA256.new(dag_cbor.encode(commit)))
     # return commit
