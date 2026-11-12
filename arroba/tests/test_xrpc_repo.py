@@ -746,6 +746,11 @@ class XrpcRepoTest(testutil.XrpcTestCase):
 
         self.assertIsNone(server.storage.load_repo(SNARFED2_DID))
 
+    def test_import_repo_empty_input(self):
+        self.prepare_auth()
+        with self.assertRaises(ValueError):
+            xrpc_repo.import_repo(b'')
+
     def test_import_repo_existing(self):
         self.prepare_auth()
 

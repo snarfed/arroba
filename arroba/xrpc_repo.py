@@ -209,7 +209,11 @@ def import_repo(input):
 
     Requires that a repo doesn't already exist for this DID.
     """
-    roots, car_blocks = read_car(input)
+    try:
+        roots, car_blocks = read_car(input)
+    except EOFError as e:
+        raise ValueError(f"Couldn't read CAR: {e}")
+
     if not roots:
         raise ValueError("CAR missing root CID")
     head_cid = roots[0]

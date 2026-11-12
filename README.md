@@ -130,6 +130,7 @@ _Non-breaking changes:
 * `permissions`: add [`blob`](https://atproto.com/specs/permission#blob) support.
 * `xrpc_repo`:
   * `uploadBlob`: enforce `blob` OAuth scopes.
+  * `importRepo`: return HTTP 400 on truncated or empty CAR input instead of crashing.
 * `storage`:
   * `Storage.commit`: if all writes are no-op updates, don't commit. Instead, return the repo's existing head commit, and pass the allocated sequence number to the callback as `lost_seq`.
 
