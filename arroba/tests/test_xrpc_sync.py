@@ -651,8 +651,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
             'time': NOW.isoformat(),
             'seq': seq,
             'rev': int_to_tid(seq, clock_id=0),
-            # TODO
-            'since': None,
+            'since': prev.decoded['rev'] if prev else None,
             'rebase': False,
             'blobs': [],
             'tooBig': False,
@@ -1398,6 +1397,7 @@ class SubscribeReposTest(testutil.XrpcTestCase):
         header, payload = received[0]
         self.assertEqual({'op': 1, 't': '#commit'}, header)
         self.assertNotIn('prevData', payload)
+        self.assertIsNone(payload['since'])
 
 
 class DatastoreXrpcSyncTest(XrpcSyncTest, testutil.DatastoreTest):

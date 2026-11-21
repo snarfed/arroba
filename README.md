@@ -133,6 +133,8 @@ _Non-breaking changes:
   * `importRepo`: return HTTP 400 on truncated or empty CAR input instead of crashing.
 * `storage`:
   * `Storage.commit`: if all writes are no-op updates, don't commit. Instead, return the repo's existing head commit, and pass the allocated sequence number to the callback as `lost_seq`.
+* `firehose`:
+  * `subscribeRepos`: populate `since` in `#commit` events with the previous commit's rev.
 
 ### 3.1 - 2026-10-18
 

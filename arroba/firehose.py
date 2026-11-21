@@ -373,12 +373,13 @@ def process_event(event, prev_commit=None):
     car_blocks = [car.Block(cid=block.cid, data=block.encoded, decoded=block.decoded)
                 for block in event.blocks.values()]
 
-    # previous commit's data CID goes into prevData field
-    prev_data = None
+    # since is previous commit's rev, prevData is its data (MST root) CID
+    since = prev_data = None
     if prev_cid := commit['prev']:
         if not prev_commit:
             prev_commit = server.storage.read(prev_cid)
         if prev_commit:
+            since = prev_commit.decoded.get('rev')
             prev_data = prev_commit.decoded.get('data')
 
     # records' previous CIDs go into operations' prev fields
@@ -413,7 +414,7 @@ def process_event(event, prev_commit=None):
         'time': event.commit.time.replace(tzinfo=timezone.utc).isoformat(),
         'seq': event.commit.seq,
         'rev': util.int_to_tid(event.commit.seq, clock_id=0),
-        'since': None,  # TODO: load event.commit['prev']'s CID
+        'since': since,
         'rebase': False,
         'blobs': [],
         'tooBig': False,
